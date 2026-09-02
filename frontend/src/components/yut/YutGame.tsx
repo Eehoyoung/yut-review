@@ -1,24 +1,16 @@
 "use client";
 
-import { RoundedBox } from "@react-three/drei";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { CuboidCollider, Physics, RigidBody, type RapierRigidBody } from "@react-three/rapier";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Euler, MathUtils, Quaternion, Vector3 } from "three";
+import { BufferAttribute, Color, ExtrudeGeometry, Quaternion, Shape, type Mesh } from "three";
 
 import type { RevealResponse } from "@/types/api";
 import { frontFacesFor, type YutResult } from "@/features/game/yut-result";
+import { crossSection, STICK_LENGTH, STICK_RADIUS } from "@/features/game/yut-shape";
+import { LANE_SPACING, simulateThrow, spreadFaces, STEP_HZ, type ThrowRecording } from "@/features/game/yut-throw";
+import { YUT_LABEL } from "@/features/labels";
 
-type Phase =
-  | "READY"
-  | "THROW"
-  | "AIR"
-  | "IMPACT"
-  | "BOUNCE"
-  | "ROLL"
-  | "SETTLE"
-  | "RESULT_LOCK"
-  | "REVEAL";
+type Phase = "READY" | "THROW" | "AIR" | "IMPACT" | "ROLL" | "SETTLE" | "RESULT_LOCK" | "REVEAL";
 
 type Props = {
   playId: string;
@@ -28,127 +20,122 @@ type Props = {
   className?: string;
 };
 
-function seeded(seed: string) {
-  let value = 2166136261;
-  for (const char of seed) value = Math.imul(value ^ char.charCodeAt(0), 16777619);
-  return () => {
-    value += 0x6d2b79f5;
-    let next = value;
-    next = Math.imul(next ^ (next >>> 15), next | 1);
-    next ^= next + Math.imul(next ^ (next >>> 7), next | 61);
-    return ((next ^ (next >>> 14)) >>> 0) / 4294967296;
-  };
+const BELLY_COLOR = new Color("#f0d9ab");
+const BACK_COLOR = new Color("#8f5c2c");
+
+/** Half-moon cross section extruded along the stick, belly (+Y) light and back dark. */
+function useStickGeometry() {
+  return useMemo(() => {
+    const section = crossSection();
+    const shape = new Shape();
+    shape.moveTo(section[0][0], section[0][1]);
+    for (const [x, y] of section.slice(1)) shape.lineTo(x, y);
+    shape.closePath();
+
+    const geometry = new ExtrudeGeometry(shape, { depth: STICK_LENGTH, bevelEnabled: false, curveSegments: 14 });
+    geometry.translate(0, 0, -STICK_LENGTH / 2);
+    geometry.computeVertexNormals();
+
+    const position = geometry.getAttribute("position");
+    const colors = new Float32Array(position.count * 3);
+    for (let i = 0; i < position.count; i += 1) {
+      const color = position.getY(i) > 0.001 ? BELLY_COLOR : BACK_COLOR;
+      colors[i * 3] = color.r;
+      colors[i * 3 + 1] = color.g;
+      colors[i * 3 + 2] = color.b;
+    }
+    geometry.setAttribute("color", new BufferAttribute(colors, 3));
+    return geometry;
+  }, []);
 }
 
-function YutStick({
-  index,
-  phase,
-  seed,
-  front,
+function Sticks({
+  recording,
+  shadows,
   onImpact,
+  onSettled,
+  meshes,
 }: {
-  index: number;
-  phase: Phase;
-  seed: string;
-  front?: boolean;
+  recording?: ThrowRecording;
+  shadows: boolean;
   onImpact: () => void;
+  onSettled: () => void;
+  meshes: { current: (Mesh | null)[] };
 }) {
-  const body = useRef<RapierRigidBody>(null);
-  const correctionStarted = useRef<number | undefined>(undefined);
-  const impactPlayed = useRef(false);
-  const motion = useMemo(() => {
-    const random = seeded(`${seed}:${index}`);
-    return {
-      position: [(index - 1.5) * 0.48, 1.1 + random() * 0.3, (random() - 0.5) * 0.4] as const,
-      impulse: [(random() - 0.5) * 1.8, 4.6 + random(), -1.7 - random()] as const,
-      torque: [(random() - 0.5) * 18, (random() - 0.5) * 13, (random() - 0.5) * 16] as const,
-      target: new Vector3((index - 1.5) * 0.58, 0.2, (index % 2 ? 0.24 : -0.22)),
-      yaw: (random() - 0.5) * 0.42,
-    };
-  }, [index, seed]);
+  const geometry = useStickGeometry();
+  const started = useRef<number | undefined>(undefined);
+  const impacted = useRef(false);
+  const settled = useRef(false);
+  const from = useRef(new Quaternion());
+  const to = useRef(new Quaternion());
 
   useEffect(() => {
-    if (phase !== "THROW" || !body.current) return;
-    impactPlayed.current = false;
-    correctionStarted.current = undefined;
-    body.current.setEnabledRotations(true, true, true, true);
-    body.current.setTranslation({ x: motion.position[0], y: motion.position[1], z: motion.position[2] }, true);
-    body.current.setRotation({ x: 0, y: 0, z: 0, w: 1 }, true);
-    body.current.setLinvel({ x: 0, y: 0, z: 0 }, true);
-    body.current.setAngvel({ x: 0, y: 0, z: 0 }, true);
-    body.current.applyImpulse({ x: motion.impulse[0], y: motion.impulse[1], z: motion.impulse[2] }, true);
-    body.current.applyTorqueImpulse({ x: motion.torque[0], y: motion.torque[1], z: motion.torque[2] }, true);
-  }, [motion, phase]);
+    started.current = undefined;
+    impacted.current = false;
+    settled.current = false;
+  }, [recording]);
 
+  // Pure playback of the verified recording: no physics runs here, so a slow frame can only
+  // make the replay smoother or choppier, never change where a stick stops or which face shows.
   useFrame(({ clock }) => {
-    if (phase !== "RESULT_LOCK" || front === undefined || !body.current) return;
-    correctionStarted.current ??= clock.elapsedTime;
-    const progress = MathUtils.smoothstep(clock.elapsedTime - correctionStarted.current, 0, 0.48);
-    const currentRotation = body.current.rotation();
-    const from = new Quaternion(currentRotation.x, currentRotation.y, currentRotation.z, currentRotation.w);
-    const target = new Quaternion().setFromEuler(new Euler(0, motion.yaw, front ? 0 : Math.PI));
-    body.current.setLinvel({ x: 0, y: 0, z: 0 }, true);
-    body.current.setAngvel({ x: 0, y: 0, z: 0 }, true);
-    const translation = body.current.translation();
-    body.current.setTranslation(
-      progress === 1 ? motion.target : new Vector3(translation.x, translation.y, translation.z).lerp(motion.target, progress * 0.18),
-      true,
-    );
-    body.current.setRotation(progress === 1 ? target : from.slerp(target, progress * 0.22), true);
-    if (progress === 1) body.current.setEnabledRotations(false, false, false, true);
+    if (!recording) return;
+    started.current ??= clock.elapsedTime;
+    const elapsed = (clock.elapsedTime - started.current) * STEP_HZ;
+    const last = recording.frames.length - 1;
+    const index = Math.min(Math.floor(elapsed), last);
+    const next = Math.min(index + 1, last);
+    const alpha = Math.min(1, Math.max(0, elapsed - index));
+
+    recording.frames[index].forEach((frame, stick) => {
+      const mesh = meshes.current[stick];
+      if (!mesh) return;
+      const ahead = recording.frames[next][stick];
+      mesh.position.set(
+        frame.p[0] + (ahead.p[0] - frame.p[0]) * alpha,
+        frame.p[1] + (ahead.p[1] - frame.p[1]) * alpha,
+        frame.p[2] + (ahead.p[2] - frame.p[2]) * alpha,
+      );
+      from.current.set(frame.q[0], frame.q[1], frame.q[2], frame.q[3]);
+      to.current.set(ahead.q[0], ahead.q[1], ahead.q[2], ahead.q[3]);
+      mesh.quaternion.copy(from.current.slerp(to.current, alpha));
+    });
+
+    if (!impacted.current && elapsed >= recording.impactStep) {
+      impacted.current = true;
+      onImpact();
+    }
+    if (!settled.current && index >= last) {
+      settled.current = true;
+      onSettled();
+    }
   });
 
   return (
-    <RigidBody
-      ref={body}
-      colliders={false}
-      position={motion.position}
-      restitution={0.34}
-      friction={0.86}
-      linearDamping={0.34}
-      angularDamping={0.48}
-      onCollisionEnter={() => {
-        if (!impactPlayed.current) {
-          impactPlayed.current = true;
-          onImpact();
-        }
-      }}
-    >
-      <CuboidCollider args={[0.22, 0.1, 1.15]} />
-      <RoundedBox args={[0.44, 0.2, 2.3]} radius={0.09} smoothness={3} castShadow>
-        <meshStandardMaterial color="#c88b49" roughness={0.7} metalness={0.03} />
-      </RoundedBox>
-      <mesh position={[0, 0.106, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[0.24, 1.82]} />
-        <meshStandardMaterial color="#f5c879" roughness={0.82} />
-      </mesh>
-      <mesh position={[0, -0.106, 0]} rotation={[Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[0.24, 1.82]} />
-        <meshStandardMaterial color="#6f3823" roughness={0.9} />
-      </mesh>
-    </RigidBody>
+    <>
+      {[0, 1, 2, 3].map((index) => (
+        <mesh
+          key={index}
+          ref={(instance) => {
+            meshes.current[index] = instance;
+          }}
+          geometry={geometry}
+          position={[(index - 1.5) * LANE_SPACING, STICK_RADIUS, 0.6]}
+          castShadow={shadows}
+          receiveShadow={shadows}
+        >
+          <meshStandardMaterial vertexColors roughness={0.78} metalness={0.02} />
+        </mesh>
+      ))}
+    </>
   );
 }
 
-function Board({ phase, seed, result, onImpact }: { phase: Phase; seed: string; result?: YutResult; onImpact: () => void }) {
-  const faces = result ? frontFacesFor(result) : [];
+function Mat({ shadows }: { shadows: boolean }) {
   return (
-    <>
-      <ambientLight intensity={1.2} />
-      <directionalLight position={[3, 7, 4]} intensity={2.4} castShadow shadow-mapSize={[768, 768]} />
-      <Physics gravity={[0, -9.81, 0]} timeStep="vary">
-        <RigidBody type="fixed" colliders={false}>
-          <CuboidCollider args={[4.5, 0.12, 4]} position={[0, -0.12, 0]} />
-          <mesh receiveShadow>
-            <cylinderGeometry args={[4, 4.4, 0.18, 48]} />
-            <meshStandardMaterial color="#173c35" roughness={0.92} />
-          </mesh>
-        </RigidBody>
-        {[0, 1, 2, 3].map((index) => (
-          <YutStick key={index} index={index} phase={phase} seed={seed} front={faces[index]} onImpact={onImpact} />
-        ))}
-      </Physics>
-    </>
+    <mesh position={[0, -0.09, 0]} receiveShadow={shadows}>
+      <cylinderGeometry args={[4.2, 4.5, 0.18, 48]} />
+      <meshStandardMaterial color="#173c35" roughness={0.94} />
+    </mesh>
   );
 }
 
@@ -157,9 +144,8 @@ const PHASE_LABEL: Record<Phase, string> = {
   THROW: "힘껏 던졌어요",
   AIR: "윷이 날아갑니다",
   IMPACT: "탁!",
-  BOUNCE: "결과를 만드는 중",
-  ROLL: "조금만 기다려주세요",
-  SETTLE: "결과를 확인하고 있어요",
+  ROLL: "구르는 중",
+  SETTLE: "윷이 멈춰갑니다",
   RESULT_LOCK: "윷이 멈췄어요",
   REVEAL: "결과가 나왔어요",
 };
@@ -167,9 +153,14 @@ const PHASE_LABEL: Record<Phase, string> = {
 export default function YutGame({ playId, animationSeed, reveal, onRevealed, className }: Props) {
   const [phase, setPhase] = useState<Phase>("READY");
   const [result, setResult] = useState<RevealResponse>();
+  const [recording, setRecording] = useState<ThrowRecording>();
   const [error, setError] = useState("");
+  const [preparing, setPreparing] = useState(false);
   const timers = useRef<number[]>([]);
-  const impactSoundPlayed = useRef(false);
+  const meshes = useRef<(Mesh | null)[]>([null, null, null, null]);
+
+  // Weak phones skip shadows; DPR stays capped for mobile Safari.
+  const shadows = useMemo(() => typeof navigator === "undefined" || (navigator.hardwareConcurrency ?? 4) >= 6, []);
 
   const sound = useCallback((frequency: number, duration = 0.08) => {
     try {
@@ -184,7 +175,7 @@ export default function YutGame({ playId, animationSeed, reveal, onRevealed, cla
       oscillator.stop(context.currentTime + duration);
       oscillator.addEventListener("ended", () => void context.close());
     } catch {
-      // Audio is optional; muted/autoplay-restricted devices keep the full visual flow.
+      // Audio is optional; muted or autoplay-restricted devices keep the full visual flow.
     }
   }, []);
 
@@ -194,66 +185,86 @@ export default function YutGame({ playId, animationSeed, reveal, onRevealed, cla
     timers.current.push(window.setTimeout(() => setPhase(next), delay));
   }, []);
 
-  const revealResult = useCallback(async () => {
+  // Result first, then a throw that is simulated to rest and checked against it. Only a run that
+  // ends on the server's faces is ever shown, so nothing has to be corrected on screen.
+  const throwYut = useCallback(async () => {
+    if (phase !== "READY" || preparing) return;
     setError("");
+    setPreparing(true);
     try {
       const revealed = await reveal();
+      const faces = spreadFaces(animationSeed, frontFacesFor(revealed.yutResult as YutResult));
+      const throwRecording = await simulateThrow(`${animationSeed}:${revealed.playId}`, faces);
       setResult(revealed);
-      setPhase("RESULT_LOCK");
-      timers.current.push(window.setTimeout(() => {
-        setPhase("REVEAL");
-        sound(revealed.yutResult === "MO" ? 660 : 440, 0.18);
-        timers.current.push(window.setTimeout(() => onRevealed?.(revealed), 900));
-      }, 560));
+      setRecording(throwRecording);
+      sound(180, 0.06);
+      setPhase("THROW");
+      schedule("AIR", 160);
     } catch {
-      setError("결과를 불러오지 못했어요. 같은 게임 결과를 다시 확인해주세요.");
-      setPhase("SETTLE");
+      setError("결과를 불러오지 못했어요. 잠시 후 다시 던져주세요.");
+    } finally {
+      setPreparing(false);
     }
-  }, [onRevealed, reveal, sound]);
-
-  const throwYut = useCallback(() => {
-    if (phase !== "READY") return;
-    setError("");
-    impactSoundPlayed.current = false;
-    sound(180, 0.06);
-    setPhase("THROW");
-    schedule("AIR", 220);
-    schedule("IMPACT", 900);
-    schedule("BOUNCE", 1220);
-    schedule("ROLL", 1780);
-    schedule("SETTLE", 2700);
-    timers.current.push(window.setTimeout(() => void revealResult(), 2820));
-  }, [phase, revealResult, schedule, sound]);
+  }, [animationSeed, phase, preparing, reveal, schedule, sound]);
 
   const onImpact = useCallback(() => {
-    if (impactSoundPlayed.current) return;
-    impactSoundPlayed.current = true;
+    setPhase("IMPACT");
     sound(92, 0.12);
-  }, [sound]);
+    schedule("ROLL", 380);
+    schedule("SETTLE", 900);
+  }, [schedule, sound]);
+
+  const onSettled = useCallback(() => {
+    setPhase("RESULT_LOCK");
+    timers.current.push(
+      window.setTimeout(() => {
+        setPhase("REVEAL");
+        if (result) {
+          sound(result.yutResult === "MO" ? 660 : 440, 0.18);
+          timers.current.push(window.setTimeout(() => onRevealed?.(result), 1100));
+        }
+      }, 600),
+    );
+  }, [onRevealed, result, sound]);
+
+  const idle = phase === "READY" && !preparing;
+  const buttonLabel = preparing ? "윷을 고르는 중..." : error ? "다시 던지기" : phase === "READY" ? "윷 던지기" : "결과를 기다리는 중";
 
   return (
-    <section className={className} aria-label={`윷놀이 ${playId}`} style={{ position: "relative", minHeight: 520, overflow: "hidden", borderRadius: 28, background: "radial-gradient(circle at 50% 18%, #37695c 0, #163a34 50%, #0c2421 100%)", color: "#fff8e7", boxShadow: "inset 0 1px rgba(255,255,255,.16), 0 24px 60px rgba(8,30,27,.24)" }}>
+    <section
+      className={className}
+      aria-label={`윷놀이 ${playId}`}
+      style={{ position: "relative", minHeight: 520, overflow: "hidden", borderRadius: 28, background: "radial-gradient(circle at 50% 18%, #37695c 0, #163a34 50%, #0c2421 100%)", color: "#fff8e7", boxShadow: "inset 0 1px rgba(255,255,255,.16), 0 24px 60px rgba(8,30,27,.24)" }}
+    >
       <div aria-hidden style={{ position: "absolute", inset: 0, opacity: 0.14, backgroundImage: "repeating-linear-gradient(112deg, transparent 0 18px, rgba(255,255,255,.08) 19px, transparent 20px)" }} />
       <div style={{ position: "relative", zIndex: 1, padding: "24px 22px 0", textAlign: "center" }}>
         <small style={{ color: "#e9c987", fontWeight: 800, letterSpacing: ".18em" }}>REVIEW YUT</small>
         <h2 aria-live="polite" style={{ margin: "8px 0 0", fontSize: "clamp(1.35rem, 6vw, 2rem)", letterSpacing: "-.04em" }}>{PHASE_LABEL[phase]}</h2>
       </div>
       <div style={{ position: "absolute", inset: "76px 0 72px" }}>
-        <Canvas shadows camera={{ position: [0, 5.7, 6.5], fov: 38 }} dpr={[1, 1.5]} gl={{ antialias: false, powerPreference: "high-performance" }}>
+        <Canvas shadows={shadows} camera={{ position: [0, 5.4, 6.2], fov: 40 }} dpr={[1, 1.5]} gl={{ antialias: false, powerPreference: "high-performance" }}>
           <Suspense fallback={null}>
-            <Board phase={phase} seed={animationSeed} result={result?.yutResult as YutResult | undefined} onImpact={onImpact} />
+            <ambientLight intensity={1.2} />
+            <directionalLight position={[3, 7, 4]} intensity={2.3} castShadow={shadows} shadow-mapSize={[512, 512]} />
+            <Mat shadows={shadows} />
+            <Sticks recording={recording} shadows={shadows} onImpact={onImpact} onSettled={onSettled} meshes={meshes} />
           </Suspense>
         </Canvas>
       </div>
       <div style={{ position: "absolute", zIndex: 2, inset: "auto 22px 20px", textAlign: "center" }}>
         {error && <p role="alert" style={{ margin: "0 0 10px", color: "#ffd2bd", fontSize: 14 }}>{error}</p>}
-        {error ? (
-          <button type="button" onClick={() => void revealResult()} style={{ width: "100%", minHeight: 52, border: 0, borderRadius: 15, color: "#173229", background: "#f5d68b", fontSize: 17, fontWeight: 900 }}>결과 다시 확인</button>
-        ) : phase === "REVEAL" && result ? (
-          <strong style={{ display: "block", color: "#ffd889", fontSize: "clamp(2rem, 11vw, 3.4rem)", textShadow: "0 4px 24px rgba(255,206,105,.3)" }}>{result.yutResult}</strong>
+        {phase === "REVEAL" && result ? (
+          <strong style={{ display: "block", color: "#ffd889", fontSize: "clamp(2rem, 11vw, 3.4rem)", textShadow: "0 4px 24px rgba(255,206,105,.3)" }}>
+            {YUT_LABEL[result.yutResult as YutResult] ?? result.yutResult}
+          </strong>
         ) : (
-          <button type="button" onClick={throwYut} disabled={phase !== "READY"} style={{ width: "100%", minHeight: 52, border: 0, borderRadius: 15, color: "#173229", background: phase === "READY" ? "#f5d68b" : "rgba(255,255,255,.16)", fontSize: 17, fontWeight: 900, cursor: phase === "READY" ? "pointer" : "default" }}>
-            {phase === "READY" ? "윷 던지기" : "결과를 기다리는 중"}
+          <button
+            type="button"
+            onClick={() => void throwYut()}
+            disabled={!idle}
+            style={{ width: "100%", minHeight: 52, border: 0, borderRadius: 15, color: "#173229", background: idle ? "#f5d68b" : "rgba(255,255,255,.16)", fontSize: 17, fontWeight: 900, cursor: idle ? "pointer" : "default" }}
+          >
+            {buttonLabel}
           </button>
         )}
       </div>
