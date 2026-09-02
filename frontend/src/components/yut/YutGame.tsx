@@ -231,17 +231,19 @@ export default function YutGame({ playId, animationSeed, reveal, onRevealed, cla
   const buttonLabel = preparing ? "윷을 고르는 중..." : error ? "다시 던지기" : phase === "READY" ? "윷 던지기" : "결과를 기다리는 중";
 
   return (
-    <section
-      className={className}
-      aria-label={`윷놀이 ${playId}`}
-      style={{ position: "relative", minHeight: 520, overflow: "hidden", borderRadius: 28, background: "radial-gradient(circle at 50% 18%, #37695c 0, #163a34 50%, #0c2421 100%)", color: "#fff8e7", boxShadow: "inset 0 1px rgba(255,255,255,.16), 0 24px 60px rgba(8,30,27,.24)" }}
-    >
-      <div aria-hidden style={{ position: "absolute", inset: 0, opacity: 0.14, backgroundImage: "repeating-linear-gradient(112deg, transparent 0 18px, rgba(255,255,255,.08) 19px, transparent 20px)" }} />
-      <div style={{ position: "relative", zIndex: 1, padding: "24px 22px 0", textAlign: "center" }}>
-        <small style={{ color: "#e9c987", fontWeight: 800, letterSpacing: ".18em" }}>REVIEW YUT</small>
-        <h2 aria-live="polite" style={{ margin: "8px 0 0", fontSize: "clamp(1.35rem, 6vw, 2rem)", letterSpacing: "-.04em" }}>{PHASE_LABEL[phase]}</h2>
+    <section className={className ? `stage ${className}` : "stage"} aria-label={`윷놀이 ${playId}`}>
+      <div className="stage-top">
+        <nav className="steps" aria-label="참여 단계">
+          <span>1 정보 입력</span>
+          <i data-on="1" />
+          <b>2 윷 던지기</b>
+          <i />
+          <span>3 쿠폰</span>
+        </nav>
+        <p className="stage-phase" aria-live="polite">{PHASE_LABEL[phase]}</p>
       </div>
-      <div style={{ position: "absolute", inset: "76px 0 72px" }}>
+
+      <div className="stage-canvas">
         <Canvas shadows={shadows} camera={{ position: [0, 5.4, 6.2], fov: 40 }} dpr={[1, 1.5]} gl={{ antialias: false, powerPreference: "high-performance" }}>
           <Suspense fallback={null}>
             <ambientLight intensity={1.2} />
@@ -251,19 +253,16 @@ export default function YutGame({ playId, animationSeed, reveal, onRevealed, cla
           </Suspense>
         </Canvas>
       </div>
-      <div style={{ position: "absolute", zIndex: 2, inset: "auto 22px 20px", textAlign: "center" }}>
-        {error && <p role="alert" style={{ margin: "0 0 10px", color: "#ffd2bd", fontSize: 14 }}>{error}</p>}
+
+      <div className="stage-bottom">
+        {error && <p className="error" role="alert">{error}</p>}
         {phase === "REVEAL" && result ? (
-          <strong style={{ display: "block", color: "#ffd889", fontSize: "clamp(2rem, 11vw, 3.4rem)", textShadow: "0 4px 24px rgba(255,206,105,.3)" }}>
-            {YUT_LABEL[result.yutResult as YutResult] ?? result.yutResult}
-          </strong>
+          <div className="stage-result">
+            <span className="label">결과</span>
+            <strong className="result-mark">{YUT_LABEL[result.yutResult as YutResult] ?? result.yutResult}</strong>
+          </div>
         ) : (
-          <button
-            type="button"
-            onClick={() => void throwYut()}
-            disabled={!idle}
-            style={{ width: "100%", minHeight: 52, border: 0, borderRadius: 15, color: "#173229", background: idle ? "#f5d68b" : "rgba(255,255,255,.16)", fontSize: 17, fontWeight: 900, cursor: idle ? "pointer" : "default" }}
-          >
+          <button type="button" className="btn wood" onClick={() => void throwYut()} disabled={!idle}>
             {buttonLabel}
           </button>
         )}

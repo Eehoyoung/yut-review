@@ -47,18 +47,24 @@ export default function Game() {
 
   if (!playId || !seed) {
     return (
-      <main className="shell">
-        <p className="error">게임 정보가 없습니다. 참여 절차를 다시 시작해주세요.</p>
+      <main className="screen">
+        <h1>게임 정보가 없어요</h1>
+        <p className="error" role="alert">참여 절차를 처음부터 다시 진행해주세요.</p>
       </main>
     );
   }
 
   if (replaying) {
-    return <main className="shell">결과를 불러오는 중...</main>;
+    return (
+      <main className="screen" aria-live="polite" aria-busy="true">
+        <span className="visually-hidden">결과를 불러오는 중</span>
+        <div className="skeleton" style={{ height: 80, width: 160 }} />
+      </main>
+    );
   }
 
   return (
-    <main style={{ minHeight: "100dvh" }}>
+    <main>
       <YutGame
         playId={playId}
         animationSeed={seed}
