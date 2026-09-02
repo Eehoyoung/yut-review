@@ -5,7 +5,7 @@
 This file contains persistent repository instructions for Codex and other coding agents.
 
 Treat the Markdown documents in this repository as the product and engineering source of truth.
-Do not silently change locked business rules, security rules, API semantics, or game probabilities.
+Do not silently change locked business rules, security rules, or API semantics. Outcome weights are store-configurable, but the integrity rules around them are locked.
 
 If a user instruction conflicts with this file, follow the user's explicit instruction.
 If a deeper directory later contains its own `AGENTS.md`, follow the more specific instructions for files in that directory.
@@ -80,38 +80,64 @@ If an unused coupon exists for the same customer/store, show that coupon before 
 - Prefer one-way hashing for persistent PIN storage.
 - PIN must be regeneratable by an authorized store admin.
 
-### Prize tiers
+### Prize tiers (store-configurable)
 
-There are exactly three MVP prize tiers:
+Each store defines its own prize ladder. Slots are identified by `rank`, an
+integer where **1 is the best prize** (1등). A store has between 1 and 5 ranks;
+3, 4 and 5 are the presets offered in the admin UI.
 
-- `TIER_1` = 도 / 개, shown to customers as 3등
-- `TIER_2` = 걸 / 윷, shown to customers as 2등
-- `TIER_3` = 모, shown to customers as 1등
-
-A store admin configures the three prize definitions.
+- `prizes` is keyed by `UNIQUE(store_id, rank)`.
+- The legacy fixed `Tier` enum (`TIER_1` = 3등, `TIER_2` = 2등, `TIER_3` = 1등)
+  is removed. Do not reintroduce it: with a variable rank count, `TIER_1`
+  cannot mean 3등 and 5등 at the same time.
+- A coupon snapshots `prize_rank` at issue time alongside the name,
+  description and redeem policy. Changing store config never rewrites an
+  already issued coupon.
+- Customers see the rank as `"{rank}등"`.
 
 No prize inventory/quantity limit exists in MVP.
 
-### Fixed probabilities
+### Outcome weights (store-configurable)
 
-Probabilities are system-controlled and must not be editable by store admins.
+The five yut outcomes are physical and fixed: 도 `DO`, 개 `GAE`, 걸 `GEOL`,
+윷 `YUT`, 모 `MO`. What a store configures is, per outcome:
 
-- 도 `DO` = 32.5%
-- 개 `GAE` = 32.5%
-- 걸 `GEOL` = 12.5%
-- 윷 `YUT` = 12.5%
-- 모 `MO` = 10%
+- `weight`: integer 0..1000. Probability is `weight / sum(weights)`.
+- `prize_rank`: which prize slot that outcome awards.
 
-Equivalent tier probability:
+The number of distinct `prize_rank` values in use IS the store's rank count.
+Weights belong to the **outcome**, never to the rank: the 3D animation shows a
+physical outcome, so rolling on anything else would let the thrown shape and
+the awarded prize disagree.
 
-- Tier 1 = 65%
-- Tier 2 = 25%
-- Tier 3 = 10%
+Server-side validation, rejected with 400 otherwise:
 
-Use `java.security.SecureRandom` or an equivalent server-side secure random generator.
+- `sum(weights) >= 1`
+- every weight in `0..1000`
+- ranks in use form a contiguous `1..N` with `N <= 5`
+- every rank in use has an active prize row
 
-Never use client-side randomness to determine a prize.
+Defaults for a newly provisioned store reproduce the previous fixed behaviour:
 
+| Outcome | weight | rank |
+|---|---|---|
+| 도 `DO` | 325 | 3 |
+| 개 `GAE` | 325 | 3 |
+| 걸 `GEOL` | 125 | 2 |
+| 윷 `YUT` | 125 | 2 |
+| 모 `MO` | 100 | 1 |
+
+Still locked, and not negotiable through store configuration:
+
+- Use `java.security.SecureRandom` or an equivalent server-side secure random
+  generator to pick the outcome.
+- Never use client-side randomness to determine a prize.
+- The client never sends, and is never trusted for, weights, outcome or rank.
+- Config is saved atomically as a whole document. Partial writes would leave a
+  store on a half-applied probability table.
+- An outcome with `weight = 0` never occurs. Prize slots reachable only by
+  zero-weight outcomes are hidden from the customer-facing prize list; an
+  unreachable prize must never be advertised with a probability next to it.
 ### Coupon policy
 
 Supported redemption policies:
@@ -261,7 +287,7 @@ Rules:
 - Use database constraints where they provide real integrity protection.
 - Avoid N+1 queries.
 - Every admin store operation must verify membership/authorization server-side.
-- Never trust `storeId`, tier, result, coupon state, or staff verification supplied by the client.
+- Never trust `storeId`, rank, weights, result, or coupon state supplied by the client.
 
 Use an injectable `Clock` for cooldown/date logic where practical so tests are deterministic.
 
@@ -399,8 +425,11 @@ At minimum, business-rule tests should cover:
 - active coupon takes precedence over new game
 
 ### Game
-- probability boundaries
-- tier mapping
+- weighted outcome boundaries
+- invalid store config rejected (zero sum, out-of-range weight, non-contiguous rank, missing prize)
+- outcome with weight 0 never occurs
+- rank mapping for 3, 4 and 5 rank stores
+- store config change does not alter an already issued coupon
 - repeated request cannot reroll
 - reveal is idempotent
 - client cannot choose result

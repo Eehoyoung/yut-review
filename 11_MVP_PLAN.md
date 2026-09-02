@@ -193,6 +193,34 @@ docker compose --profile field-test up -d --build
 
 자세한 배포/운영 절차는 `12_LOCAL_FIELD_TEST.md`를 따른다.
 
+## Phase 12 - 매장별 등급 수와 확률 자율화 (진행 중)
+
+기존 3등급 고정 / 확률 시스템 고정을 매장 설정으로 연다.
+가중치는 등급이 아니라 윷 결과에 붙는다. 화면에 실제로 떨어지는 것이
+도개걸윷모 다섯 가지라, 등급에 확률을 걸면 던져진 모양과 상품이 어긋난다.
+
+- [x] 문서 잠금 해제 (AGENTS / ERD / API / 보안 / README)
+- [ ] `Tier` enum 제거, `prizes.rank` 정수 전환
+- [ ] `store_outcomes` 테이블 (결과별 weight + prize_rank)
+- [ ] `coupons.prize_rank_snapshot`, `game_plays.prize_rank`
+- [ ] 현장테스트 DB 볼륨 재생성
+- [ ] 가중치 기반 `GameResultGenerator`
+- [ ] `GET/PUT /admin/stores/{id}/game-config` 원자 저장
+- [ ] 설정 서버 검증 4종 (범위 / 합 / 등급 연속 / 상품 존재)
+- [ ] 관리자 설정 화면 (3·4·5등급 프리셋 + 가중치 + 실시간 % 미리보기)
+- [ ] 공개 상품·확률 API와 고객 랜딩 노출
+- [ ] `labels.ts` 정적 등급 맵 제거
+- [ ] 회귀 테스트 (설정 변경이 기존 쿠폰 불변 / weight 0 미발생 / 4·5등급 발급)
+
+3D는 변경 대상이 아니다. `yut-throw.ts`와 `YutGame.tsx`는 서버가 준
+`yutResult` 다섯 값만 보고 그 면이 나오는 시뮬레이션을 찾는다.
+가중치도 등급 수도 이 경로에 들어오지 않는다.
+
+완료조건:
+```text
+같은 서버에서 3등급 매장과 5등급 매장이 서로 다른 확률로 동시에 운영된다
+```
+
 ---
 
 ## 검증 현황 (2026-09-02)

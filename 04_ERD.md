@@ -7,10 +7,12 @@ erDiagram
     STORES ||--o{ ADMIN_STORE_MEMBERSHIPS : managed_by
     STORES ||--o{ STORE_QR_CODES : has
     STORES ||--o{ PRIZES : has
+    STORES ||--o{ STORE_OUTCOMES : has
     STORES ||--o{ GAME_PLAYS : has
     STORES ||--o{ COUPONS : has
     GAME_PLAYS ||--|| COUPONS : issues
     PRIZES ||--o{ COUPONS : snapshot_from
+    PRIZES ||--o{ STORE_OUTCOMES : awarded_by
 ```
 
 ## `admin_users`
@@ -68,7 +70,7 @@ UNIQUE(admin_user_id, store_id)
 |---|---|---|
 | id | BIGINT | PK |
 | store_id | BIGINT | FK |
-| tier | VARCHAR(20) | TIER_1/2/3 |
+| rank | INT | 1이 1등, 매장별 1~5 |
 | name | VARCHAR(100) | |
 | description | VARCHAR(500) | |
 | redeem_policy | VARCHAR(30) | SAME_DAY/NEXT_DAY/ANYTIME |
@@ -78,8 +80,40 @@ UNIQUE(admin_user_id, store_id)
 
 제약:
 ```text
-UNIQUE(store_id, tier)
+UNIQUE(store_id, rank)
 ```
+
+## `store_outcomes`
+매장별 윷 결과 가중치와 상품 슬롯 매핑. 매장당 정확히 5행.
+
+| Column | Type | Note |
+|---|---|---|
+| id | BIGINT | PK |
+| store_id | BIGINT | FK |
+| yut_result | VARCHAR(20) | DO/GAE/GEOL/YUT/MO |
+| weight | INT | 0~1000, 확률 = weight / sum(weight) |
+| prize_rank | INT | 이 결과가 주는 상품 등급 |
+| updated_at | DATETIME | |
+
+제약:
+```text
+UNIQUE(store_id, yut_result)
+```
+
+사용 중인 `prize_rank`의 종류 수가 곧 그 매장의 등급 수다.
+가중치는 등급이 아니라 결과에 붙는다. 화면에 실제로 떨어지는 것은
+도개걸윷모 다섯 가지이고, 등급에 확률을 걸면 던져진 모양과 상품이
+어긋날 수 있기 때문이다.
+
+기본값(신규 매장):
+
+| yut_result | weight | prize_rank |
+|---|---|---|
+| DO | 325 | 3 |
+| GAE | 325 | 3 |
+| GEOL | 125 | 2 |
+| YUT | 125 | 2 |
+| MO | 100 | 1 |
 
 ## `game_plays`
 | Column | Type | Note |
@@ -93,7 +127,7 @@ UNIQUE(store_id, tier)
 | phone_encrypted | TEXT | AES-GCM |
 | phone_last4 | CHAR(4) | |
 | yut_result | VARCHAR(20) | DO/GAE/GEOL/YUT/MO |
-| reward_tier | VARCHAR(20) | |
+| prize_rank | INT | 발급 당시 상품 등급 |
 | status | VARCHAR(20) | CREATED/REVEALED/CANCELLED |
 | animation_seed | VARCHAR(100) | |
 | idempotency_key | VARCHAR(100) | UNIQUE |
@@ -120,6 +154,7 @@ INDEX(store_id, played_at)
 | prize_name_snapshot | VARCHAR(100) | |
 | prize_description_snapshot | VARCHAR(500) | |
 | redeem_policy_snapshot | VARCHAR(30) | |
+| prize_rank_snapshot | INT | 발급 시점 등급 동결 |
 | status | VARCHAR(20) | ISSUED/REDEEMED/EXPIRED/CANCELLED |
 | valid_from | DATETIME | |
 | expires_at | DATETIME | |

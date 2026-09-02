@@ -30,6 +30,23 @@ Base URL: `/api`
 ```http
 GET /api/public/stores/by-token/{storeToken}
 ```
+Response:
+```json
+{
+  "name": "홍대포차",
+  "naverPlaceUrl": "https://naver.me/xxxx",
+  "prizes": [
+    { "rank": 1, "name": "삼겹살 1인분", "description": "1테이블 1회", "odds": 10.0 },
+    { "rank": 2, "name": "계란찜 무료", "description": "", "odds": 25.0 },
+    { "rank": 3, "name": "음료 1캔", "description": "", "odds": 65.0 }
+  ]
+}
+```
+
+`odds`는 그 등급으로 이어지는 결과들의 가중치 합을 전체 합으로 나눈 백분율이며
+소수 첫째 자리에서 반올림한다. 서버에서만 계산한다.
+비활성 상품과, 가중치가 모두 0이라 도달할 수 없는 등급은 목록에서 제외한다.
+나올 수 없는 상품을 확률과 함께 노출하지 않기 위한 규칙이다.
 
 ## 고객 상태 조회
 ```http
@@ -91,7 +108,7 @@ Response:
 {
   "playId": "01J...",
   "yutResult": "YUT",
-  "tier": "TIER_2",
+  "prizeRank": 2,
   "couponToken": "cp_xxx",
   "prize": {
     "name": "계란찜 무료",
@@ -171,12 +188,13 @@ GET /api/admin/stores/{storeId}
 PUT /api/admin/stores/{storeId}
 ```
 
-`POST`는 `SYSTEM_ADMIN`만 사용할 수 있으며 매장, 소유 멤버십, QR, 3개 상품을 함께 생성하고 최초 직원 PIN을 응답에서 한 번만 반환한다.
+`POST`는 `SYSTEM_ADMIN`만 사용할 수 있으며 매장, 소유 멤버십, QR, 기본 3등급 상품과
+기본 가중치 설정을 함께 생성하고 최초 직원 PIN을 응답에서 한 번만 반환한다.
 
 ## 상품 조회/수정
 ```http
 GET /api/admin/stores/{storeId}/prizes
-PUT /api/admin/stores/{storeId}/prizes/{tier}
+PUT /api/admin/stores/{storeId}/prizes/{rank}
 ```
 Request 예:
 ```json
@@ -187,6 +205,44 @@ Request 예:
   "active": true
 }
 ```
+
+## 게임 설정 조회/저장
+```http
+GET /api/admin/stores/{storeId}/game-config
+PUT /api/admin/stores/{storeId}/game-config
+```
+Response / Request:
+```json
+{
+  "rankCount": 3,
+  "outcomes": [
+    { "yutResult": "DO",   "weight": 325, "prizeRank": 3, "odds": 32.5 },
+    { "yutResult": "GAE",  "weight": 325, "prizeRank": 3, "odds": 32.5 },
+    { "yutResult": "GEOL", "weight": 125, "prizeRank": 2, "odds": 12.5 },
+    { "yutResult": "YUT",  "weight": 125, "prizeRank": 2, "odds": 12.5 },
+    { "yutResult": "MO",   "weight": 100, "prizeRank": 1, "odds": 10.0 }
+  ]
+}
+```
+
+`odds`와 `rankCount`는 서버가 계산해 내려주는 읽기 전용 값이다. `PUT` 요청에
+포함되어도 무시한다.
+
+`PUT`은 5개 결과를 모두 담은 전체 문서를 한 트랜잭션으로 저장한다. 부분 저장은
+확률 표가 반쯤 적용된 상태를 만들 수 있어 허용하지 않는다. 필요한 상품 등급이
+없으면 함께 생성하고, 더 이상 쓰이지 않는 등급의 상품은 비활성화한다.
+
+검증 실패는 모두 400이다.
+
+| code | 조건 |
+|---|---|
+| `INVALID_WEIGHT` | 가중치가 0~1000 범위 밖 |
+| `ZERO_WEIGHT_SUM` | 가중치 합이 0 |
+| `INVALID_RANK_SEQUENCE` | 사용된 등급이 1..N 연속이 아니거나 N이 5 초과 |
+| `INVALID_REQUEST` | 결과 5개가 모두 들어 있지 않음 |
+
+이미 발급된 쿠폰은 설정 변경의 영향을 받지 않는다. 등급·상품명·설명·사용정책은
+발급 시점에 쿠폰에 동결된다.
 
 ## QR 조회/재발급
 ```http
