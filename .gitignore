@@ -6,3 +6,7 @@ frontend/.next/
 frontend/node_modules/
 frontend/npm-debug.log*
 frontend/tsconfig.tsbuildinfo
+# r3f 스킬은 .agents/skills 원본만 추적한다(.claude 쪽은 절대경로 심볼릭 링크)
+.claude/skills/r3f-*
+# impeccable live 모드의 로컬 세션 상태
+.impeccable/live/sessions/
