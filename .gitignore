@@ -1,0 +1,8 @@
+.env
+.env.field-test
+backend/.gradle/
+backend/build/
+frontend/.next/
+frontend/node_modules/
+frontend/npm-debug.log*
+frontend/tsconfig.tsbuildinfo
