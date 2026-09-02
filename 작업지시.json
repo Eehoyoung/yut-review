@@ -1,0 +1,818 @@
+{
+  "schema_version": "1.0.0",
+  "manifest_type": "codex_goal_execution_manifest",
+  "project": {
+    "name": "review-event-yut-mvp",
+    "language": "ko-KR",
+    "business_timezone": "Asia/Seoul",
+    "source_of_truth": "AGENTS.md and the numbered Markdown documents in the repository root"
+  },
+  "goal": {
+    "objective": "Read AGENTS.md and all project specification documents, then build a runnable MVP of the review-event yut game service end-to-end. Do not stop at scaffolding, examples, plans, mocks, or TODO-only implementations. Produce working backend, frontend, database/dev environment, customer flow, store-admin flow, deterministic server-authoritative yut results, coupon redemption, and a polished mobile 3D yut animation. Use parallel subagents where work can be safely isolated, integrate their work, run validation, fix failures, and leave the repository in a reviewable runnable state.",
+    "execution_style": "autonomous_end_to_end",
+    "clarification_policy": "Do not ask the user questions that can be resolved from AGENTS.md, the project documents, existing repository conventions, or a safe MVP default. Ask only when a missing external credential, destructive external action, or irreconcilable requirement truly blocks local implementation.",
+    "finish_policy": "Continue until all feasible success criteria are satisfied. If one item is impossible because of an external dependency, complete all other items and document the exact blocker and the smallest next action."
+  },
+  "mandatory_context": {
+    "read_first": [
+      "AGENTS.md",
+      "00_README.md",
+      "01_PRD.md",
+      "02_USER_FLOW.md",
+      "03_ARCHITECTURE.md",
+      "04_ERD.md",
+      "05_API_SPEC.md",
+      "06_BACKEND_GUIDE.md",
+      "07_FRONTEND_GUIDE.md",
+      "08_YUT_3D_ANIMATION_SPEC.md",
+      "09_SECURITY_AND_ABUSE.md",
+      "10_DEPLOYMENT.md",
+      "11_MVP_PLAN.md",
+      "12_LOCAL_FIELD_TEST.md"
+    ],
+    "instruction": "Before implementation, inspect the repository after reading these files. Reconcile the plan with the code that actually exists. Existing working code has priority over unnecessary rescaﬀolding, while explicit locked business rules in AGENTS.md remain authoritative."
+  },
+  "locked_mvp_rules": {
+    "store_qr": "Every store has a separate unguessable public QR token; do not expose sequential store IDs in customer URLs.",
+    "customer_identity": "Name and phone number; no SMS verification in MVP.",
+    "cooldown": "Per store + normalized phone number, 2 calendar-day cooldown in Asia/Seoul. Example: play on Sep 2 -> next eligible Sep 4 00:00.",
+    "active_coupon_priority": "If the customer has an unused coupon at that store, route to the coupon page before permitting another game.",
+    "staff_pin": "Each store has a unique random 6-digit numeric staff PIN. PIN is required for game approval and coupon redemption. Never log plaintext PIN.",
+    "probability": {
+      "DO": 0.325,
+      "GAE": 0.325,
+      "GEOL": 0.125,
+      "YUT": 0.125,
+      "MO": 0.1
+    },
+    "tiers": {
+      "TIER_1": [
+        "DO",
+        "GAE"
+      ],
+      "TIER_2": [
+        "GEOL",
+        "YUT"
+      ],
+      "TIER_3": [
+        "MO"
+      ]
+    },
+    "probability_control": "Server-controlled and not editable by store admins.",
+    "game_integrity": "The backend decides and persists the result before reveal. Refresh/retry must never reroll or double-issue a coupon.",
+    "prize_count": "Exactly 3 configurable prize tiers in MVP; no inventory limit.",
+    "redeem_policies": [
+      "SAME_DAY",
+      "NEXT_DAY",
+      "ANYTIME"
+    ],
+    "coupon_validity": "90 days from issuance; snapshot the prize/policy at issue time.",
+    "review_platform": "Naver Place MVP. Staff checks that a review exists; never require positive sentiment or a specific star rating.",
+    "admin_model": "One admin account may manage multiple stores; system operator creates stores in MVP.",
+    "solapi": "Not required for MVP. Keep a notification abstraction so Solapi Kakao Alimtalk can be added later.",
+    "visual_direction": "Mobile-game energy 60% + premium/minimal 40%."
+  },
+  "target_stack": {
+    "frontend": [
+      "Next.js",
+      "React",
+      "TypeScript",
+      "Tailwind CSS",
+      "TanStack Query",
+      "Zustand",
+      "Three.js",
+      "React Three Fiber",
+      "@react-three/drei",
+      "@react-three/rapier"
+    ],
+    "backend": [
+      "Java 17",
+      "Spring Boot 3.x",
+      "Spring Security",
+      "Spring Data JPA",
+      "QueryDSL",
+      "Gradle"
+    ],
+    "data_and_infra": [
+      "PostgreSQL 17",
+      "Docker Compose",
+      "Nginx-ready configuration",
+      "S3/CloudFront-ready asset boundary",
+      "Nginx single-origin reverse proxy",
+      "Local Windows laptop field-test deployment",
+      "Cloudflare Quick Tunnel / TryCloudflare for temporary external HTTPS testing"
+    ],
+    "dependency_rule": "If the repository already uses equivalent compatible versions/tools, preserve them unless a change is needed to meet the specification."
+  },
+  "repository_bootstrap": {
+    "when_empty_or_docs_only": {
+      "layout": [
+        "backend/",
+        "frontend/",
+        "docker-compose.yml",
+        ".env.example",
+        "nginx/",
+        ".env.field-test.example"
+      ],
+      "requirements": [
+        "Create a Spring Boot backend using Java 17 and Gradle.",
+        "Create a Next.js TypeScript frontend using the repository's available Node/npm toolchain.",
+        "Create local PostgreSQL Docker configuration and wire backend environment variables.",
+        "Provide safe demo/dev bootstrap data or a clearly documented local seed path for one operator/admin, one store, three prizes, QR token, and staff PIN without committing real secrets.",
+        "Keep root shared configuration changes under the parent/orchestrator agent to avoid subagent conflicts.",
+        "Create Docker Compose services for postgres, backend, frontend and nginx, using production-style application builds for field testing.",
+        "Expose the integrated application through a single Nginx host port, recommended localhost:8088, while keeping backend/frontend/database on the internal Docker network where practical.",
+        "Add an optional field-test cloudflared path/profile that can create a temporary Cloudflare Quick Tunnel to the Nginx service without requiring a paid service.",
+        "The full MVP field-test flow must run without AWS, RDS, S3/CloudFront, Redis, SMS or Solapi.",
+        "Generate field-test QR URLs from the current public origin plus the persisted store token; never persist a temporary trycloudflare.com hostname as permanent store identity."
+      ]
+    },
+    "when_existing_code_present": "Do not replace or regenerate functioning modules wholesale. Inspect, adapt, and implement the missing MVP capabilities using existing conventions."
+  },
+  "required_product_scope": {
+    "backend": [
+      "Admin authentication and store membership authorization",
+      "Store CRUD needed for operator/admin MVP",
+      "Store-specific QR token generation, validation, revocation/regeneration",
+      "Random 6-digit store staff PIN generation, hashing, verification, regeneration, rate-limit-ready design",
+      "Three prize tiers and per-prize redemption policy",
+      "Phone normalization, HMAC/hash lookup identity, optional encrypted storage boundary, masked display",
+      "Customer state endpoint with ACTIVE_COUPON -> COOLDOWN -> CAN_PLAY behavior",
+      "2 calendar-day cooldown in Asia/Seoul using deterministic Clock-friendly date logic",
+      "Short-lived staff verification token for game start where practical",
+      "SecureRandom server-side yut result generation using locked probabilities",
+      "Atomic GamePlay + Coupon issuance",
+      "Idempotent game creation/reveal behavior",
+      "Coupon snapshot, validity calculation, state machine, atomic redemption",
+      "Admin participation/coupon listings and useful MVP summary analytics",
+      "NoopNotificationService abstraction for future Solapi integration",
+      "Consistent API error envelope/codes from 05_API_SPEC.md"
+    ],
+    "frontend_customer": [
+      "Store-token landing page",
+      "Naver Place review CTA/instructions without forcing positive sentiment",
+      "Name/phone/privacy-consent form",
+      "Customer-state routing",
+      "Active coupon page",
+      "Staff PIN game-approval page",
+      "Full-screen mobile yut game",
+      "Result reveal and issued coupon view",
+      "Coupon staff-button redemption flow with confirmation and store PIN",
+      "Cooldown error with exact next playable date"
+    ],
+    "frontend_admin": [
+      "Admin login",
+      "Multi-store selector/dashboard",
+      "Three prize editor",
+      "Redemption-policy controls",
+      "QR view/regenerate flow",
+      "Staff PIN regenerate flow with safe handling of plaintext display",
+      "Participation list",
+      "Coupon list",
+      "Basic analytics summary"
+    ],
+    "yut_3d": [
+      "Real 3D scene; never CSS/GIF/video-only simulation",
+      "Four independent yut rigid bodies",
+      "Throw, air rotation, collision, bounce, roll, settle, result-lock and reveal states",
+      "Hybrid physics: natural Rapier motion followed by subtle target-quaternion correction",
+      "Final visible faces must always match the persisted server result",
+      "Seeded visual variation that never determines prize outcome",
+      "Camera movement and micro-shake kept comfortable on mobile",
+      "Wood impact/roll/result audio hooks with graceful fallback if final assets are unavailable",
+      "Tier-sensitive effects, with special but tasteful MO presentation",
+      "Mobile performance controls such as capped DPR and reduced effects on weak devices",
+      "If final GLB assets are absent, create a polished procedural 3D yut fallback and isolate the model-loading boundary so GLB assets can replace it later without changing game logic"
+    ],
+    "local_field_test_deployment": [
+      "Docker Compose integrated stack: postgres, backend, frontend, nginx",
+      "Production-style frontend/backend container builds",
+      "Nginx same-origin routing: / to frontend and /api to backend",
+      "Recommended localhost:8088 host ingress for local validation",
+      "Persistent local PostgreSQL volume for multi-customer in-store testing",
+      ".env.field-test.example with no committed real secrets",
+      "Health checks/readiness for core services",
+      "Optional cloudflared field-test Compose profile or equivalent documented host command",
+      "Cloudflare Quick Tunnel public URL discovery instructions",
+      "Current-public-origin based store QR generation suitable for temporary trycloudflare.com URLs",
+      "Explicit handling/documentation that Quick Tunnel URL changes require test QR regeneration",
+      "No mandatory cloud/paid dependency for field-test mode",
+      "Field-test smoke checklist for external LTE/5G phone access"
+    ]
+  },
+  "parallel_agents": {
+    "enabled": true,
+    "policy": "Use subagents for work that divides cleanly. Prefer parallel exploration/review freely. Parallel write agents are allowed only with non-overlapping write ownership. The parent agent owns integration and shared root/config files.",
+    "spawn_prompt_format": "json_only",
+    "rule": "Every subagent must be spawned with a single valid JSON object as its instruction payload. Do not use vague free-form subagent prompts. The JSON must match parallel_agent_prompt_schema and include explicit allowed write paths and forbidden paths. Ask each subagent to return its final handoff as JSON matching parallel_agent_return_schema.",
+    "max_recommended_concurrent_writers": 3,
+    "wave_strategy": [
+      {
+        "wave": 0,
+        "purpose": "parallel read-only reconnaissance",
+        "agents": [
+          "backend_explorer",
+          "frontend_explorer",
+          "security_game_integrity_reviewer"
+        ],
+        "wait_for_all": true
+      },
+      {
+        "wave": 1,
+        "purpose": "parent creates or normalizes shared scaffolding and dependency manifests",
+        "agents": [],
+        "wait_for_all": true
+      },
+      {
+        "wave": 2,
+        "purpose": "parallel implementation with exclusive path ownership",
+        "agents": [
+          "backend_worker",
+          "frontend_app_worker",
+          "yut3d_worker"
+        ],
+        "wait_for_all": true
+      },
+      {
+        "wave": 3,
+        "purpose": "parent integrates cross-boundary contracts and fixes compile/runtime conflicts",
+        "agents": [],
+        "wait_for_all": true
+      },
+      {
+        "wave": 4,
+        "purpose": "parallel read-only verification",
+        "agents": [
+          "qa_reviewer",
+          "security_reviewer",
+          "ux_mobile_reviewer"
+        ],
+        "wait_for_all": true
+      },
+      {
+        "wave": 5,
+        "purpose": "parent fixes findings, runs final validation, updates docs, and reports result",
+        "agents": [],
+        "wait_for_all": true
+      }
+    ],
+    "ownership_examples": {
+      "backend_worker": [
+        "backend/**"
+      ],
+      "frontend_app_worker": [
+        "frontend/src/app/**",
+        "frontend/src/features/store/**",
+        "frontend/src/features/customer/**",
+        "frontend/src/features/coupon/**",
+        "frontend/src/features/admin/**",
+        "frontend/src/components/ui/**"
+      ],
+      "yut3d_worker": [
+        "frontend/src/features/game/**",
+        "frontend/src/components/yut/**",
+        "frontend/public/assets/yut/**"
+      ],
+      "parent_only": [
+        "AGENTS.md",
+        "작업지시.json",
+        "*.md",
+        "docker-compose.yml",
+        ".env.example",
+        "frontend/package.json",
+        "frontend/package-lock.json",
+        "backend/settings.gradle*",
+        "root-level config",
+        "cross-workstream generated contracts"
+      ]
+    },
+    "conflict_rule": "Never give two concurrent write agents overlapping allowed_write_paths. If a file must be touched by two workstreams, the parent owns that file or the work is serialized.",
+    "failure_rule": "If a subagent fails or returns an incomplete handoff, inspect the cause. Retry once with a refined JSON task if useful; otherwise the parent completes the missing work. Do not abandon the overall goal because one subagent fails.",
+    "unavailable_fallback": "If subagent tools are disabled or unavailable in the current Codex runtime, preserve the same wave order and ownership boundaries but execute the workstreams sequentially in the primary thread. Do not stop solely because parallelism is unavailable.",
+    "agent_blueprints": {
+      "backend_explorer": {
+        "role": "explorer",
+        "mode": "read_only",
+        "objective": "Map existing backend state against PRD/ERD/API requirements and return the smallest implementation plan with file-level evidence.",
+        "context_files": [
+          "AGENTS.md",
+          "01_PRD.md",
+          "03_ARCHITECTURE.md",
+          "04_ERD.md",
+          "05_API_SPEC.md",
+          "06_BACKEND_GUIDE.md",
+          "09_SECURITY_AND_ABUSE.md"
+        ],
+        "allowed_read_paths": [
+          "backend/**",
+          "*.md",
+          "docker-compose.yml",
+          ".env.example"
+        ],
+        "allowed_write_paths": [],
+        "forbidden_write_paths": [
+          "**/*"
+        ],
+        "tasks": [
+          "Identify existing backend stack and gaps",
+          "Map entities/services/controllers/tests needed",
+          "Flag contract/security/concurrency risks"
+        ],
+        "required_checks": [
+          "Inspect existing build/test commands without modifying files"
+        ]
+      },
+      "frontend_explorer": {
+        "role": "explorer",
+        "mode": "read_only",
+        "objective": "Map existing frontend state against customer/admin flows and identify route/component/state/API integration gaps.",
+        "context_files": [
+          "AGENTS.md",
+          "01_PRD.md",
+          "02_USER_FLOW.md",
+          "05_API_SPEC.md",
+          "07_FRONTEND_GUIDE.md",
+          "08_YUT_3D_ANIMATION_SPEC.md"
+        ],
+        "allowed_read_paths": [
+          "frontend/**",
+          "*.md"
+        ],
+        "allowed_write_paths": [],
+        "forbidden_write_paths": [
+          "**/*"
+        ],
+        "tasks": [
+          "Identify existing Next.js structure and dependencies",
+          "Map customer/admin routes",
+          "Identify shared files the parent must own"
+        ],
+        "required_checks": [
+          "Inspect package.json scripts without modifying files"
+        ]
+      },
+      "security_game_integrity_reviewer": {
+        "role": "reviewer",
+        "mode": "read_only",
+        "objective": "Pre-implementation threat-model review focused on rerolls, duplicate coupon issuance/redemption, store isolation, PIN abuse, QR guessing and phone privacy.",
+        "context_files": [
+          "AGENTS.md",
+          "01_PRD.md",
+          "04_ERD.md",
+          "05_API_SPEC.md",
+          "09_SECURITY_AND_ABUSE.md"
+        ],
+        "allowed_read_paths": [
+          "backend/**",
+          "frontend/**",
+          "*.md"
+        ],
+        "allowed_write_paths": [],
+        "forbidden_write_paths": [
+          "**/*"
+        ],
+        "tasks": [
+          "List concrete security invariants",
+          "Identify required transactional/idempotency tests",
+          "Return high-risk implementation pitfalls"
+        ],
+        "required_checks": []
+      },
+      "backend_worker": {
+        "role": "worker",
+        "mode": "write",
+        "objective": "Implement the complete Spring Boot MVP backend and backend tests within backend/**, following locked rules and API contracts.",
+        "context_files": [
+          "AGENTS.md",
+          "01_PRD.md",
+          "03_ARCHITECTURE.md",
+          "04_ERD.md",
+          "05_API_SPEC.md",
+          "06_BACKEND_GUIDE.md",
+          "09_SECURITY_AND_ABUSE.md"
+        ],
+        "allowed_read_paths": [
+          "**/*"
+        ],
+        "allowed_write_paths": [
+          "backend/**"
+        ],
+        "forbidden_write_paths": [
+          "frontend/**",
+          "AGENTS.md",
+          "작업지시.json",
+          "*.md",
+          "docker-compose.yml",
+          ".env.example"
+        ],
+        "tasks": [
+          "Implement domains/entities/repositories/services/controllers/DTOs/security",
+          "Implement cooldown/PIN/game/coupon integrity",
+          "Add unit/integration tests",
+          "Report any root dependency/config edits needed to parent"
+        ],
+        "required_checks": [
+          "./gradlew test when wrapper exists"
+        ]
+      },
+      "frontend_app_worker": {
+        "role": "worker",
+        "mode": "write",
+        "objective": "Implement customer and admin web application flows excluding 3D game internals, using documented API contracts and mobile-first UX.",
+        "context_files": [
+          "AGENTS.md",
+          "01_PRD.md",
+          "02_USER_FLOW.md",
+          "05_API_SPEC.md",
+          "07_FRONTEND_GUIDE.md"
+        ],
+        "allowed_read_paths": [
+          "**/*"
+        ],
+        "allowed_write_paths": [
+          "frontend/src/app/**",
+          "frontend/src/features/store/**",
+          "frontend/src/features/customer/**",
+          "frontend/src/features/coupon/**",
+          "frontend/src/features/admin/**",
+          "frontend/src/components/ui/**",
+          "frontend/src/lib/**",
+          "frontend/src/hooks/**",
+          "frontend/src/types/**"
+        ],
+        "forbidden_write_paths": [
+          "frontend/package.json",
+          "frontend/package-lock.json",
+          "frontend/src/features/game/**",
+          "frontend/src/components/yut/**",
+          "backend/**",
+          "*.md",
+          "AGENTS.md",
+          "작업지시.json"
+        ],
+        "tasks": [
+          "Implement route/page flows",
+          "Implement API client/query/mutation layer",
+          "Implement customer state routing and PIN/coupon UX",
+          "Implement admin multi-store/prize/QR/PIN/list/analytics UI",
+          "Report dependency changes to parent"
+        ],
+        "required_checks": [
+          "Run existing frontend typecheck/lint tests that do not require editing shared manifests"
+        ]
+      },
+      "yut3d_worker": {
+        "role": "specialist",
+        "mode": "write",
+        "objective": "Implement the polished mobile 3D yut game, physics state machine and deterministic final face correction without deciding prize outcome client-side.",
+        "context_files": [
+          "AGENTS.md",
+          "05_API_SPEC.md",
+          "07_FRONTEND_GUIDE.md",
+          "08_YUT_3D_ANIMATION_SPEC.md"
+        ],
+        "allowed_read_paths": [
+          "**/*"
+        ],
+        "allowed_write_paths": [
+          "frontend/src/features/game/**",
+          "frontend/src/components/yut/**",
+          "frontend/public/assets/yut/**"
+        ],
+        "forbidden_write_paths": [
+          "frontend/package.json",
+          "frontend/package-lock.json",
+          "frontend/src/app/**",
+          "backend/**",
+          "*.md",
+          "AGENTS.md",
+          "작업지시.json"
+        ],
+        "tasks": [
+          "Implement R3F/Rapier scene",
+          "Implement throw-impact-bounce-roll-settle-result lock state machine",
+          "Map server result to target faces/quaternions",
+          "Add seeded visual variance/mobile performance fallbacks",
+          "Use procedural 3D yut fallback if GLB asset is absent",
+          "Report dependencies needed to parent"
+        ],
+        "required_checks": [
+          "Run targeted existing frontend checks if possible without modifying shared manifests"
+        ]
+      },
+      "qa_reviewer": {
+        "role": "reviewer",
+        "mode": "review",
+        "objective": "Review the integrated repository for missing MVP requirements, broken flows, test gaps and build/runtime regressions.",
+        "context_files": [
+          "AGENTS.md",
+          "00_README.md",
+          "01_PRD.md",
+          "02_USER_FLOW.md",
+          "05_API_SPEC.md",
+          "11_MVP_PLAN.md"
+        ],
+        "allowed_read_paths": [
+          "**/*"
+        ],
+        "allowed_write_paths": [],
+        "forbidden_write_paths": [
+          "**/*"
+        ],
+        "tasks": [
+          "Trace all acceptance flows",
+          "Check tests against locked rules",
+          "Report only material findings with file references"
+        ],
+        "required_checks": [
+          "Inspect actual test/build results produced by parent where available"
+        ]
+      },
+      "security_reviewer": {
+        "role": "reviewer",
+        "mode": "review",
+        "objective": "Review integrated code for store authorization, PIN handling, token guessability, phone privacy, idempotency, races and coupon double redemption.",
+        "context_files": [
+          "AGENTS.md",
+          "04_ERD.md",
+          "05_API_SPEC.md",
+          "09_SECURITY_AND_ABUSE.md"
+        ],
+        "allowed_read_paths": [
+          "**/*"
+        ],
+        "allowed_write_paths": [],
+        "forbidden_write_paths": [
+          "**/*"
+        ],
+        "tasks": [
+          "Inspect authorization boundaries",
+          "Inspect sensitive-data logging/storage",
+          "Inspect game/coupon concurrency and idempotency",
+          "Return severity-ranked findings"
+        ],
+        "required_checks": []
+      },
+      "ux_mobile_reviewer": {
+        "role": "reviewer",
+        "mode": "review",
+        "objective": "Review the customer mobile flow and 3D experience for usability, responsiveness, performance and consistency with the 60% game / 40% premium direction.",
+        "context_files": [
+          "AGENTS.md",
+          "02_USER_FLOW.md",
+          "07_FRONTEND_GUIDE.md",
+          "08_YUT_3D_ANIMATION_SPEC.md"
+        ],
+        "allowed_read_paths": [
+          "frontend/**",
+          "*.md"
+        ],
+        "allowed_write_paths": [],
+        "forbidden_write_paths": [
+          "**/*"
+        ],
+        "tasks": [
+          "Check mobile route/interaction states",
+          "Check 3D performance fallbacks and result clarity",
+          "Report blocking or high-value UX fixes only"
+        ],
+        "required_checks": []
+      }
+    }
+  },
+  "parallel_agent_prompt_schema": {
+    "required_fields": [
+      "schema_version",
+      "agent_id",
+      "role",
+      "mode",
+      "objective",
+      "context_files",
+      "dependencies",
+      "allowed_read_paths",
+      "allowed_write_paths",
+      "forbidden_write_paths",
+      "locked_rules",
+      "tasks",
+      "required_checks",
+      "deliverables",
+      "return_format",
+      "stop_conditions"
+    ],
+    "template": {
+      "schema_version": "1.0",
+      "agent_id": "unique_short_id",
+      "role": "explorer|worker|reviewer|specialist",
+      "mode": "read_only|write|review",
+      "objective": "One bounded outcome for this agent.",
+      "context_files": [
+        "Exact files this agent should read first."
+      ],
+      "dependencies": [
+        "Outputs or assumptions from earlier waves."
+      ],
+      "allowed_read_paths": [
+        "Paths the agent may inspect."
+      ],
+      "allowed_write_paths": [
+        "Exclusive paths this agent may modify; empty for read-only/review agents."
+      ],
+      "forbidden_write_paths": [
+        "Shared/root paths or another agent's ownership."
+      ],
+      "locked_rules": [
+        "Relevant non-negotiable business/security rules."
+      ],
+      "tasks": [
+        "Concrete task 1",
+        "Concrete task 2"
+      ],
+      "required_checks": [
+        "Tests/build/static checks this agent should run if possible."
+      ],
+      "deliverables": [
+        "Code/tests or findings expected."
+      ],
+      "return_format": "Return a single valid JSON object matching parallel_agent_return_schema; summarize rather than dumping raw logs.",
+      "stop_conditions": [
+        "Do not expand scope beyond objective.",
+        "Stop and report blocker if required change is outside allowed_write_paths."
+      ]
+    }
+  },
+  "parallel_agent_return_schema": {
+    "required_fields": [
+      "agent_id",
+      "status",
+      "summary",
+      "changed_files",
+      "checks",
+      "findings",
+      "blockers",
+      "integration_notes"
+    ],
+    "template": {
+      "agent_id": "same_as_prompt",
+      "status": "completed|partial|blocked|failed",
+      "summary": "Concise result.",
+      "changed_files": [
+        "path"
+      ],
+      "checks": [
+        {
+          "command": "command or check",
+          "result": "pass|fail|not_run",
+          "notes": "short notes"
+        }
+      ],
+      "findings": [
+        "Important technical findings only."
+      ],
+      "blockers": [
+        "Exact blocker, if any."
+      ],
+      "integration_notes": [
+        "What the parent agent must know before integration."
+      ]
+    }
+  },
+  "orchestrator_rules": [
+    "The primary Codex thread is the orchestrator and final owner of the repository state.",
+    "Read AGENTS.md before this manifest; then read every mandatory_context file before material implementation.",
+    "Inspect git status and existing files before editing. Preserve user changes and do not reset/revert unrelated work.",
+    "Do not merely create a plan. Implement the product.",
+    "Do not stop after backend or frontend alone; integrate both unless an external blocker makes this impossible.",
+    "Do not delegate shared configuration files to concurrent writers.",
+    "Wait for all agents in a wave before starting dependent integration work.",
+    "Subagent summaries are evidence, not authority: the parent must inspect key diffs and run integration validation.",
+    "When package/build files need changes requested by a worker, the parent applies them centrally and then tells affected agents or continues integration.",
+    "Use safe local defaults for dev-only secrets and document them via .env.example. Never commit real credentials.",
+    "Do not deploy to production or perform external paid actions. Local implementation, local containers, tests, and build validation are authorized.",
+    "Update source-of-truth docs only when implementation reveals a necessary contract clarification; never silently alter locked product rules.",
+    "The immediate deployment target is local Docker Compose on the user's Windows laptop for real in-store testing; implement field-test readiness before considering the goal complete.",
+    "Use Nginx as the single ingress and keep the public frontend/backend on one origin to avoid unnecessary CORS dependence on temporary Cloudflare hostnames.",
+    "Do not require paid/cloud infrastructure for the initial field-test profile. Cloudflare Quick Tunnel is the temporary public HTTPS entrypoint when external access is needed.",
+    "Do not persist temporary trycloudflare.com hostnames as store identity; persist the store token and compose field-test QR URLs from the active public origin."
+  ],
+  "implementation_sequence": [
+    "Preflight: read docs, inspect repository, git status, available runtimes and package/build files.",
+    "Run wave 0 exploration agents with JSON prompts.",
+    "Parent establishes shared scaffold/dependency manifests if needed.",
+    "Run wave 2 implementation agents with exclusive write ownership.",
+    "Integrate backend/frontend API contracts, environment wiring, and navigation.",
+    "Run backend tests and frontend lint/build/test scripts that actually exist.",
+    "Start local dependencies and perform practical smoke checks where feasible.",
+    "Run wave 4 verification agents with JSON prompts.",
+    "Fix material findings and rerun failed validation.",
+    "Build and validate the local Docker field-test profile: PostgreSQL + backend + frontend + Nginx, then Cloudflare Quick Tunnel integration/configuration and current-origin QR behavior.",
+    "Update README/run instructions and provide final completion report."
+  ],
+  "validation": {
+    "backend": [
+      "Use ./gradlew test when a Gradle wrapper exists.",
+      "Backend starts with dev/local configuration.",
+      "Critical participation, game integrity and coupon redemption tests pass."
+    ],
+    "frontend": [
+      "Inspect package.json and run scripts that actually exist.",
+      "At minimum run lint/build when configured.",
+      "Frontend compiles without TypeScript errors.",
+      "Customer and admin routes render without obvious runtime crashes."
+    ],
+    "integration": [
+      "Customer can reach a store using a store-specific token.",
+      "Customer state correctly selects active coupon, cooldown, or playable path.",
+      "Valid staff PIN can authorize a game; invalid PIN cannot.",
+      "A game creates one persisted result and one coupon only.",
+      "3D animation ends on faces matching the server result.",
+      "Coupon valid_from rules work for SAME_DAY/NEXT_DAY/ANYTIME.",
+      "Coupon can be redeemed exactly once with the correct store PIN.",
+      "A customer who played on D can play again on D+2 calendar date, not D+1.",
+      "An admin cannot access a store outside their membership.",
+      "No plaintext PIN or full phone number appears in normal logs.",
+      "docker compose production-style field-test stack builds and starts successfully.",
+      "The application is reachable locally through the single Nginx origin, recommended http://localhost:8088.",
+      "Backend health is reachable through the Nginx /api route.",
+      "The field-test Cloudflare Quick Tunnel configuration targets Nginx rather than exposing backend/database directly.",
+      "Store QR generation works using the active public origin and store token, without a persisted temporary tunnel hostname.",
+      "Field-test mode completes the MVP flow without AWS/RDS/S3/Redis/Solapi/SMS dependencies."
+    ]
+  },
+  "success_criteria": [
+    "Repository contains runnable integrated frontend and backend rather than only documentation or stubs.",
+    "Local developer can follow README instructions to configure environment, start dependencies, run backend, and run frontend.",
+    "All locked MVP rules are represented in implementation and tests where practical.",
+    "Store-specific QR/token flow works.",
+    "Staff PIN approval and redemption controls work.",
+    "2 calendar-day cooldown and active-coupon precedence work.",
+    "Fixed 65/25/10 tier distribution is implemented server-side as 32.5/32.5/12.5/12.5/10 yut outcomes.",
+    "Game result is server-authoritative, persistent, and resistant to reroll/double issuance.",
+    "Customer receives a 90-day coupon with correct policy snapshot and atomic one-time redemption.",
+    "Admin can manage multiple stores, their prizes, QR, PIN and view MVP activity.",
+    "3D yut experience is functional, mobile-oriented and physically animated with deterministic final result correction.",
+    "Relevant tests/build/lint checks pass, or any unavoidable external blocker is precisely documented with all other work complete.",
+    "A Windows laptop can run the complete MVP in a deployment-like Docker Compose configuration for immediate in-store testing.",
+    "Nginx provides one origin for frontend and backend and is the only intended application ingress.",
+    "The repository includes a free Cloudflare Quick Tunnel field-test path and exact instructions for finding the temporary public HTTPS URL.",
+    "Temporary tunnel hostname changes do not corrupt store identity; test QR codes can be regenerated against the active public origin."
+  ],
+  "final_report_contract": {
+    "language": "Korean",
+    "sections": [
+      "완료된 기능",
+      "핵심 아키텍처/보안 결정",
+      "병렬 에이전트 작업 요약",
+      "실행 방법",
+      "검증한 명령과 결과",
+      "남은 외부 의존성 또는 제한사항",
+      "주요 변경 파일"
+    ],
+    "rule": "Do not claim a test/build passed unless it was actually run successfully. Keep raw logs out of the final response; summarize them."
+  },
+  "goal_invocation": {
+    "recommended_cli_input": "/goal 작업지시.json",
+    "interpretation": "Treat the goal objective as a pointer to this execution manifest. Read AGENTS.md first, then this JSON, then mandatory_context, and execute the manifest end-to-end."
+  },
+  "repair_loop": {
+    "rule": "After integration, run validation. For every material failure, diagnose and fix the root cause, then rerun the relevant check. Continue until checks pass or a genuine external blocker remains.",
+    "stagnation_stop": "If the exact same failure repeats three times without new evidence or progress, stop retrying that failure, document it precisely, and complete every independent success criterion before final reporting."
+  },
+  "field_test_contract": {
+    "environment": "User Windows laptop + Docker Desktop",
+    "purpose": "Immediate real in-store MVP field test after implementation",
+    "core_services": [
+      "postgres",
+      "backend",
+      "frontend",
+      "nginx"
+    ],
+    "optional_external_access_service": "cloudflared",
+    "recommended_local_origin": "http://localhost:8088",
+    "public_test_entrypoint": "Cloudflare Quick Tunnel temporary https://*.trycloudflare.com URL",
+    "cloudflared_host_command": "cloudflared tunnel --url http://localhost:8088",
+    "compose_goal": "Provide a field-test profile or documented equivalent so cloudflared tunnels to nginx.",
+    "qr_rule": "Persist store token only. Build test QR URL from active public origin + /s/{storeToken}. Regenerate test QR when the tunnel hostname changes.",
+    "not_required": [
+      "AWS EC2",
+      "RDS",
+      "S3/CloudFront",
+      "Redis",
+      "Solapi",
+      "SMS"
+    ],
+    "security": [
+      "Do not expose PostgreSQL publicly",
+      "Do not expose backend directly",
+      "Do not expose frontend directly",
+      "Do not commit real field-test secrets"
+    ],
+    "completion_checks": [
+      "docker compose build/start",
+      "container health",
+      "local origin",
+      "backend health through nginx",
+      "external tunnel configuration",
+      "external phone smoke test instructions"
+    ]
+  }
+}
