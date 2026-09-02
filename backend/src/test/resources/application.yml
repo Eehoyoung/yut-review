@@ -1,0 +1,12 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:yut;MODE=PostgreSQL;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa.hibernate.ddl-auto: create-drop
+app:
+  phone-hmac-key: test-phone-hmac-key
+  phone-encryption-key: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+  jwt-key: test-jwt-key-that-is-at-least-32-bytes-long
+  bootstrap.enabled: false

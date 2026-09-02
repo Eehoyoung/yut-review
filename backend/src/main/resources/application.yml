@@ -1,0 +1,28 @@
+spring:
+  autoconfigure:
+    exclude: org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://postgres:5432/yut_review}
+    username: ${DB_USERNAME:yut_review}
+    password: ${DB_PASSWORD:local_only_change_me}
+  jpa:
+    hibernate:
+      ddl-auto: ${DDL_AUTO:update}
+    open-in-view: false
+  jackson:
+    time-zone: Asia/Seoul
+server:
+  forward-headers-strategy: framework
+management.endpoints.web.exposure.include: health
+app:
+  phone-hmac-key: ${PHONE_HMAC_SECRET}
+  phone-encryption-key: ${PHONE_ENCRYPTION_KEY}
+  jwt-key: ${JWT_SECRET}
+  bootstrap:
+    enabled: ${FIELD_TEST_BOOTSTRAP_ENABLED:false}
+    email: ${FIELD_TEST_ADMIN_EMAIL:}
+    password: ${FIELD_TEST_ADMIN_PASSWORD:}
+    store-name: ${BOOTSTRAP_STORE_NAME:Yut Review Test Store}
+    store-phone: ${BOOTSTRAP_STORE_PHONE:0200000000}
+    naver-place-url: ${FIELD_TEST_NAVER_PLACE_URL:}
+    staff-pin: ${FIELD_TEST_STAFF_PIN:}
