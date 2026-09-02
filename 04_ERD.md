@@ -17,9 +17,11 @@ erDiagram
 | Column | Type | Note |
 |---|---|---|
 | id | BIGINT | PK |
+| login_id | VARCHAR(20) | UNIQUE, 회원가입 계정의 아이디 |
 | email | VARCHAR(255) | UNIQUE |
 | password_hash | VARCHAR(255) | |
-| name | VARCHAR(100) | |
+| name | VARCHAR(100) | 대표자 이름 |
+| phone | VARCHAR(30) | 대표 연락처 |
 | role | VARCHAR(30) | SYSTEM_ADMIN / STORE_ADMIN |
 | created_at | DATETIME | |
 

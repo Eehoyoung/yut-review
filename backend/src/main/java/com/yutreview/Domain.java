@@ -16,23 +16,16 @@ enum YutResult {
 enum GameStatus { CREATED, REVEALED, CANCELLED }
 enum CouponStatus { ISSUED, REDEEMED, EXPIRED, CANCELLED }
 
-@Entity @Table(name="staff_verifications") class StaffVerification {
-    @Id @GeneratedValue(strategy=GenerationType.IDENTITY) Long id;
-    @ManyToOne(optional=false) Store store;
-    @Column(nullable=false,unique=true) String token;
-    @Column(nullable=false) Instant expiresAt;
-    @Column(nullable=false) boolean used;
-}
-
 @Entity @Table(name="admin_users") class AdminUser {
     @Id @GeneratedValue(strategy=GenerationType.IDENTITY) Long id;
+    @Column(unique=true,length=20) String loginId; String phone;
     @Column(nullable=false,unique=true) String email;
     @Column(nullable=false) String passwordHash;
     @Column(nullable=false) String name;
     @Enumerated(EnumType.STRING) @Column(nullable=false) AdminRole role;
     @Column(nullable=false) Instant createdAt;
 }
-@Entity @Table(name="stores") class Store {
+@Entity @Table(name="stores",uniqueConstraints=@UniqueConstraint(columnNames="business_number")) class Store {
     @Id @GeneratedValue(strategy=GenerationType.IDENTITY) Long id;
     @Column(nullable=false) String name;
     String businessNumber; @Column(nullable=false) String phone; String address; String naverPlaceUrl;

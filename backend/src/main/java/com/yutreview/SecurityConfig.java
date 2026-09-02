@@ -24,7 +24,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
     @Bean PasswordEncoder passwordEncoder(){return new BCryptPasswordEncoder();}
     @Bean SecurityFilterChain chain(HttpSecurity http,JwtFilter jwt) throws Exception {
         return http.csrf(c->c.disable()).sessionManagement(s->s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .authorizeHttpRequests(a->a.requestMatchers("/api/public/**","/api/admin/auth/login","/actuator/health").permitAll().anyRequest().authenticated())
+            .authorizeHttpRequests(a->a.requestMatchers("/api/public/**","/api/admin/auth/login","/api/admin/auth/signup","/actuator/health").permitAll().anyRequest().authenticated())
             .exceptionHandling(e->e.authenticationEntryPoint((req,res,x)->writeError(res,401,"AUTH_REQUIRED","로그인이 필요합니다.")).accessDeniedHandler((req,res,x)->writeError(res,403,"FORBIDDEN","접근 권한이 없습니다.")))
             .addFilterBefore(jwt,UsernamePasswordAuthenticationFilter.class).build();
     }

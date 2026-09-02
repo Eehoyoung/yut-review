@@ -6,8 +6,12 @@ import java.util.*;
 import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
 
-interface AdminUserRepository extends JpaRepository<AdminUser,Long> { Optional<AdminUser> findByEmail(String email); }
+interface AdminUserRepository extends JpaRepository<AdminUser,Long> {
+    Optional<AdminUser> findByEmail(String email); Optional<AdminUser> findByLoginId(String loginId);
+    boolean existsByLoginId(String loginId); boolean existsByEmail(String email);
+}
 interface StoreRepository extends JpaRepository<Store,Long> {
+    boolean existsByBusinessNumber(String businessNumber);
     @Lock(LockModeType.PESSIMISTIC_WRITE) @Query("select s from Store s where s.id=:id") Optional<Store> findForUpdate(@Param("id") Long id);
 }
 interface MembershipRepository extends JpaRepository<AdminStoreMembership,Long> {
@@ -33,7 +37,4 @@ interface CouponRepository extends JpaRepository<Coupon,Long> {
     List<Coupon> findByStoreIdOrderByIssuedAtDesc(Long storeId); long countByStoreIdAndStatus(Long storeId,CouponStatus status);
     @Lock(LockModeType.PESSIMISTIC_WRITE) @Query("select c from Coupon c join fetch c.store where c.couponToken=:token")
     Optional<Coupon> findForUpdate(@Param("token") String token);
-}
-interface StaffVerificationRepository extends JpaRepository<StaffVerification,Long> {
-    @Lock(LockModeType.PESSIMISTIC_WRITE) @Query("select v from StaffVerification v where v.token=:token") Optional<StaffVerification> findForUpdate(@Param("token") String token);
 }
