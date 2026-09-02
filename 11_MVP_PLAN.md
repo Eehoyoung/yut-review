@@ -45,15 +45,14 @@ HAS_ACTIVE_COUPON / CAN_PLAY / COOLDOWN
 정확히 반환
 ```
 
-## Phase 4 - Staff Verification
+## Phase 4 - Staff PIN (쿠폰 사용 전용)
 - [x] PIN 검증
-- [x] 3분짜리 verification token
-- [x] 1회 사용 후 폐기
 - [x] retry limit
+- [x] 게임 시작 단계에서 직원 확인 제거
 
 완료조건:
 ```text
-직원 승인 없이는 game 생성 불가
+쿠폰 사용 처리는 직원 PIN 없이 불가
 ```
 
 ## Phase 5 - Game Backend
@@ -157,7 +156,6 @@ Store
 → 직원 확인
 → QR
 → 개인정보 입력
-→ 직원 PIN
 → 3D 윷놀이
 → 당첨
 → 쿠폰 확인

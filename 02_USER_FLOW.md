@@ -12,9 +12,7 @@ flowchart TD
     G --> H[사용 완료]
     D -- No --> I{2일 쿨타임 종료?}
     I -- No --> J[재참여 가능일 안내]
-    I -- Yes --> K[직원 확인]
-    K --> L[6자리 직원 PIN 입력]
-    L --> M[게임 생성]
+    I -- Yes --> M[게임 생성]
     M --> N[3D 윷 애니메이션]
     N --> O[당첨 결과 공개]
     O --> P[쿠폰 발급]
@@ -39,9 +37,6 @@ flowchart TD
 - 만료일
 - 직원용 사용 버튼
 
-### `/s/{storeToken}/staff-verify`
-- 직원 PIN 6자리 입력
-
 ### `/s/{storeToken}/game`
 - 3D 윷놀이
 
@@ -53,7 +48,8 @@ flowchart TD
 ## 관리자 Flow
 ```mermaid
 flowchart TD
-    A[로그인] --> B[매장 목록]
+    S[매장 회원가입] --> A[로그인]
+    A --> B[매장 목록]
     B --> C[매장 선택]
     C --> D[대시보드]
     D --> E[상품 관리]

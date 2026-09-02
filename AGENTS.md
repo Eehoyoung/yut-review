@@ -46,7 +46,7 @@ Unless the user explicitly changes a rule, preserve all of the following.
 - Public URLs must not expose predictable `storeId` values.
 - Store data must remain isolated by `store_id`.
 - One admin account may manage multiple stores.
-- MVP store creation is performed by the system operator, not self-signup.
+- Stores are created by store-owner self-signup (`POST /api/admin/auth/signup`) or by the system operator. Signup provisions the admin account, store, OWNER membership, QR token and three prizes in one transaction.
 
 ### Customer identity
 
@@ -73,8 +73,9 @@ If an unused coupon exists for the same customer/store, show that coupon before 
 ### Staff PIN
 
 - Every store has a unique random 6-digit numeric staff PIN.
-- Staff PIN is required to approve game entry.
-- Staff PIN is required to redeem a coupon.
+- Staff PIN is required to redeem a coupon. That is its only use.
+- Game entry does NOT require staff approval: a customer with the store QR goes name/phone -> game.
+  Abuse control for game entry is the 2 calendar-day cooldown and the active-coupon rule.
 - Never log the plaintext PIN.
 - Prefer one-way hashing for persistent PIN storage.
 - PIN must be regeneratable by an authorized store admin.
@@ -83,9 +84,9 @@ If an unused coupon exists for the same customer/store, show that coupon before 
 
 There are exactly three MVP prize tiers:
 
-- `TIER_1` = 도 / 개
-- `TIER_2` = 걸 / 윷
-- `TIER_3` = 모
+- `TIER_1` = 도 / 개, shown to customers as 3등
+- `TIER_2` = 걸 / 윷, shown to customers as 2등
+- `TIER_3` = 모, shown to customers as 1등
 
 A store admin configures the three prize definitions.
 
@@ -144,7 +145,7 @@ MVP review target:
 
 Flow:
 
-`customer writes review -> staff verifies review -> QR access -> identity -> staff PIN -> game`
+`customer writes review -> staff verifies review -> QR access -> identity -> game`
 
 The application verifies staff approval, not review sentiment.
 Never require a positive review, a specific rating, or favorable wording.
@@ -179,7 +180,7 @@ These rules are non-negotiable unless explicitly changed by the user.
 
 Expected flow:
 
-`request -> eligibility -> staff verification -> server result -> persist -> animation -> reveal`
+`request -> eligibility -> server result -> persist -> animation -> reveal`
 
 ---
 
@@ -311,7 +312,6 @@ Important errors include:
 - `PARTICIPATION_COOLDOWN`
 - `STAFF_PIN_INVALID`
 - `STAFF_PIN_RATE_LIMITED`
-- `STAFF_VERIFICATION_EXPIRED`
 - `GAME_ALREADY_CREATED`
 - `GAME_ALREADY_REVEALED`
 - `COUPON_NOT_ACTIVE`

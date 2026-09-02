@@ -8,15 +8,14 @@ import java.util.Map;
 import org.springframework.web.bind.annotation.*;
 
 @RestController @RequestMapping("/api/public") class PublicController {
-    private final StoreAccessService access;private final PhoneService phones;private final ParticipationService participation;private final StaffVerificationService verification;private final GameService games;private final CouponService coupons;
-    PublicController(StoreAccessService access,PhoneService phones,ParticipationService participation,StaffVerificationService verification,GameService games,CouponService coupons){this.access=access;this.phones=phones;this.participation=participation;this.verification=verification;this.games=games;this.coupons=coupons;}
+    private final StoreAccessService access;private final PhoneService phones;private final ParticipationService participation;private final GameService games;private final CouponService coupons;
+    PublicController(StoreAccessService access,PhoneService phones,ParticipationService participation,GameService games,CouponService coupons){this.access=access;this.phones=phones;this.participation=participation;this.games=games;this.coupons=coupons;}
     record CustomerStateRequest(@NotBlank @Size(max=100) String name,@NotBlank @Size(max=30) String phone,boolean privacyAgreed){}
     record PinRequest(@Pattern(regexp="\\d{6}") String pin){}
-    record GameRequest(@NotBlank @Size(max=100) String storeToken,@NotBlank @Size(max=100) String name,@NotBlank @Size(max=30) String phone,@NotBlank @Size(max=100) String staffVerificationToken,@NotBlank @Size(max=100) String idempotencyKey){}
+    record GameRequest(@NotBlank @Size(max=100) String storeToken,@NotBlank @Size(max=100) String name,@NotBlank @Size(max=30) String phone,@NotBlank @Size(max=100) String idempotencyKey){}
     @GetMapping("/stores/by-token/{token}") ApiResponse<?> store(@PathVariable String token){Store s=access.activeQr(token).store;return ApiResponse.ok(Map.of("name",s.name,"naverPlaceUrl",s.naverPlaceUrl==null?"":s.naverPlaceUrl));}
     @PostMapping("/stores/{token}/customer-state") ApiResponse<?> state(@PathVariable String token,@Valid @RequestBody CustomerStateRequest r){if(!r.privacyAgreed)throw new AppException("PRIVACY_CONSENT_REQUIRED","개인정보 수집에 동의해 주세요.");Store s=access.activeQr(token).store;ParticipationService.State x=participation.state(s.id,r.phone);return ApiResponse.ok(Map.of("state",x.state(),"nextPlayableDate",x.nextPlayableDate()==null?"":x.nextPlayableDate().toString(),"couponToken",x.coupon()==null?"":x.coupon().couponToken));}
-    @PostMapping("/stores/{token}/staff-verify") ApiResponse<?> verify(@PathVariable String token,@Valid @RequestBody PinRequest r,HttpServletRequest req){return ApiResponse.ok(Map.of("verificationToken",verification.verify(token,r.pin,clientIp(req)),"expiresInSeconds",180));}
-    @PostMapping("/games") ApiResponse<?> create(@Valid @RequestBody GameRequest r){GamePlay g=games.create(r.storeToken,r.name,r.phone,r.staffVerificationToken,r.idempotencyKey);return ApiResponse.ok(Map.of("playId",g.publicId,"animationSeed",g.animationSeed,"animationProfile","STANDARD"));}
+    @PostMapping("/games") ApiResponse<?> create(@Valid @RequestBody GameRequest r){GamePlay g=games.create(r.storeToken,r.name,r.phone,r.idempotencyKey);return ApiResponse.ok(Map.of("playId",g.publicId,"animationSeed",g.animationSeed,"animationProfile","STANDARD"));}
     @PostMapping("/games/{playId}/reveal") ApiResponse<?> reveal(@PathVariable String playId){return ApiResponse.ok(couponView(games.reveal(playId),true));}
     @GetMapping("/coupons/{token}") ApiResponse<?> coupon(@PathVariable String token){return ApiResponse.ok(couponView(coupons.get(token),false));}
     @PostMapping("/coupons/{token}/redeem") ApiResponse<?> redeem(@PathVariable String token,@Valid @RequestBody PinRequest r,HttpServletRequest req){return ApiResponse.ok(couponView(coupons.redeem(token,r.pin,clientIp(req)),false));}
