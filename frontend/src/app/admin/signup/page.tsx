@@ -27,12 +27,12 @@ export default function SignUp() {
 
   if (done)
     return (
-      <main className="shell">
+      <main className="screen">
         <p className="brand">가입 완료</p>
         <h1>{done.storeName} 등록됐어요</h1>
-        <div className="card">
+        <div className="panel stack">
           <p className="lead">직원 PIN은 지금 한 번만 표시됩니다. 매장 직원에게 안전하게 전달하세요.</p>
-          <div className="hero-mark" aria-label="직원 PIN">{done.staffPin}</div>
+          <p className="pin-readout" aria-label="직원 PIN">{done.staffPin}</p>
           <p className="notice">PIN은 관리자 화면에서 다시 발급할 수 있습니다. 고객용 QR은 로그인 후 &lsquo;QR 관리&rsquo;에서 만드세요.</p>
         </div>
         <Link className="btn" href="/admin/login">로그인하러 가기</Link>
@@ -40,11 +40,11 @@ export default function SignUp() {
     );
 
   return (
-    <main className="shell">
+    <main className="screen">
       <p className="brand">STORE ADMIN</p>
       <h1>매장 회원가입</h1>
       <form
-        className="card"
+        className="panel stack"
         onSubmit={(e: FormEvent) => {
           e.preventDefault();
           signUp.mutate();
