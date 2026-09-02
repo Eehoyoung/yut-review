@@ -1,0 +1,82 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${DB_NAME:-yut_review}
+      POSTGRES_USER: ${DB_USERNAME:-yut}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-local-yut-password}
+      TZ: Asia/Seoul
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  backend:
+    build: ./backend
+    environment:
+      SPRING_PROFILES_ACTIVE: field-test
+      DB_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-yut_review}
+      DB_USERNAME: ${DB_USERNAME:-yut}
+      DB_PASSWORD: ${DB_PASSWORD:-local-yut-password}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in env file}
+      PHONE_HMAC_SECRET: ${PHONE_HMAC_SECRET:?set PHONE_HMAC_SECRET in env file}
+      PHONE_ENCRYPTION_KEY: ${PHONE_ENCRYPTION_KEY:?set PHONE_ENCRYPTION_KEY in env file}
+      FIELD_TEST_BOOTSTRAP_ENABLED: "true"
+      FIELD_TEST_ADMIN_EMAIL: ${FIELD_TEST_ADMIN_EMAIL:?set FIELD_TEST_ADMIN_EMAIL in env file}
+      FIELD_TEST_ADMIN_PASSWORD: ${FIELD_TEST_ADMIN_PASSWORD:?set FIELD_TEST_ADMIN_PASSWORD in env file}
+      FIELD_TEST_STAFF_PIN: ${FIELD_TEST_STAFF_PIN:?set FIELD_TEST_STAFF_PIN in env file}
+      FIELD_TEST_NAVER_PLACE_URL: ${FIELD_TEST_NAVER_PLACE_URL:-https://map.naver.com/}
+      TZ: Asia/Seoul
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c ':> /dev/tcp/127.0.0.1/8080'"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  frontend:
+    build: ./frontend
+    environment:
+      HOSTNAME: 0.0.0.0
+      PORT: 3000
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  nginx:
+    image: nginx:1.27-alpine
+    ports:
+      - "${APP_PORT:-8088}:80"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      frontend:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    profiles: ["field-test"]
+    command: tunnel --no-autoupdate --url http://nginx:80
+    depends_on:
+      nginx:
+        condition: service_healthy
+
+volumes:
+  postgres-data:
