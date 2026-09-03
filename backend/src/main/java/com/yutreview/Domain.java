@@ -44,6 +44,13 @@ enum CouponStatus { ISSUED, REDEEMED, EXPIRED, CANCELLED }
     @Enumerated(EnumType.STRING) @Column(nullable=false) QrStatus status;
     @Column(nullable=false) Instant createdAt; Instant revokedAt;
 }
+@Entity @Table(name="store_posters") class StorePoster {
+    @Id @GeneratedValue(strategy=GenerationType.IDENTITY) Long id;
+    @OneToOne(optional=false) @JoinColumn(name="store_id",nullable=false,unique=true) Store store;
+    @Lob @Column(nullable=false,columnDefinition="text") String contentBase64;
+    @Column(nullable=false,length=500) String publicOrigin;
+    @Column(nullable=false) Instant createdAt; @Column(nullable=false) Instant updatedAt;
+}
 @Entity @Table(name="prizes",uniqueConstraints=@UniqueConstraint(columnNames={"store_id","prize_rank"})) class Prize {
     @Id @GeneratedValue(strategy=GenerationType.IDENTITY) Long id;
     @ManyToOne(optional=false) Store store;

@@ -24,6 +24,9 @@ interface QrRepository extends JpaRepository<StoreQrCode,Long> {
     List<StoreQrCode> findByStoreIdOrderByCreatedAtDesc(Long storeId);
     Optional<StoreQrCode> findFirstByStoreIdAndStatus(Long storeId,QrStatus status);
 }
+interface StorePosterRepository extends JpaRepository<StorePoster,Long> {
+    Optional<StorePoster> findByStoreId(Long storeId);
+}
 interface PrizeRepository extends JpaRepository<Prize,Long> {
     List<Prize> findByStoreIdOrderByRank(Long storeId); Optional<Prize> findByStoreIdAndRank(Long storeId,int rank);
 }

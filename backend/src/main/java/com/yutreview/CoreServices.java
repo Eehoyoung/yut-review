@@ -59,14 +59,18 @@ final class Inputs {
 }
 @Service class StoreProvisioningService {
     record Provisioned(Store store,String staffPin,String storeToken){}
-    private final StoreRepository stores;private final MembershipRepository memberships;private final QrRepository qrs;private final GameConfigService config;private final PasswordEncoder encoder;private final SecureRandom random;private final Clock clock;
-    StoreProvisioningService(StoreRepository stores,MembershipRepository memberships,QrRepository qrs,GameConfigService config,PasswordEncoder encoder,SecureRandom random,Clock clock){this.stores=stores;this.memberships=memberships;this.qrs=qrs;this.config=config;this.encoder=encoder;this.random=random;this.clock=clock;}
+    private final StoreRepository stores;private final MembershipRepository memberships;private final QrRepository qrs;private final GameConfigService config;private final StorePosterService posters;private final PasswordEncoder encoder;private final SecureRandom random;private final Clock clock;
+    StoreProvisioningService(StoreRepository stores,MembershipRepository memberships,QrRepository qrs,GameConfigService config,StorePosterService posters,PasswordEncoder encoder,SecureRandom random,Clock clock){this.stores=stores;this.memberships=memberships;this.qrs=qrs;this.config=config;this.posters=posters;this.encoder=encoder;this.random=random;this.clock=clock;}
     @Transactional Provisioned provision(AdminUser owner,String name,String phone,String address,String businessNumber,String naverPlaceUrl,String staffPin){
+        return provision(owner,name,phone,address,businessNumber,naverPlaceUrl,staffPin,"http://localhost:8088");
+    }
+    @Transactional Provisioned provision(AdminUser owner,String name,String phone,String address,String businessNumber,String naverPlaceUrl,String staffPin,String publicOrigin){
         Instant now=clock.instant();String pin=staffPin==null||staffPin.isBlank()?Integer.toString(100000+random.nextInt(900000)):staffPin;
         Store s=new Store();s.name=name.trim();s.phone=phone==null?"":phone.trim();s.address=address;s.businessNumber=businessNumber;s.naverPlaceUrl=naverPlaceUrl;s.staffPinHash=encoder.encode(pin);s.status=StoreStatus.ACTIVE;s.createdAt=now;s.updatedAt=now;stores.save(s);
         AdminStoreMembership m=new AdminStoreMembership();m.admin=owner;m.store=s;m.role=MembershipRole.OWNER;m.createdAt=now;memberships.save(m);
         StoreQrCode q=new StoreQrCode();q.store=s;q.publicToken=Tokens.random();q.status=QrStatus.ACTIVE;q.createdAt=now;qrs.save(q);
         config.save(s,GameConfigService.defaults());
+        posters.save(s,q.publicToken,publicOrigin);
         return new Provisioned(s,pin,q.publicToken);
     }
 }
@@ -142,7 +146,8 @@ final class Inputs {
     record Request(String password,String passwordConfirm,String email,String ownerName,String phone,String storeName,String businessNumber){}
     private final AdminUserRepository admins;private final StoreRepository stores;private final StoreProvisioningService provisioning;private final PasswordEncoder encoder;private final Clock clock;
     AdminSignupService(AdminUserRepository admins,StoreRepository stores,StoreProvisioningService provisioning,PasswordEncoder encoder,Clock clock){this.admins=admins;this.stores=stores;this.provisioning=provisioning;this.encoder=encoder;this.clock=clock;}
-    @Transactional StoreProvisioningService.Provisioned signUp(Request r){
+    @Transactional StoreProvisioningService.Provisioned signUp(Request r){return signUp(r,"http://localhost:8088");}
+    @Transactional StoreProvisioningService.Provisioned signUp(Request r,String publicOrigin){
         String email=Inputs.email(r.email),owner=Inputs.required(r.ownerName,"대표자 이름을 입력해 주세요."),
             storeName=Inputs.required(r.storeName,"매장 상호명을 입력해 주세요."),
             phone=Inputs.phone(r.phone),business=Inputs.businessNumber(r.businessNumber);
@@ -150,7 +155,7 @@ final class Inputs {
         if(admins.existsByEmail(email))throw new AppException("DUPLICATE_EMAIL","이미 가입된 이메일입니다.");
         if(stores.existsByBusinessNumber(business))throw new AppException("DUPLICATE_BUSINESS_NUMBER","이미 등록된 사업자등록번호입니다.");
         AdminUser a=new AdminUser();a.email=email;a.passwordHash=encoder.encode(r.password);a.name=owner;a.phone=phone;a.role=AdminRole.STORE_ADMIN;a.createdAt=clock.instant();admins.save(a);
-        return provisioning.provision(a,storeName,phone,null,business,null,null);
+        return provisioning.provision(a,storeName,phone,null,business,null,null,publicOrigin);
     }
 }
 @Service class StoreAccessService {
