@@ -106,6 +106,8 @@ docker compose --env-file .env.field-test --profile field-test up -d   # Cloudfl
 - `AiContextService.java` **LLM 입력을 만드는 유일한 자리.** 집계와 공개 라벨만 통과한다.
 - `AiQuotaService.java` 월 한도(조건부 UPDATE)와 사용 기록, `AiPromptService.java` 프롬프트·스키마
 - `AiService.java` 도구 레지스트리 + 네 기능의 공통 경로, `AiController.java` 관리자 전용 엔드포인트
+- `AnalyticsService.java` 요금제로 갈리는 상세 분석과 집계 CSV
+- `WeeklyReportScheduler.java` PRO 주간 리포트 자동 생성(월요일 새벽)
 - 테스트: `SubscriptionAiTest.java` (등급별 허용/거부, 한도 경계와 동시성, PII 배제, 타 매장 차단,
   AI 장애 시 고객 흐름 정상)
 
@@ -117,6 +119,14 @@ docker compose --env-file .env.field-test --profile field-test up -d   # Cloudfl
 - 요금제·AI 문자열을 공용 `features/labels.ts`에 두지 말 것. 고객 번들로 샌다.
   관리자 전용은 `features/admin/labels.ts`에 둔다.
 - 분석 보관기간과 개인정보 보존(120일)을 한 값으로 합치지 말 것.
+- 공급자 선택을 `@ConditionalOnProperty`로 되돌리지 말 것. `AI_PROVIDER` 오타 하나로 빈이 하나도
+  등록되지 않아 컨텍스트가 뜨지 않고, 관리자 기능 설정 실수가 손님 흐름까지 멈춘다.
+- 모델 호출을 `@Transactional` 안에 넣지 말 것. 45초 응답 대기 동안 커넥션을 붙들어 풀이 마른다.
+- 되돌릴 수 있는 실패는 공급자에 닿기 전 것뿐이다. 타임아웃과 응답 형식 오류는 이미 과금됐다.
+- 관리자 자유 입력(`tone`/`additionalRequest`/채팅)은 `Inputs`가 아니라
+  `AiContextService.withoutPersonalData`를 지난다. 여기가 유일한 PII 유입 경로였다.
+- 등급 변경은 `SYSTEM_ADMIN`만. 멤버십 검사를 운영자 검사보다 먼저 두지 말 것(운영자는 어느 매장의
+  멤버도 아니라서 자기가 해야 할 변경을 스스로 막게 된다).
 
 기본 공급자는 fake다. 실제 호출은 `AI_PROVIDER=openai`와 `OPENAI_API_KEY`가 있을 때만 일어난다.
 

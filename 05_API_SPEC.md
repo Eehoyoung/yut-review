@@ -345,6 +345,22 @@ POST /api/admin/stores/{storeId}/ai/chat
 | `AI_QUOTA_EXCEEDED` | 429. 이번 달 한도 소진 |
 | `AI_PROVIDER_UNAVAILABLE` | 503. 공급자 오류·타임아웃 |
 | `AI_RESPONSE_INVALID` | 503. 응답이 스키마와 맞지 않음 |
+| `AI_TIMEOUT` | 503. 제한 시간 초과. 이미 과금됐을 수 있어 한도를 되돌리지 않는다 |
+| `AI_NOT_CONFIGURED` | 503. 공급자 설정 미완료 |
+| `PERSONAL_DATA_NOT_ALLOWED` | 400. 자유 입력에 전화번호·이메일이 있음 |
+| `ANALYTICS_OUT_OF_RETENTION` | 400. 요금제 보관기간을 벗어난 조회 |
+
+## 상세 분석과 CSV
+```http
+GET /api/admin/stores/{storeId}/analytics/detailed?from=&to=
+GET /api/admin/stores/{storeId}/analytics/export/{daily|prize}?from=&to=
+```
+
+둘 다 STANDARD 이상이며, 없으면 402 `PLAN_UPGRADE_REQUIRED`다. CSV는 집계만 담고 참여자 명단을
+내려주지 않는다. 시간대는 매장 시간(Asia/Seoul) 기준으로 집계한다.
+
+`PUT /api/admin/stores/{storeId}`의 `posterTagline`은 브랜딩 권한(STANDARD 이상)이 필요하다.
+권한 없이 값을 바꾸려 하면 무시가 아니라 402로 거부한다.
 
 고객 API에는 AI 엔드포인트가 없다. 공급자 장애가 QR·게임·쿠폰 흐름에 전파되지 않아야 한다.
 
