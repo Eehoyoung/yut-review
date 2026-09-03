@@ -24,10 +24,46 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   return body.data;
 }
 
+/**
+ * 인증이 필요한 파일 내려받기.
+ *
+ * `<a href>`로는 sessionStorage의 JWT가 실리지 않아 401이 난다. 그래서 직접 받아서 blob으로
+ * 넘긴다. 파일명은 서버가 Content-Disposition에 담아 보낸 값을 그대로 쓴다.
+ */
+export async function downloadWithAuth(path: string, fallbackName: string) {
+  const token = sessionStorage.getItem("adminToken");
+  const response = await fetch(`/api${path}`, {
+    credentials: "include",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!response.ok) {
+    const body = (await response.json().catch(() => null)) as Envelope<unknown> | null;
+    throw new ApiClientError(body?.error?.code ?? "NETWORK_ERROR", body?.error?.message ?? "내려받지 못했습니다.");
+  }
+  const disposition = response.headers.get("Content-Disposition") ?? "";
+  const named = /filename\*=UTF-8''([^;]+)/i.exec(disposition);
+  const url = URL.createObjectURL(await response.blob());
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = named ? decodeURIComponent(named[1]) : fallbackName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  // 브라우저가 저장을 시작한 뒤에 풀어 준다. 바로 풀면 큰 파일에서 저장이 끊긴다.
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
+
 export function setAdminToken(token: string) {
   sessionStorage.setItem("adminToken", token);
 }
 
+/**
+ * 고객이 실제로 만날 수 있는 오류만 여기 둔다.
+ *
+ * 요금제·AI 오류 문구를 여기 넣었다가 고객 번들 다섯 개에 '요금제'가 실려 나갔다. 이 모듈은 손님
+ * 화면도 import한다. 관리자 전용 코드는 서버가 보내는 메시지를 그대로 쓰면 되고, 실제로 그쪽이 더
+ * 구체적이다(어느 날짜부터 볼 수 있는지까지 들어 있다).
+ */
 const friendly: Record<string, string> = {
   STORE_NOT_FOUND: "매장을 찾을 수 없습니다.", STORE_INACTIVE: "현재 이벤트를 운영하지 않는 매장입니다.",
   QR_TOKEN_INVALID: "유효하지 않은 QR입니다.", QR_TOKEN_REVOKED: "사용이 중지된 QR입니다.",
@@ -41,12 +77,6 @@ const friendly: Record<string, string> = {
   INVALID_BUSINESS_NUMBER: "사업자등록번호는 숫자 10자리로 입력해주세요.",
   DUPLICATE_EMAIL: "이미 가입된 이메일입니다.", DUPLICATE_BUSINESS_NUMBER: "이미 등록된 사업자등록번호입니다.",
   STORE_LIMIT_REACHED: "한 계정이 관리할 수 있는 매장 수를 넘었습니다.",
-  PLAN_UPGRADE_REQUIRED: "현재 요금제에 포함되지 않은 기능입니다.",
-  AI_QUOTA_EXCEEDED: "이번 달 AI 사용 한도를 모두 썼습니다. 다음 달에 다시 사용할 수 있습니다.",
-  AI_PROVIDER_UNAVAILABLE: "AI 응답을 받지 못했습니다. 잠시 후 다시 시도해주세요.",
-  AI_NOT_CONFIGURED: "AI 사용 설정이 아직 완료되지 않았습니다.",
-  AI_RESPONSE_INVALID: "AI 응답 형식이 올바르지 않습니다. 다시 시도해주세요.",
-  ANALYTICS_OUT_OF_RETENTION: "현재 요금제에서 볼 수 있는 기간을 벗어난 조회입니다.",
 };
 
 export function errorMessage(error: unknown) {

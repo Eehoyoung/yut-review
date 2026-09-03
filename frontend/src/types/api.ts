@@ -73,6 +73,28 @@ export interface AiImprovement {
   window?: { from: string; to: string; clampedByPlanRetention: boolean };
 }
 
+export interface Summary {
+  todayPlays: number;
+  totalPlays: number;
+  issuedCoupons: number;
+  redeemedCoupons: number;
+  results?: Record<string, number>;
+  plan: Plan;
+  advancedAvailable: boolean;
+  csvExports?: string[];
+}
+
+export interface DetailedAnalytics {
+  window: { from: string; to: string; clampedByPlanRetention: boolean };
+  summary: { plays: number; couponsIssued: number; couponsRedeemed: number; redemptionRatePercent: number };
+  hourly: { playsByHour: Record<string, number> };
+  weekday: { playsByWeekday: Record<string, number> };
+  prizePerformance: {
+    prizes: { rank: number; prizeName: string; issued: number; redeemed: number; redemptionRatePercent: number }[];
+  };
+  repeat: { uniqueParticipants: number; repeatParticipants: number; repeatRatePercent: number };
+}
+
 export interface AiChatAnswer {
   answer: string;
   toolsUsed: string[];

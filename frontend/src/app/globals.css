@@ -55,6 +55,7 @@
     16과 17px을 함께 두면 위계가 아니라 잡음이 되어 17px 단계는 없앴다.
     굵기 역할: 400 본문 · 600 보조 라벨 · 700 강조와 값 · 800 제목과 버튼.
   */
+  --t-xs: 0.75rem;
   --t-sm: 0.8125rem;
   --t-base: 1rem;
   --t-lg: 1.25rem;
@@ -1354,4 +1355,98 @@ form > .success {
   background: var(--panel-2);
   border-color: var(--line);
   color: var(--ink-2);
+}
+
+/* ---------- 분포 그래프 (관리자 전용) ---------- */
+
+/*
+  계열이 하나라 색도 하나다. 값이 클수록 진하게 칠하면 막대 길이가 이미 말하는 것을 색으로 한 번 더
+  말하게 되고, 그러면 색이라는 채널을 정보 없이 태워 버린다. 대신 가장 붐빈 시간 하나만 강조한다.
+*/
+.chart {
+  margin: 0;
+  display: grid;
+  gap: var(--s2);
+}
+
+.chart-lede {
+  font-size: var(--t-sm);
+  color: var(--ink-2);
+}
+
+.chart-lede b {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 96px;
+  padding-bottom: 1px;
+  border-bottom: 1px solid var(--line);
+}
+
+.bar {
+  flex: 1;
+  min-width: 0;
+  min-height: 2px;
+  border-radius: 4px 4px 0 0;
+  background: var(--wood-light);
+}
+
+.bar.is-peak {
+  background: var(--wood-strong);
+}
+
+.bars-axis {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--t-xs);
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.weekday {
+  display: grid;
+  gap: var(--s2);
+}
+
+.weekday-row {
+  display: grid;
+  grid-template-columns: 1.5rem 1fr 2.5rem;
+  align-items: center;
+  gap: var(--s3);
+  font-size: var(--t-sm);
+}
+
+.weekday-name {
+  color: var(--ink-2);
+  font-weight: 700;
+}
+
+.weekday-track {
+  height: 10px;
+  border-radius: var(--r-full);
+  background: var(--panel-2);
+  overflow: hidden;
+}
+
+.weekday-fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--r-full);
+  background: var(--wood-light);
+}
+
+.weekday-fill.is-peak {
+  background: var(--wood-strong);
+}
+
+.weekday-count {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  font-weight: 700;
 }
