@@ -6,6 +6,7 @@ import { AdminFrame } from "@/features/admin/AdminFrame";
 import { api, errorMessage } from "@/lib/api";
 import type { GameConfig, Prize, RedeemPolicy, YutResult } from "@/types/api";
 import { YUT_LABEL, rankLabel } from "@/features/labels";
+import { onlyDecimal } from "@/features/normalize";
 
 const YUT_ORDER: YutResult[] = ["DO", "GAE", "GEOL", "YUT", "MO"];
 const LADDERS = [3, 4, 5];
@@ -215,16 +216,17 @@ export default function Prizes() {
                 <label className="field config-weight">
                   <span>확률 (%)</span>
                   <input
-                    type="number"
-                    min={0}
-                    max={100}
-                    step={0.1}
+                    type="text"
                     inputMode="decimal"
+                    autoComplete="off"
                     value={draft.outcomes[y].percent}
                     onChange={(e) =>
                       setDraft({
                         ...draft,
-                        outcomes: { ...draft.outcomes, [y]: { ...draft.outcomes[y], percent: e.target.value } },
+                        outcomes: {
+                          ...draft.outcomes,
+                          [y]: { ...draft.outcomes[y], percent: onlyDecimal(e.target.value, 3, 1) },
+                        },
                       })
                     }
                   />
