@@ -150,7 +150,6 @@ Request:
 {
   "ownerName": "홍대표",
   "phone": "01012345678",
-  "loginId": "hongstore",
   "password": "secret1234",
   "passwordConfirm": "secret1234",
   "email": "owner@example.com",
@@ -167,8 +166,12 @@ Response:
   "storeToken": "qR7..."
 }
 ```
-가입과 동시에 `STORE_ADMIN` 계정, 매장, OWNER 멤버십, QR 토큰, 3개 상품이 생성된다.
-`staffPin`은 이 응답에서 한 번만 반환한다.
+가입과 동시에 `STORE_ADMIN` 계정, 매장, OWNER 멤버십, QR 토큰, 기본 3등급 상품과
+기본 가중치 설정이 생성된다. `staffPin`은 이 응답에서 한 번만 반환한다.
+
+`phone`은 숫자만 남겨 `010` + 8자리, `businessNumber`는 숫자 10자리여야 한다.
+`010-1234-5678`이나 `123-45-67890`처럼 구분자가 섞여 있어도 서버가 숫자만 남겨 정규화한다.
+자릿수가 맞지 않으면 잘라내지 않고 `INVALID_PHONE` / `INVALID_BUSINESS_NUMBER`로 거부한다.
 
 ## 로그인
 ```http
@@ -176,9 +179,9 @@ POST /api/admin/auth/login
 ```
 Request:
 ```json
-{ "loginId": "hongstore", "password": "secret1234" }
+{ "email": "owner@example.com", "password": "secret1234" }
 ```
-`loginId`에는 아이디 또는 이메일을 넣을 수 있다.
+계정은 이메일로만 식별한다. 아이디(`loginId`) 개념은 없다. 대소문자는 서버가 소문자로 맞춘다.
 
 ## 내 매장
 ```http
@@ -188,8 +191,16 @@ GET /api/admin/stores/{storeId}
 PUT /api/admin/stores/{storeId}
 ```
 
-`POST`는 `SYSTEM_ADMIN`만 사용할 수 있으며 매장, 소유 멤버십, QR, 기본 3등급 상품과
-기본 가중치 설정을 함께 생성하고 최초 직원 PIN을 응답에서 한 번만 반환한다.
+`POST`는 로그인한 관리자가 자기 매장을 하나 더 만드는 요청이다. 매장, 소유 멤버십, QR,
+기본 3등급 상품과 기본 가중치 설정을 함께 생성하고 최초 직원 PIN을 응답에서 한 번만 반환한다.
+
+Request:
+```json
+{ "name": "홍대포차 2호점", "businessNumber": "1234567891", "phone": "01012345678" }
+```
+
+`businessNumber`는 매장마다 유일해야 하며 중복이면 `DUPLICATE_BUSINESS_NUMBER`다.
+한 계정이 가질 수 있는 매장 수를 넘기면 `STORE_LIMIT_REACHED`를 반환한다.
 
 ## 상품 조회/수정
 ```http

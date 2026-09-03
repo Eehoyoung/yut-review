@@ -111,5 +111,14 @@ docker compose --env-file .env.field-test --profile field-test up -d   # Cloudfl
 매장 대표는 `/admin/signup`에서 직접 가입한다(대표 이름·연락처·아이디·비밀번호·이메일·상호명·사업자등록번호).
 가입 한 트랜잭션에서 계정·매장·OWNER 멤버십·QR 토큰·기본 3등급 상품·기본 가중치 설정이 생성되고
 직원 PIN은 응답에서 한 번만 노출된다.
-로그인 입력값(`loginId`)에는 아이디와 이메일을 모두 받는다.
+관리자 로그인은 **이메일 + 비밀번호**뿐이다. 아이디(`loginId`) 개념은 2026-09-03에 제거했다.
+같은 계정으로 `/admin`에서 매장을 더 추가할 수 있고(사업자등록번호는 매장마다 달라야 한다),
+한 계정당 상한은 `AdminController.MAX_STORES_PER_ADMIN`이다.
+
+손으로 넣는 값은 백엔드 `Inputs`(CoreServices.java)와 프런트 `features/normalize.ts`가 같은 규칙을
+쓴다. 휴대전화는 숫자만 남겨 `010` + 8자리, 사업자등록번호는 숫자 10자리. 화면은 입력 자체를
+막고 서버가 다시 검증한다. 정규식을 화면마다 새로 적지 말 것.
+
+`admin_users.login_id` 컬럼은 `ddl-auto=update`가 못 지워서 nullable인 채로 DB에 남아 있다.
+쓰는 코드는 없다.
 

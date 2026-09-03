@@ -19,7 +19,6 @@ erDiagram
 | Column | Type | Note |
 |---|---|---|
 | id | BIGINT | PK |
-| login_id | VARCHAR(20) | UNIQUE, 회원가입 계정의 아이디 |
 | email | VARCHAR(255) | UNIQUE |
 | password_hash | VARCHAR(255) | |
 | name | VARCHAR(100) | 대표자 이름 |
