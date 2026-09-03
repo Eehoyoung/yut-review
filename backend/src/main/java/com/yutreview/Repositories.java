@@ -49,6 +49,14 @@ interface AiMonthlyQuotaRepository extends JpaRepository<AiMonthlyQuota,Long> {
     int consume(@Param("id") Long id,@Param("now") java.time.Instant now);
     @Modifying @Query("update AiMonthlyQuota q set q.limitPerMonth=:limit,q.updatedAt=:now where q.id=:id")
     int relimit(@Param("id") Long id,@Param("limit") int limit,@Param("now") java.time.Instant now);
+    /**
+     * 되돌리기도 조건부 UPDATE여야 한다. 엔티티를 읽어 -1 하고 저장하면, 그 사이 다른 요청이 올린
+     * 값을 덮어써서 원자적 차감이 통째로 무의미해진다.
+     */
+    @Modifying @Query("update AiMonthlyQuota q set q.used=q.used-1,q.updatedAt=:now "
+        + "where q.store.id=:storeId and q.feature=:feature and q.quotaMonth=:month and q.used>0")
+    int refund(@Param("storeId") Long storeId,@Param("feature") AiFeature feature,
+        @Param("month") String month,@Param("now") java.time.Instant now);
 }
 interface AiUsageEventRepository extends JpaRepository<AiUsageEvent,Long> {
     List<AiUsageEvent> findTop20ByStoreIdOrderByCreatedAtDesc(Long storeId);
@@ -75,12 +83,21 @@ interface AnalyticsRepository extends org.springframework.data.repository.Reposi
     @Query("select g.prizeRank, count(g) from GamePlay g where g.store.id=:storeId and g.playedDate between :from and :to group by g.prizeRank order by g.prizeRank")
     List<Object[]> rankCounts(@Param("storeId") Long storeId,@Param("from") LocalDate from,@Param("to") LocalDate to);
 
-    /** date_part는 H2에 없다. HQL 표준 extract를 쓰면 방언별로 알아서 번역된다. */
-    @Query("select extract(hour from g.playedAt), count(g) from GamePlay g where g.store.id=:storeId and g.playedDate between :from and :to group by extract(hour from g.playedAt)")
+    /**
+      * 시간대는 반드시 매장 시간(Asia/Seoul)으로 센다. playedAt은 Instant라 DB가 세션 타임존으로
+      * 해석하는데, 그 값이 배포 환경마다 달라지면 "피크 시간"이 통째로 9시간 밀린다. 실제로 H2는
+      * UTC로, PostgreSQL은 세션 타임존으로 해석해 테스트와 운영이 갈렸다. 그래서 존을 쿼리에 박는다.
+      */
+    @Query(value="select extract(hour from (played_at at time zone 'Asia/Seoul')) as h, count(*) "
+        + "from game_plays where store_id = :storeId and played_date between :from and :to "
+        + "group by h",nativeQuery=true)
     List<Object[]> hourCounts(@Param("storeId") Long storeId,@Param("from") LocalDate from,@Param("to") LocalDate to);
 
-    /** 1=일요일 ... 7=토요일 (HQL day of week 규약). */
-    @Query("select extract(day of week from g.playedAt), count(g) from GamePlay g where g.store.id=:storeId and g.playedDate between :from and :to group by extract(day of week from g.playedAt)")
+    /**
+      * 요일은 playedDate에서 뽑는다. 이 값은 이미 매장 시간 기준의 날짜라 타임존 해석이 끼어들지
+      * 않는다. 1=일요일 ... 7=토요일 (HQL day of week 규약).
+      */
+    @Query("select extract(day of week from g.playedDate), count(g) from GamePlay g where g.store.id=:storeId and g.playedDate between :from and :to group by extract(day of week from g.playedDate)")
     List<Object[]> weekdayCounts(@Param("storeId") Long storeId,@Param("from") LocalDate from,@Param("to") LocalDate to);
 
     @Query("select c.prizeNameSnapshot, c.prizeRankSnapshot, count(c), sum(case when c.status='REDEEMED' then 1 else 0 end) "

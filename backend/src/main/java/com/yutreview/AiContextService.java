@@ -55,8 +55,15 @@ class AiContextService {
         if (start.isBefore(end.minusDays(MAX_WINDOW_DAYS - 1L)))
             start = end.minusDays(MAX_WINDOW_DAYS - 1L);
         Optional<LocalDate> floor = entitlements.analyticsFloor(plan, today);
-        if (floor.isPresent() && start.isBefore(floor.get()))
+        if (floor.isPresent() && start.isBefore(floor.get())) {
+            // 요청 구간 전체가 보관기간 밖이면 잘라 봐야 from > to가 된다. 그대로 두면 어떤 행도
+            // 걸리지 않아 "참여 0건"으로 보이고, 모델은 이벤트가 죽었다고 분석한다. 조용히 거짓을
+            // 만드는 대신 왜 볼 수 없는지 말한다.
+            if (floor.get().isAfter(end))
+                throw new AppException("ANALYTICS_OUT_OF_RETENTION",
+                        "현재 요금제에서 볼 수 있는 기간(" + floor.get() + " 이후)을 벗어난 조회입니다.");
             return new Window(floor.get(), end, true);
+        }
         return new Window(start, end, false);
     }
 
@@ -78,21 +85,35 @@ class AiContextService {
         return out;
     }
 
-    Map<String, Object> comparePeriods(Long storeId, Window current, Window previous) {
+    /**
+     * 직전 구간과의 비교. 직전 구간이 보관기간 밖이면 비교하지 않는다. 없는 기간을 0으로 채워 넣으면
+     * 모델이 "지난 기간 대비 폭증"이라는 없는 사실을 만든다.
+     */
+    Map<String, Object> comparePeriods(Long storeId, Window current, Optional<Window> previous) {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("current", periodSummary(storeId, current));
-        out.put("previous", periodSummary(storeId, previous));
-        long now = analytics.countPlays(storeId, current.from(), current.to());
-        long before = analytics.countPlays(storeId, previous.from(), previous.to());
-        out.put("playsChange", now - before);
-        out.put("playsChangePercent", before == 0 ? null : percent(now - before, before));
+        if (previous.isEmpty()) {
+            out.put("previous", null);
+            out.put("note", "직전 같은 길이의 기간은 요금제 보관기간 밖이라 비교할 수 없다.");
+            return out;
+        }
+        Window before = previous.get();
+        out.put("previous", periodSummary(storeId, before));
+        long nowPlays = analytics.countPlays(storeId, current.from(), current.to());
+        long beforePlays = analytics.countPlays(storeId, before.from(), before.to());
+        out.put("playsChange", nowPlays - beforePlays);
+        out.put("playsChangePercent", beforePlays == 0 ? null : percent(nowPlays - beforePlays, beforePlays));
         return out;
     }
 
-    /** 이전 같은 길이의 구간. 증감을 말할 때 기준이 되며, 보관기간을 넘기면 잘린다. */
-    Window previousWindow(Plan plan, Window w) {
+    /** 이전 같은 길이의 구간. 보관기간 밖이면 비어 있다. */
+    Optional<Window> previousWindow(Plan plan, Window w) {
         long days = w.from().datesUntil(w.to().plusDays(1)).count();
-        return window(plan, w.from().minusDays(days), w.from().minusDays(1));
+        try {
+            return Optional.of(window(plan, w.from().minusDays(days), w.from().minusDays(1)));
+        } catch (AppException outOfRetention) {
+            return Optional.empty();
+        }
     }
 
     Map<String, Object> hourlyDistribution(Long storeId, Window w) {

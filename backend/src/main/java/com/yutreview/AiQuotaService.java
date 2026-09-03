@@ -70,8 +70,9 @@ class AiQuotaService {
      * 새 트랜잭션으로 분리한 이유는, 뒤이어 모델 호출이 실패해 바깥 트랜잭션이 롤백되더라도 차감과
      * 되돌리기를 우리가 명시적으로 통제하려는 것이다.
      */
+    /** 차감한 달을 돌려준다. 되돌릴 때 그 달을 그대로 써야 월말 경계에서 어긋나지 않는다. */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    void consume(Store store, Plan plan, AiFeature feature) {
+    String consume(Store store, Plan plan, AiFeature feature) {
         int limit = entitlements.monthlyQuota(plan, feature);
         if (limit <= 0)
             throw new AppException("PLAN_UPGRADE_REQUIRED", "현재 요금제에서는 사용할 수 없는 AI 기능입니다.",
@@ -83,16 +84,21 @@ class AiQuotaService {
             throw new AppException("AI_QUOTA_EXCEEDED",
                     "이번 달 AI 사용 한도를 모두 썼습니다. 다음 달에 다시 사용할 수 있습니다.",
                     HttpStatus.TOO_MANY_REQUESTS);
+        return row.quotaMonth;
     }
 
-    /** 모델 호출이 실패했을 때 되돌린다. 실패한 호출로 한도를 깎지 않는다. */
+    /**
+     * 모델 호출이 실패했을 때 되돌린다.
+     *
+     * 조건부 UPDATE로 내리는 이유는 차감과 같다. 엔티티를 읽어 -1 하고 저장하면 그 사이 다른 요청이
+     * 올린 값을 덮어써서, 원자적으로 만들어 둔 차감이 통째로 무의미해진다.
+     *
+     * 되돌릴 달을 인자로 받는 이유는 월말 때문이다. 23:59:58에 차감하고 00:00:03에 실패하면
+     * currentMonth()는 이미 다음 달이라, 지난달은 깎인 채로 남고 다음 달이 공짜로 한 칸 늘어난다.
+     */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    void refund(Long storeId, AiFeature feature) {
-        quotas.findByStoreIdAndFeatureAndQuotaMonth(storeId, feature, currentMonth())
-                .ifPresent(q -> {
-                    if (q.used > 0) q.used -= 1;
-                    q.updatedAt = clock.instant();
-                });
+    void refund(Long storeId, AiFeature feature, String chargedMonth) {
+        quotas.refund(storeId, feature, chargedMonth, clock.instant());
     }
 
     /**

@@ -136,4 +136,17 @@ class SubscriptionService {
         s.note = note == null || note.isBlank() ? null : note.trim();
         return s;
     }
+
+    /**
+     * 등급 변경은 운영자만 한다.
+     *
+     * 결제 연동이 없는 상태에서 매장 멤버십만 확인하면, 가입한 사람이 스스로 PRO로 올려 유료 기능과
+     * 운영자 API 키로 나가는 AI 호출을 전부 열 수 있다. 요금제 시스템이 통째로 우회되는 것이라
+     * 결제가 붙기 전까지 변경은 SYSTEM_ADMIN 조작으로만 일어난다.
+     */
+    void requireOperator(AdminUser admin) {
+        if (admin == null || admin.role != AdminRole.SYSTEM_ADMIN)
+            throw new AppException("FORBIDDEN",
+                    "요금제 변경은 운영자에게 문의해 주세요.", HttpStatus.FORBIDDEN);
+    }
 }

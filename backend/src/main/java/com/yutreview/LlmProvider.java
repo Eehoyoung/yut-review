@@ -38,6 +38,10 @@ record LlmTool(String name, String description, Map<String, Object> parameters) 
 record LlmToolCall(String callId, String name, String argumentsJson) {
 }
 
+/** 도구 한 번의 왕복(호출 + 결과). 대화가 이어지는 동안 계속 쌓아서 매 요청에 함께 보낸다. */
+record LlmToolExchange(LlmToolCall call, String resultJson) {
+}
+
 record LlmUsage(int inputTokens, int outputTokens) {
     static final LlmUsage NONE = new LlmUsage(0, 0);
 }
@@ -53,8 +57,13 @@ record LlmResponse(String text, List<LlmToolCall> toolCalls, LlmUsage usage, Str
 interface LlmProvider {
     LlmResponse complete(LlmRequest request);
 
-    /** 이전 응답의 도구 호출에 결과를 채워 다시 묻는다. */
-    LlmResponse continueWithToolResults(LlmRequest request, LlmResponse previous, Map<String, String> resultsByCallId);
+    /**
+     * 지금까지의 도구 왕복을 전부 붙여 다시 묻는다.
+     *
+     * 마지막 왕복만 보내면 앞 라운드에서 확인한 숫자가 사라져, 모델이 같은 것을 다시 묻거나 결국
+     * 근거 없이 답하게 된다. 누적해서 보내는 것이 이 인터페이스의 계약이다.
+     */
+    LlmResponse continueWithToolResults(LlmRequest request, List<LlmToolExchange> exchanges);
 
     String name();
 }
@@ -80,13 +89,15 @@ class LlmException extends RuntimeException {
 class OpenAiLlmProvider implements LlmProvider {
     private final RestClient client;
     private final ObjectMapper json;
+    private final boolean configured;
 
     OpenAiLlmProvider(@Value("${app.ai.openai.api-key:}") String apiKey,
                       @Value("${app.ai.openai.base-url:https://api.openai.com/v1}") String baseUrl,
                       @Value("${app.ai.timeout-seconds:45}") long timeoutSeconds,
                       ObjectMapper json) {
-        if (apiKey == null || apiKey.isBlank())
-            throw new IllegalStateException("app.ai.provider=openai 인데 OPENAI_API_KEY가 없습니다.");
+        // 키가 없어도 뜨기는 해야 한다. 여기서 던지면 컨테이너가 healthy가 되지 않아, 관리자 전용
+        // 기능의 설정 실수 하나로 손님의 QR·게임·쿠폰까지 같이 멈춘다.
+        this.configured = apiKey != null && !apiKey.isBlank();
         // 타임아웃을 명시적으로 잡는다. 기본값은 무한 대기라 관리자 화면이 멈춘 것처럼 보인다.
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(Duration.ofSeconds(10));
@@ -94,7 +105,7 @@ class OpenAiLlmProvider implements LlmProvider {
         this.client = RestClient.builder()
                 .baseUrl(baseUrl)
                 .requestFactory(factory)
-                .defaultHeader("Authorization", "Bearer " + apiKey)
+                .defaultHeader("Authorization", "Bearer " + (this.configured ? apiKey : "unset"))
                 .defaultHeader("Content-Type", MediaType.APPLICATION_JSON_VALUE)
                 .build();
         this.json = json;
@@ -107,26 +118,25 @@ class OpenAiLlmProvider implements LlmProvider {
 
     @Override
     public LlmResponse complete(LlmRequest request) {
-        return call(body(request, null, null, null));
+        return call(body(request, List.of()));
     }
 
     @Override
-    public LlmResponse continueWithToolResults(LlmRequest request, LlmResponse previous, Map<String, String> resultsByCallId) {
-        return call(body(request, previous, resultsByCallId, null));
+    public LlmResponse continueWithToolResults(LlmRequest request, List<LlmToolExchange> exchanges) {
+        return call(body(request, exchanges));
     }
 
-    private Map<String, Object> body(LlmRequest request, LlmResponse previous,
-                                     Map<String, String> toolResults, Void unused) {
+    private Map<String, Object> body(LlmRequest request, List<LlmToolExchange> exchanges) {
         List<Map<String, Object>> input = new java.util.ArrayList<>();
         for (LlmMessage m : request.messages())
             input.add(Map.of("role", m.role(), "content", m.content()));
-        if (previous != null && previous.wantsTools()) {
-            for (LlmToolCall call : previous.toolCalls()) {
-                input.add(Map.of("type", "function_call", "call_id", call.callId(),
-                        "name", call.name(), "arguments", call.argumentsJson()));
-                input.add(Map.of("type", "function_call_output", "call_id", call.callId(),
-                        "output", toolResults.getOrDefault(call.callId(), "{}")));
-            }
+        // 지금까지의 왕복을 순서대로 전부 붙인다. 마지막 것만 보내면 앞의 근거가 사라진다.
+        for (LlmToolExchange exchange : exchanges) {
+            LlmToolCall call = exchange.call();
+            input.add(Map.of("type", "function_call", "call_id", call.callId(),
+                    "name", call.name(), "arguments", call.argumentsJson()));
+            input.add(Map.of("type", "function_call_output", "call_id", call.callId(),
+                    "output", exchange.resultJson()));
         }
         Map<String, Object> payload = new java.util.LinkedHashMap<>();
         payload.put("model", request.model());
@@ -151,6 +161,8 @@ class OpenAiLlmProvider implements LlmProvider {
     }
 
     private LlmResponse call(Map<String, Object> payload) {
+        if (!configured)
+            throw new LlmException("AI_NOT_CONFIGURED", "AI 사용 설정이 완료되지 않았습니다.", null);
         JsonNode root;
         try {
             root = client.post().uri("/responses").body(payload).retrieve().body(JsonNode.class);
@@ -192,6 +204,12 @@ class FakeLlmProvider implements LlmProvider {
     /** 테스트가 실패 경로를 확인할 수 있도록 켜고 끈다. */
     volatile boolean failing;
     volatile LlmRequest lastRequest;
+    /** 테스트가 도구 왕복 누적을 확인한다. */
+    volatile List<LlmToolExchange> lastExchanges = List.of();
+    /** 다음 complete() 한 번이 요청할 도구 호출. 도구 경로를 테스트하려고 둔다. */
+    volatile List<LlmToolCall> nextToolCalls = List.of();
+    /** 응답은 받았지만 형식이 깨진 경우. 이미 과금된 실패를 테스트한다. */
+    volatile boolean brokenJson;
 
     FakeLlmProvider(ObjectMapper json) {
         this.json = json;
@@ -206,18 +224,23 @@ class FakeLlmProvider implements LlmProvider {
     public LlmResponse complete(LlmRequest request) {
         lastRequest = request;
         if (failing) throw new LlmException("AI_PROVIDER_UNAVAILABLE", "테스트용 실패", null);
+        List<LlmToolCall> calls = nextToolCalls;
+        nextToolCalls = List.of();
+        if (!calls.isEmpty()) return new LlmResponse("", calls, new LlmUsage(60, 20), request.model());
         return new LlmResponse(sample(request), List.of(), new LlmUsage(120, 80), request.model());
     }
 
     @Override
-    public LlmResponse continueWithToolResults(LlmRequest request, LlmResponse previous, Map<String, String> resultsByCallId) {
+    public LlmResponse continueWithToolResults(LlmRequest request, List<LlmToolExchange> exchanges) {
         lastRequest = request;
+        lastExchanges = List.copyOf(exchanges);
         if (failing) throw new LlmException("AI_PROVIDER_UNAVAILABLE", "테스트용 실패", null);
         return new LlmResponse(sample(request), List.of(), new LlmUsage(140, 90), request.model());
     }
 
     /** 스키마가 있으면 그 모양대로, 없으면 짧은 한국어 문장 하나. */
     private String sample(LlmRequest request) {
+        if (brokenJson) return "{ 잘린 응답";
         if (request.jsonSchema() == null) return "확인했습니다. 현재 데이터에서는 참여 수가 가장 큰 변화입니다.";
         try {
             return json.writeValueAsString(fill(request.jsonSchema()));

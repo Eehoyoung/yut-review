@@ -96,8 +96,12 @@ class AiController {
     /** 매장 조회 전에 멤버십을 먼저 본다. 남의 매장 id를 넣어도 존재 여부조차 알려주지 않는다. */
     private Store store(Long storeId, Authentication auth) {
         access.member((Long) auth.getPrincipal(), storeId);
-        return stores.findById(storeId)
+        Store store = stores.findById(storeId)
                 .orElseThrow(() -> new AppException("STORE_NOT_FOUND", "매장을 찾을 수 없습니다."));
+        // 운영이 중지된 매장은 고객 경로에서도 막힌다. 관리자 AI만 계속 돌아가면 정지가 정지가 아니다.
+        if (store.status != StoreStatus.ACTIVE)
+            throw new AppException("STORE_INACTIVE", "운영 중인 매장이 아닙니다.");
+        return store;
     }
 }
 
@@ -109,14 +113,17 @@ class SubscriptionController {
     private final PlanEntitlementService entitlements;
     private final StoreAccessService access;
     private final StoreRepository stores;
+    private final AdminUserRepository admins;
     private final java.time.Clock clock;
 
     SubscriptionController(SubscriptionService subscriptions, PlanEntitlementService entitlements,
-                           StoreAccessService access, StoreRepository stores, java.time.Clock clock) {
+                           StoreAccessService access, StoreRepository stores, AdminUserRepository admins,
+                           java.time.Clock clock) {
         this.subscriptions = subscriptions;
         this.entitlements = entitlements;
         this.access = access;
         this.stores = stores;
+        this.admins = admins;
         this.clock = clock;
     }
 
@@ -129,9 +136,17 @@ class SubscriptionController {
         return ApiResponse.ok(view(storeId, subscriptions.planOf(storeId)));
     }
 
+    /**
+     * 등급 변경은 운영자 전용이다.
+     *
+     * 멤버십만 확인하면 가입한 사람이 스스로 PRO로 올려 유료 기능과 운영자 API 키로 나가는 AI
+     * 호출을 전부 열 수 있다. 결제가 붙기 전까지 이 문은 운영자만 연다.
+     */
     @PutMapping
     ApiResponse<?> change(@PathVariable Long storeId, @Valid @RequestBody PlanChange body, Authentication auth) {
-        access.member((Long) auth.getPrincipal(), storeId);
+        Long adminId = (Long) auth.getPrincipal();
+        access.member(adminId, storeId);
+        subscriptions.requireOperator(admins.findById(adminId).orElse(null));
         Store store = stores.findById(storeId)
                 .orElseThrow(() -> new AppException("STORE_NOT_FOUND", "매장을 찾을 수 없습니다."));
         StoreSubscription saved = subscriptions.changePlan(store, body.plan(), body.note());

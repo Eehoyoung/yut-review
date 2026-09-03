@@ -114,7 +114,7 @@ export default function PlanPage() {
             </div>
             {!isCurrent && (
               <button className="btn secondary" disabled={change.isPending} onClick={() => change.mutate(option.plan)}>
-                {PLAN_LABEL[option.plan]}로 변경
+                {PLAN_LABEL[option.plan]}로 변경 문의
               </button>
             )}
           </section>
@@ -126,6 +126,10 @@ export default function PlanPage() {
           {errorMessage(change.error)}
         </p>
       )}
+      <p className="hint">
+        결제 연동 전이라 요금제 변경은 운영자가 처리합니다. 변경 버튼을 누르면 권한이 있는 계정에서만
+        즉시 반영되고, 그 외에는 안내 메시지가 표시됩니다.
+      </p>
       <p className="hint">
         고객 개인정보 보관 기준(120일)은 요금제와 무관하게 동일합니다. 위 보관 기간은 이미 비식별인 분석
         집계에만 적용됩니다.

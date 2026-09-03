@@ -41,6 +41,12 @@ const friendly: Record<string, string> = {
   INVALID_BUSINESS_NUMBER: "사업자등록번호는 숫자 10자리로 입력해주세요.",
   DUPLICATE_EMAIL: "이미 가입된 이메일입니다.", DUPLICATE_BUSINESS_NUMBER: "이미 등록된 사업자등록번호입니다.",
   STORE_LIMIT_REACHED: "한 계정이 관리할 수 있는 매장 수를 넘었습니다.",
+  PLAN_UPGRADE_REQUIRED: "현재 요금제에 포함되지 않은 기능입니다.",
+  AI_QUOTA_EXCEEDED: "이번 달 AI 사용 한도를 모두 썼습니다. 다음 달에 다시 사용할 수 있습니다.",
+  AI_PROVIDER_UNAVAILABLE: "AI 응답을 받지 못했습니다. 잠시 후 다시 시도해주세요.",
+  AI_NOT_CONFIGURED: "AI 사용 설정이 아직 완료되지 않았습니다.",
+  AI_RESPONSE_INVALID: "AI 응답 형식이 올바르지 않습니다. 다시 시도해주세요.",
+  ANALYTICS_OUT_OF_RETENTION: "현재 요금제에서 볼 수 있는 기간을 벗어난 조회입니다.",
 };
 
 export function errorMessage(error: unknown) {

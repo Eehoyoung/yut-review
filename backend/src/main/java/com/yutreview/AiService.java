@@ -149,8 +149,14 @@ class AiService {
         return structured(store, plan, AiFeature.AI_EVENT_COPY, fastModel, payload, 900);
     }
 
-    /** 기간 리포트. 생성 결과를 저장해 다시 열어볼 때 재호출하지 않는다. */
-    @Transactional
+    /**
+     * 기간 리포트. 생성 결과를 저장해 다시 열어볼 때 재호출하지 않는다.
+     *
+     * 메서드 전체를 트랜잭션으로 묶지 않는다. 묶으면 집계 쿼리가 잡은 DB 커넥션을 최대 45초의 모델
+     * 응답을 기다리는 내내 붙들고 있게 되고, 사장 몇 명이 동시에 누르면 커넥션 풀이 마른다. 그러면
+     * 손님의 게임·쿠폰 요청이 커넥션을 못 받아 실패한다. AI 지연이 고객 흐름으로 번지는 정확한 경로다.
+     * 그래서 읽기, 모델 호출, 저장을 각각 짧게 끊는다.
+     */
     Map<String, Object> report(Store store, LocalDate from, LocalDate to) {
         Plan plan = requirePlan(store, AiFeature.AI_REPORT);
         AiContextService.Window w = context.window(plan, from, to);
@@ -162,8 +168,7 @@ class AiService {
         return withWindow(result, w);
     }
 
-    /** 개선 실험 제안. PRO 전용. */
-    @Transactional
+    /** 개선 실험 제안. PRO 전용. 트랜잭션 경계는 report와 같은 이유로 짧게 끊는다. */
     Map<String, Object> improvement(Store store, LocalDate from, LocalDate to) {
         Plan plan = requirePlan(store, AiFeature.AI_IMPROVEMENT);
         AiContextService.Window w = context.window(plan, from, to);
@@ -201,7 +206,7 @@ class AiService {
         }
         messages.add(LlmMessage.user(question));
 
-        quota.consume(store, plan, AiFeature.AI_CHAT);
+        String chargedMonth = quota.consume(store, plan, AiFeature.AI_CHAT);
         String version = prompts.version(AiFeature.AI_CHAT);
         LlmUsage total = LlmUsage.NONE;
         List<String> toolsUsed = new ArrayList<>();
@@ -210,20 +215,26 @@ class AiService {
                     null, null, MAX_CHAT_OUTPUT_TOKENS, toolRegistry.tools());
             LlmResponse response = provider.complete(request);
             total = add(total, response.usage());
+
+            // 왕복을 버리지 않고 쌓는다. 마지막 것만 다시 보내면 앞 라운드에서 확인한 숫자가 사라져,
+            // 모델이 근거 없이 답하거나 같은 것을 계속 되묻는다.
+            List<LlmToolExchange> exchanges = new ArrayList<>();
             for (int round = 0; round < MAX_TOOL_CALLS && response.wantsTools(); round++) {
-                Map<String, String> results = new LinkedHashMap<>();
                 for (LlmToolCall call : response.toolCalls()) {
                     toolsUsed.add(call.name());
-                    results.put(call.callId(), runTool(store, plan, call));
+                    exchanges.add(new LlmToolExchange(call, runTool(store, plan, call)));
                 }
-                response = provider.continueWithToolResults(request, response, results);
+                response = provider.continueWithToolResults(request, exchanges);
                 total = add(total, response.usage());
             }
             if (response.wantsTools()) {
-                // 상한에 닿았다. 도구 없이 지금까지의 근거로 답하게 한다.
+                // 상한에 닿았다. 도구는 닫되 지금까지 모은 결과는 그대로 들려 보낸다. 근거를 비우고
+                // 답을 요구하면 모델이 숫자를 지어낸다.
+                for (LlmToolCall call : response.toolCalls())
+                    exchanges.add(new LlmToolExchange(call, runTool(store, plan, call)));
                 LlmRequest closing = new LlmRequest(chatModel, prompts.systemPrompt(AiFeature.AI_CHAT), messages,
                         null, null, MAX_CHAT_OUTPUT_TOKENS, List.of());
-                response = provider.complete(closing);
+                response = provider.continueWithToolResults(closing, exchanges);
                 total = add(total, response.usage());
             }
             usage.record(store, AiFeature.AI_CHAT, response.model(), version, total, true, null);
@@ -234,7 +245,7 @@ class AiService {
         } catch (AppException e) {
             throw e;
         } catch (RuntimeException e) {
-            fail(store, plan, AiFeature.AI_CHAT, chatModel, version, total, e);
+            fail(store, AiFeature.AI_CHAT, chatModel, version, chargedMonth, total, e);
             throw aiUnavailable(e);
         }
     }
@@ -269,7 +280,7 @@ class AiService {
                     out.put("from", r.periodFrom.toString());
                     out.put("to", r.periodTo.toString());
                     out.put("createdAt", r.createdAt);
-                    out.put("content", read(r.contentJson));
+                    out.put("content", readStored(r.contentJson));
                     return out;
                 })
                 .orElseThrow(() -> new AppException("AI_REPORT_NOT_FOUND", "저장된 리포트가 없습니다.",
@@ -285,7 +296,7 @@ class AiService {
     /** 스키마가 정해진 기능의 공통 경로. */
     private Map<String, Object> structured(Store store, Plan plan, AiFeature feature, String model,
                                            Map<String, Object> payload, int maxOutputTokens) {
-        quota.consume(store, plan, feature);
+        String chargedMonth = quota.consume(store, plan, feature);
         String version = prompts.version(feature);
         LlmUsage used = LlmUsage.NONE;
         try {
@@ -300,15 +311,24 @@ class AiService {
         } catch (AppException e) {
             throw e;
         } catch (RuntimeException e) {
-            fail(store, plan, feature, model, version, used, e);
+            fail(store, feature, model, version, chargedMonth, used, e);
             throw aiUnavailable(e);
         }
     }
 
-    private void fail(Store store, Plan plan, AiFeature feature, String model, String version, LlmUsage used, RuntimeException e) {
+    /**
+     * 공급자에 닿기 전에 끝난 실패만 한도를 돌려준다.
+     *
+     * 응답을 받은 뒤의 실패(스키마 불일치, 출력 잘림)는 이미 과금된 호출이다. 그걸 돌려주면 그 매장은
+     * 실패가 반복되는 동안 사용량이 오르지 않는 채로 계속 호출할 수 있고, 비용만 나간다.
+     */
+    private static final java.util.Set<String> REFUNDABLE =
+            java.util.Set.of("AI_PROVIDER_UNAVAILABLE", "AI_NOT_CONFIGURED", "AI_REQUEST_INVALID");
+
+    private void fail(Store store, AiFeature feature, String model, String version, String chargedMonth,
+                      LlmUsage used, RuntimeException e) {
         String code = e instanceof LlmException llm ? llm.code : "AI_FAILED";
-        // 실패한 호출로 한도를 깎지 않는다.
-        quota.refund(store.id, feature);
+        if (REFUNDABLE.contains(code)) quota.refund(store.id, feature, chargedMonth);
         usage.record(store, feature, model, version, used, false, code);
         // 예외 메시지만 남긴다. 프롬프트 본문은 기록하지 않는다.
         log.warn("AI 호출 실패 storeId={} feature={} code={}", store.id, feature, code);
@@ -354,6 +374,16 @@ class AiService {
             return json.writeValueAsString(value);
         } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
             throw new LlmException("AI_REQUEST_INVALID", "요청을 만들 수 없습니다.", e);
+        }
+    }
+
+    /** 저장된 리포트는 우리가 쓴 값이다. 그래도 깨져 있으면 스택트레이스 대신 이유를 돌려준다. */
+    private Map<String, Object> readStored(String text) {
+        try {
+            return read(text);
+        } catch (LlmException broken) {
+            throw new AppException("AI_REPORT_UNREADABLE", "저장된 리포트를 읽을 수 없습니다.",
+                    org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 

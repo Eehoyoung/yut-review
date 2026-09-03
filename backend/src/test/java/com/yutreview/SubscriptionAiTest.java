@@ -49,6 +49,9 @@ class SubscriptionAiTest {
     @BeforeEach
     void setup() {
         fake.failing = false;
+        fake.brokenJson = false;
+        fake.nextToolCalls = List.of();
+        fake.lastExchanges = List.of();
         fake.lastRequest = null;
         Instant now = Instant.now();
         store = new Store();
@@ -276,6 +279,115 @@ class SubscriptionAiTest {
         assertEquals("INVALID_REQUEST",
                 assertThrows(AppException.class,
                         () -> ai.chat(store, "가".repeat(AiService.MAX_CHAT_MESSAGE_CHARS + 1), List.of())).code);
+    }
+
+    @Test
+    void ownersCannotUpgradeThemselves() {
+        // 결제가 없는 동안 등급 변경은 운영자만 한다. 매장주가 스스로 올릴 수 있으면 요금제가
+        // 통째로 우회된다.
+        AdminUser owner = new AdminUser();
+        owner.email = "owner-self@test.com";
+        owner.passwordHash = "x";
+        owner.name = "매장주";
+        owner.role = AdminRole.STORE_ADMIN;
+        owner.createdAt = Instant.now();
+        admins.save(owner);
+        assertEquals("FORBIDDEN",
+                assertThrows(AppException.class, () -> subscriptions.requireOperator(owner)).code);
+        assertEquals("FORBIDDEN",
+                assertThrows(AppException.class, () -> subscriptions.requireOperator(null)).code);
+
+        AdminUser operator = new AdminUser();
+        operator.email = "operator@test.com";
+        operator.passwordHash = "x";
+        operator.name = "운영자";
+        operator.role = AdminRole.SYSTEM_ADMIN;
+        operator.createdAt = Instant.now();
+        admins.save(operator);
+        subscriptions.requireOperator(operator);
+    }
+
+    @Test
+    void aPeriodEntirelyOutsideRetentionIsRefusedNotZeroed() {
+        // 잘라서 from > to가 되면 어떤 행도 안 걸려 "참여 0건"으로 보이고, 모델은 이벤트가 죽었다고
+        // 분석한다. 조용히 거짓을 만드는 대신 왜 못 보는지 말한다.
+        LocalDate today = LocalDate.now();
+        assertEquals("ANALYTICS_OUT_OF_RETENTION",
+                assertThrows(AppException.class,
+                        () -> context.window(Plan.BASIC, today.minusDays(300), today.minusDays(200))).code);
+
+        // 보관기간 경계에 딱 붙은 구간. 직전 구간은 통째로 밖이라 비교하지 않는다. 0으로 채우면
+        // 모델이 "지난 기간 대비 폭증"이라는 없는 사실을 만든다.
+        AiContextService.Window edge = context.window(Plan.BASIC, today.minusDays(90), today);
+        assertEquals(today.minusDays(90), edge.from());
+        assertTrue(context.previousWindow(Plan.BASIC, edge).isEmpty());
+
+        // 경계에서 하루라도 걸치면 비교는 한다. 잘렸다는 사실만 표시된다.
+        AiContextService.Window inside = context.window(Plan.BASIC, today.minusDays(89), today);
+        assertTrue(context.previousWindow(Plan.BASIC, inside).isPresent());
+        assertTrue(context.previousWindow(Plan.BASIC, inside).orElseThrow().clampedByPlan());
+        Map<String, Object> compared = context.comparePeriods(store.id, edge, context.previousWindow(Plan.BASIC, edge));
+        assertNull(compared.get("previous"));
+        assertNotNull(compared.get("note"));
+        assertFalse(compared.containsKey("playsChangePercent"));
+    }
+
+    @Test
+    void paidCallsAreNotRefunded() {
+        subscriptions.changePlan(store, Plan.PRO, "테스트");
+        String month = quota.currentMonth();
+
+        // 공급자에 닿기 전 실패는 되돌린다.
+        fake.failing = true;
+        assertEquals("AI_PROVIDER_UNAVAILABLE",
+                assertThrows(AppException.class, () -> ai.eventCopy(store, null)).code);
+        assertEquals(0, quotaRows.findByStoreIdAndFeatureAndQuotaMonth(store.id, AiFeature.AI_EVENT_COPY, month)
+                .orElseThrow().used, "공급자 장애는 되돌린다");
+
+        // 응답을 받은 뒤 형식이 깨진 실패는 이미 과금된 호출이라 되돌리지 않는다. 되돌리면 실패가
+        // 반복되는 동안 사용량이 오르지 않은 채 비용만 나간다.
+        fake.failing = false;
+        fake.brokenJson = true;
+        assertEquals("AI_RESPONSE_INVALID",
+                assertThrows(AppException.class, () -> ai.eventCopy(store, null)).code);
+        assertEquals(1, quotaRows.findByStoreIdAndFeatureAndQuotaMonth(store.id, AiFeature.AI_EVENT_COPY, month)
+                .orElseThrow().used, "과금된 실패는 사용량이 남는다");
+    }
+
+    @Test
+    void chatKeepsEveryToolResultAcrossRounds() {
+        subscriptions.changePlan(store, Plan.PRO, "테스트");
+        games.create(qr, "홍길동", "01012345678", "tool-rounds");
+        // 모델이 도구를 한 번 부르게 만든다.
+        fake.nextToolCalls = List.of(new LlmToolCall("call-1", "get_period_summary", "{}"));
+
+        Map<String, Object> answer = ai.chat(store, "지난 30일 참여 몇 건이야?", List.of());
+        assertNotNull(answer.get("answer"));
+        @SuppressWarnings("unchecked")
+        List<String> used = (List<String>) answer.get("toolsUsed");
+        assertEquals(List.of("get_period_summary"), used);
+
+        // 이어지는 호출에 도구 결과가 실제로 실려 갔는지. 비우고 답을 요구하면 모델이 숫자를 지어낸다.
+        assertEquals(1, fake.lastExchanges.size());
+        assertEquals("call-1", fake.lastExchanges.get(0).call().callId());
+        assertTrue(fake.lastExchanges.get(0).resultJson().contains("plays"));
+        assertFalse(fake.lastExchanges.get(0).resultJson().contains("01012345678"));
+    }
+
+    @Test
+    void hourBucketsUseStoreTimeNotServerDefault() {
+        // 시간대 집계가 서버 기본 타임존을 따라가면 "피크 시간"이 통째로 밀린다.
+        subscriptions.changePlan(store, Plan.PRO, "테스트");
+        games.create(qr, "손님", "01033332222", "hour-1");
+        AiContextService.Window w = context.window(Plan.PRO, LocalDate.now().minusDays(1), LocalDate.now());
+        @SuppressWarnings("unchecked")
+        Map<String, Long> byHour = (Map<String, Long>) context.hourlyDistribution(store.id, w).get("playsByHour");
+        assertEquals(24, byHour.size());
+        assertEquals(1L, byHour.values().stream().mapToLong(Long::longValue).sum());
+
+        int seoulHour = java.time.ZonedDateTime.now(java.time.ZoneId.of("Asia/Seoul")).getHour();
+        assertEquals(1L, byHour.get(String.format("%02d", seoulHour)),
+                "매장 시간 기준 시각에 잡혀야 한다");
     }
 
     @Test
