@@ -36,6 +36,9 @@
 
   /* 윷과 보상 */
   --wood-light: oklch(0.74 0.075 66);
+  /* 그래프의 기본 막대. 흰 패널 위에서 3:1을 넘는 가장 옅은 나무색이다. 더 옅게 하면 밝은 매장에서
+     막대가 사라진다. --wood-light는 배경 장식용이라 이 자리에 쓰면 안 된다. */
+  --wood-mid: oklch(0.66 0.09 62);
   --wood: oklch(0.55 0.1 62);
   --wood-strong: oklch(0.45 0.09 62);
   --wood-deep: oklch(0.38 0.08 62);
@@ -105,6 +108,7 @@
     --brand-press: #973c17;
     --brand-ink: #fffaf5;
     --wood-light: #cfa273;
+    --wood-mid: #ba8657;
     --wood: #8a5320;
     --wood-strong: #7a4a1c;
     --wood-deep: #5e3813;
@@ -937,7 +941,7 @@ form > .success {
   font-size: var(--t-xl);
   font-weight: 800;
   letter-spacing: -0.03em;
-  font-variant-numeric: tabular-nums;
+  /* 등폭 숫자는 세로로 정렬되는 표에서만 쓴다. 큰 단독 숫자에 쓰면 자간이 헐거워 보인다. */
 }
 
 /* PIN은 한 번만 보이는 값이라 또박또박 읽히게 */
@@ -1393,7 +1397,7 @@ form > .success {
   min-width: 0;
   min-height: 2px;
   border-radius: 4px 4px 0 0;
-  background: var(--wood-light);
+  background: var(--wood-mid);
 }
 
 .bar.is-peak {
@@ -1437,7 +1441,7 @@ form > .success {
   display: block;
   height: 100%;
   border-radius: var(--r-full);
-  background: var(--wood-light);
+  background: var(--wood-mid);
 }
 
 .weekday-fill.is-peak {
@@ -1449,4 +1453,153 @@ form > .success {
   font-variant-numeric: tabular-nums;
   color: var(--ink);
   font-weight: 700;
+}
+
+
+/* 값을 읽는 길이 툴팁뿐이면 안 된다. 접어 둔 표로 모든 값을 볼 수 있게 한다. */
+.chart-table summary {
+  cursor: pointer;
+  font-size: var(--t-sm);
+  color: var(--ink-2);
+}
+
+.chart-table table {
+  width: 100%;
+  margin-top: var(--s2);
+  border-collapse: collapse;
+  font-size: var(--t-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-table td {
+  padding: 2px var(--s2) 2px 0;
+  color: var(--ink-2);
+}
+
+.chart-table td:last-child {
+  text-align: right;
+  color: var(--ink);
+  font-weight: 700;
+}
+
+/* ---------- AI 화면 ---------- */
+
+/*
+  화면의 첫 줄. 카드로 감싸지 않는다. 이건 결과를 읽는 자리이지 조작하는 자리가 아니고,
+  카드가 반복되면 무엇이 결론인지 흐려진다.
+*/
+.insight {
+  display: grid;
+  gap: var(--s2);
+  padding: var(--s5) 0 var(--s4);
+  border-bottom: 1px solid var(--line);
+}
+
+.insight-when {
+  margin: 0;
+  font-size: var(--t-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-muted);
+}
+
+.insight-title {
+  margin: 0;
+  font-size: var(--t-xl);
+  line-height: 1.25;
+  text-wrap: balance;
+}
+
+.insight-summary {
+  margin: 0;
+  font-size: var(--t-base);
+  line-height: 1.65;
+  color: var(--ink-2);
+  max-width: 34em;
+}
+
+/* 발견 항목은 제목과 근거가 위아래로 붙어야 한 덩어리로 읽힌다. */
+.list-item.finding {
+  display: grid;
+  gap: 2px;
+  align-items: start;
+}
+
+.experiment {
+  display: grid;
+  gap: var(--s3);
+  padding-top: var(--s4);
+  border-top: 1px solid var(--line-soft);
+}
+
+.experiment:first-of-type {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.experiment h3 {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.experiment-n {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-full);
+  background: var(--wood-strong);
+  color: var(--brand-ink);
+  font-size: var(--t-xs);
+  font-weight: 800;
+}
+
+/* 만들어진 문구는 그대로 옮겨 붙일 값이라 본문과 다른 무게로 둔다. */
+.copyout {
+  display: grid;
+  gap: var(--s3);
+  padding: var(--s4);
+  border-radius: var(--r-md);
+  background: var(--panel-2);
+  border: 1px solid var(--line-soft);
+}
+
+.copyout-headline {
+  margin: 0;
+  font-size: var(--t-lg);
+  font-weight: 800;
+  line-height: 1.3;
+  color: var(--ink);
+  text-wrap: balance;
+}
+
+/*
+  포함 항목 목록. 불릿 대신 체크 표식을 앞에 둔다. 여기서 읽히는 것은 "무엇이 들어 있다"는 사실이고,
+  기본 불릿은 그 사실보다 목록이라는 형식을 먼저 말한다.
+*/
+.included {
+  display: grid;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.included li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2);
+  font-size: var(--t-base);
+  color: var(--ink);
+}
+
+.included li::before {
+  content: "";
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--wood-strong);
+  transform: translateY(-2px);
 }

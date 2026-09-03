@@ -47,6 +47,23 @@ export function HourlyBars({ byHour }: { byHour: Record<string, number> }) {
         <span>18시</span>
         <span>23시</span>
       </div>
+      {/* 정확한 값을 읽는 길이 툴팁뿐이면 안 된다. 마우스가 없는 폰에서는 아예 길이 없어진다. */}
+      <details className="chart-table">
+        <summary>시간대별 숫자 보기</summary>
+        <table>
+          <tbody>
+            {hours
+              .map((hour, i) => [hour, counts[i]] as const)
+              .filter(([, count]) => count > 0)
+              .map(([hour, count]) => (
+                <tr key={hour}>
+                  <td>{hour}시</td>
+                  <td>{count}건</td>
+                </tr>
+              ))}
+          </tbody>
+        </table>
+      </details>
     </figure>
   );
 }

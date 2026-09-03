@@ -1,8 +1,8 @@
 "use client";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, errorMessage } from "@/lib/api";
-import { AI_FEATURE_LABEL, PLAN_LABEL } from "@/features/admin/labels";
+import { PLAN_LABEL } from "@/features/admin/labels";
 import type { AiChatAnswer, AiEventCopy, AiFeature, AiImprovement, AiReportContent, AiStatus } from "@/types/api";
 
 /**
@@ -10,6 +10,10 @@ import type { AiChatAnswer, AiEventCopy, AiFeature, AiImprovement, AiReportConte
  *
  * 고객 경로(`/s/[storeToken]`)는 이 파일을 import하지 않는다. AI 공급자가 죽어도 손님이 윷을
  * 던지는 데 영향이 없어야 하고, 번들도 섞이면 안 된다.
+ *
+ * 네 기능을 같은 카드로 반복하지 않는다. 성격이 다르기 때문이다. 리포트는 읽는 것, 개선 제안은
+ * 실행 목록, 문구는 입력을 받아 만드는 것, 매니저는 대화다. 같은 껍데기에 넣으면 무엇이 무엇인지
+ * 구분되지 않고, 화면이 길어질수록 사장은 전부 같은 것으로 본다.
  */
 
 /** 남은 횟수. 왜 못 쓰는지가 보이지 않으면 사장은 고장으로 읽는다. */
@@ -33,56 +37,228 @@ function useAiStatus(storeId: string) {
   return useQuery({ queryKey: ["ai-status", storeId], queryFn: () => api<AiStatus>(`/admin/stores/${storeId}/ai/status`) });
 }
 
-/** AI 카드의 공통 껍데기. 제목, 남은 횟수, 실행 버튼, 오류 자리를 한 모양으로 맞춘다. */
-function AiCard({
-  title,
-  lead,
-  feature,
-  status,
-  actionLabel,
-  pending,
-  error,
-  onRun,
-  children,
-}: {
-  title: string;
-  lead: string;
-  feature: AiFeature;
-  status?: AiStatus;
-  actionLabel: string;
-  pending: boolean;
-  error: unknown;
-  onRun: () => void;
-  children?: React.ReactNode;
-}) {
+function blocked(status: AiStatus | undefined, feature: AiFeature) {
   const row = status?.features.find((f) => f.feature === feature);
-  const blocked = !row?.allowed || row.remaining === 0;
+  if (!row?.allowed) return "상위 요금제에서 사용할 수 있습니다.";
+  if (row.remaining === 0) return "이번 달 한도를 모두 썼습니다.";
+  return "";
+}
+
+/**
+ * 화면의 첫 줄. 지금 이 매장에서 AI가 무엇을 알아냈는지 한 문장으로 보여 준다.
+ * 아무것도 없으면 그 자리에서 만들 수 있게 한다. 빈 화면에 "없습니다"만 두지 않는다.
+ */
+export function AiInsightCard({ storeId }: { storeId: string }) {
+  const qc = useQueryClient();
+  const status = useAiStatus(storeId);
+  const saved = useQuery({
+    queryKey: ["ai-report", storeId],
+    queryFn: () =>
+      api<{ content: AiReportContent; from: string; to: string; createdAt: string }>(
+        `/admin/stores/${storeId}/ai/report/latest`,
+      ),
+    retry: false,
+  });
+  const run = useMutation({
+    mutationFn: () => api<AiReportContent>(`/admin/stores/${storeId}/ai/report`, { method: "POST" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["ai-status", storeId] });
+      qc.invalidateQueries({ queryKey: ["ai-report", storeId] });
+    },
+  });
+  const why = blocked(status.data, "AI_REPORT");
+
+  if (saved.data)
+    return (
+      <section className="insight">
+        <p className="insight-when">
+          {saved.data.from} ~ {saved.data.to}
+        </p>
+        <h2 className="insight-title">{saved.data.content.title}</h2>
+        <p className="insight-summary">{saved.data.content.summary}</p>
+      </section>
+    );
+
   return (
     <section className="panel stack">
       <div className="row">
-        <h2>{title}</h2>
-        <AiUsageBadge status={status} feature={feature} />
+        <h2>아직 분석한 결과가 없어요</h2>
+        <AiUsageBadge status={status.data} feature="AI_REPORT" />
       </div>
-      <p className="lead">{lead}</p>
-      {children}
-      {error != null && (
+      <p className="lead">
+        최근 참여와 쿠폰 집계를 근거로 무엇이 변했는지 정리합니다. 매출 데이터는 수집하지 않아 매출
+        변화는 말하지 않습니다.
+      </p>
+      {run.isError && (
         <p className="error" role="alert">
-          {errorMessage(error)}
+          {errorMessage(run.error)}
         </p>
       )}
-      <button className="btn" onClick={onRun} disabled={pending || blocked}>
-        {pending ? "만드는 중..." : actionLabel}
+      <button className="btn" onClick={() => run.mutate()} disabled={run.isPending || why !== ""}>
+        {run.isPending ? "분석하는 중..." : "리포트 만들기"}
       </button>
-      {!row?.allowed && <p className="hint">상위 요금제에서 사용할 수 있습니다.</p>}
-      {row?.allowed && row.remaining === 0 && <p className="hint">이번 달 한도를 모두 썼습니다.</p>}
+      {why && <p className="hint">{why}</p>}
     </section>
   );
 }
 
-/** 이벤트 안내 문구. 실제 상품과 확률만 근거로 쓴다. */
-export function AiEventCopyCard({ storeId }: { storeId: string }) {
+/** 리포트 본문. 읽는 화면이라 카드로 감싸지 않고 문서처럼 펼친다. */
+export function AiReportCard({ storeId }: { storeId: string }) {
   const qc = useQueryClient();
   const status = useAiStatus(storeId);
+  const saved = useQuery({
+    queryKey: ["ai-report", storeId],
+    queryFn: () => api<{ content: AiReportContent }>(`/admin/stores/${storeId}/ai/report/latest`),
+    retry: false,
+  });
+  const run = useMutation({
+    mutationFn: () => api<AiReportContent>(`/admin/stores/${storeId}/ai/report`, { method: "POST" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["ai-status", storeId] });
+      qc.invalidateQueries({ queryKey: ["ai-report", storeId] });
+    },
+  });
+  const report = run.data ?? saved.data?.content;
+  const why = blocked(status.data, "AI_REPORT");
+  if (!report) return null;
+
+  return (
+    <section className="panel stack">
+      <div className="row">
+        <h2>무엇이 변했나</h2>
+        <AiUsageBadge status={status.data} feature="AI_REPORT" />
+      </div>
+
+      {report.highlights.length > 0 && (
+        <div className="list">
+          {report.highlights.map((h) => (
+            <div className="list-item finding" key={h.title}>
+              <span className="name">{h.title}</span>
+              <span className="lead">{h.evidence}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {report.concerns.length > 0 && (
+        <>
+          <hr className="hair" />
+          <h3>살펴볼 것</h3>
+          <div className="list">
+            {report.concerns.map((c) => (
+              <div className="list-item finding" key={c.title}>
+                <span className="name">{c.title}</span>
+                <span className="lead">{c.evidence}</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {report.recommendations.length > 0 && (
+        <>
+          <hr className="hair" />
+          <h3>해볼 것</h3>
+          <ol className="howto">
+            {report.recommendations.map((r, i) => (
+              <li key={r.action}>
+                <span className="howto-n" aria-hidden="true">
+                  {i + 1}
+                </span>
+                <span>
+                  {r.action}
+                  <br />
+                  <small className="hint">
+                    {r.reason} · 확인 지표: {r.successMetric}
+                  </small>
+                </span>
+              </li>
+            ))}
+          </ol>
+        </>
+      )}
+
+      {report.dataLimitations.length > 0 && (
+        <p className="notice">데이터 한계: {report.dataLimitations.join(" / ")}</p>
+      )}
+
+      {run.isError && (
+        <p className="error" role="alert">
+          {errorMessage(run.error)}
+        </p>
+      )}
+      <button className="btn secondary" onClick={() => run.mutate()} disabled={run.isPending || why !== ""}>
+        {run.isPending ? "분석하는 중..." : "다시 분석하기"}
+      </button>
+      {why && <p className="hint">{why}</p>}
+    </section>
+  );
+}
+
+/** 개선 제안. 실행 목록이라 실험 하나하나를 블록으로 세운다. */
+export function AiImprovementCard({ storeId }: { storeId: string }) {
+  const qc = useQueryClient();
+  const status = useAiStatus(storeId);
+  const run = useMutation({
+    mutationFn: () => api<AiImprovement>(`/admin/stores/${storeId}/ai/improvement`, { method: "POST" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["ai-status", storeId] }),
+  });
+  const why = blocked(status.data, "AI_IMPROVEMENT");
+
+  return (
+    <section className="panel stack">
+      <div className="row">
+        <h2>바꿔볼 만한 것</h2>
+        <AiUsageBadge status={status.data} feature="AI_IMPROVEMENT" />
+      </div>
+      <p className="lead">한 실험에서 한 가지만 바꿉니다. 무엇이 효과였는지 알 수 있어야 하니까요.</p>
+
+      {run.data?.experiments.map((e, i) => (
+        <div className="experiment" key={e.name}>
+          <div className="row">
+            <h3>
+              <span className="experiment-n" aria-hidden="true">
+                {i + 1}
+              </span>
+              {e.name}
+            </h3>
+            <span className="pill">{e.durationDays}일</span>
+          </div>
+          <p className="lead">{e.change}</p>
+          <div className="list">
+            <div className="list-item">
+              <span className="lead">바꾸는 것</span>
+              <span className="name">{e.variableChanged}</span>
+            </div>
+            <div className="list-item">
+              <span className="lead">확인 방법</span>
+              <span className="name">{e.howToMeasure}</span>
+            </div>
+          </div>
+        </div>
+      ))}
+
+      {run.isError && (
+        <p className="error" role="alert">
+          {errorMessage(run.error)}
+        </p>
+      )}
+      <button className="btn secondary" onClick={() => run.mutate()} disabled={run.isPending || why !== ""}>
+        {run.isPending ? "찾는 중..." : run.data ? "다시 제안받기" : "실험 제안받기"}
+      </button>
+      {why && <p className="hint">{why}</p>}
+    </section>
+  );
+}
+
+/**
+ * 이벤트 문구는 입력을 받아 만드는 것이라 바텀시트로 연다. 읽는 화면들 사이에 입력 폼을 끼워 두면
+ * 무엇이 결과이고 무엇이 조작인지 흐려진다. 쿠폰 사용 처리와 같은 시트를 쓴다.
+ */
+export function AiEventCopyDialog({ storeId }: { storeId: string }) {
+  const qc = useQueryClient();
+  const status = useAiStatus(storeId);
+  const [open, setOpen] = useState(false);
   const [tone, setTone] = useState("");
   const [extra, setExtra] = useState("");
   const run = useMutation({
@@ -93,35 +269,21 @@ export function AiEventCopyCard({ storeId }: { storeId: string }) {
       }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["ai-status", storeId] }),
   });
+  const why = blocked(status.data, "AI_EVENT_COPY");
 
   return (
-    <AiCard
-      title="이벤트 문구"
-      lead="매장에 붙일 안내 문구를 만듭니다. 별점이나 좋은 리뷰를 조건으로 요구하는 문구는 만들지 않습니다."
-      feature="AI_EVENT_COPY"
-      status={status.data}
-      actionLabel="문구 만들기"
-      pending={run.isPending}
-      error={run.error}
-      onRun={() => run.mutate()}
-    >
-      <div className="field">
-        <label htmlFor="ai-tone">말투</label>
-        <input id="ai-tone" value={tone} maxLength={40} placeholder="담백하게" onChange={(e) => setTone(e.target.value)} />
+    <section className="panel stack">
+      <div className="row">
+        <h2>안내 문구 만들기</h2>
+        <AiUsageBadge status={status.data} feature="AI_EVENT_COPY" />
       </div>
-      <div className="field">
-        <label htmlFor="ai-extra">덧붙일 요청</label>
-        <textarea
-          id="ai-extra"
-          value={extra}
-          maxLength={300}
-          placeholder="가족 손님이 많아요"
-          onChange={(e) => setExtra(e.target.value)}
-        />
-      </div>
+      <p className="lead">
+        매장에 붙일 문구를 만듭니다. 별점이나 좋은 리뷰를 조건으로 요구하는 문구는 만들지 않습니다.
+      </p>
+
       {run.data && (
-        <div className="stack">
-          <p className="result-copy">{run.data.headline}</p>
+        <div className="copyout">
+          <p className="copyout-headline">{run.data.headline}</p>
           <p className="lead">{run.data.subheadline}</p>
           <div className="list">
             {run.data.posterLines.map((line) => (
@@ -134,118 +296,62 @@ export function AiEventCopyCard({ storeId }: { storeId: string }) {
           <p className="hint">직원 안내: {run.data.staffGuide}</p>
         </div>
       )}
-    </AiCard>
-  );
-}
 
-/** 기간 리포트. 저장된 마지막 리포트를 먼저 보여 준다. */
-export function AiReportCard({ storeId }: { storeId: string }) {
-  const qc = useQueryClient();
-  const status = useAiStatus(storeId);
-  const saved = useQuery({
-    queryKey: ["ai-report", storeId],
-    queryFn: () => api<{ content: AiReportContent; from: string; to: string }>(`/admin/stores/${storeId}/ai/report/latest`),
-    retry: false,
-  });
-  const run = useMutation({
-    mutationFn: () => api<AiReportContent>(`/admin/stores/${storeId}/ai/report`, { method: "POST" }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["ai-status", storeId] });
-      qc.invalidateQueries({ queryKey: ["ai-report", storeId] });
-    },
-  });
-  const report = run.data ?? saved.data?.content;
+      <button className="btn secondary" onClick={() => setOpen(true)} disabled={why !== ""}>
+        {run.data ? "다시 만들기" : "문구 만들기"}
+      </button>
+      {why && <p className="hint">{why}</p>}
 
-  return (
-    <AiCard
-      title="운영 리포트"
-      lead="최근 참여와 쿠폰 집계를 근거로 무엇이 변했는지 정리합니다. 매출 데이터는 수집하지 않아 매출 변화는 말하지 않습니다."
-      feature="AI_REPORT"
-      status={status.data}
-      actionLabel={report ? "다시 분석하기" : "리포트 만들기"}
-      pending={run.isPending}
-      error={run.error}
-      onRun={() => run.mutate()}
-    >
-      {report && (
-        <div className="stack">
-          <h3>{report.title}</h3>
-          <p className="lead">{report.summary}</p>
-          {report.highlights.length > 0 && (
-            <div className="list">
-              {report.highlights.map((h) => (
-                <div className="list-item" key={h.title}>
-                  <span className="name">{h.title}</span>
-                  <span className="lead">{h.evidence}</span>
-                </div>
-              ))}
+      {open && (
+        <div className="dialog-backdrop" role="presentation">
+          <form
+            className="dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="copy-title"
+            onSubmit={(e: FormEvent) => {
+              e.preventDefault();
+              run.mutate(undefined, { onSuccess: () => setOpen(false) });
+            }}
+          >
+            <h2 id="copy-title">어떤 문구가 필요하세요?</h2>
+            <div className="field">
+              <label htmlFor="ai-tone">말투</label>
+              <input
+                id="ai-tone"
+                value={tone}
+                maxLength={40}
+                placeholder="담백하게"
+                onChange={(e) => setTone(e.target.value)}
+              />
             </div>
-          )}
-          {report.recommendations.length > 0 && (
-            <ol className="howto">
-              {report.recommendations.map((r, i) => (
-                <li key={r.action}>
-                  <span className="howto-n" aria-hidden="true">
-                    {i + 1}
-                  </span>
-                  <span>
-                    {r.action}
-                    <br />
-                    <small className="hint">
-                      {r.reason} · 확인 지표: {r.successMetric}
-                    </small>
-                  </span>
-                </li>
-              ))}
-            </ol>
-          )}
-          {report.dataLimitations.length > 0 && (
-            <p className="notice">데이터 한계: {report.dataLimitations.join(" / ")}</p>
-          )}
-        </div>
-      )}
-    </AiCard>
-  );
-}
-
-/** 개선 실험 제안. PRO 전용. */
-export function AiImprovementCard({ storeId }: { storeId: string }) {
-  const qc = useQueryClient();
-  const status = useAiStatus(storeId);
-  const run = useMutation({
-    mutationFn: () => api<AiImprovement>(`/admin/stores/${storeId}/ai/improvement`, { method: "POST" }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["ai-status", storeId] }),
-  });
-
-  return (
-    <AiCard
-      title="개선 제안"
-      lead="지금 데이터에서 바꿔 볼 만한 것을 작은 실험으로 제안합니다. 한 실험에서 한 가지만 바꿉니다."
-      feature="AI_IMPROVEMENT"
-      status={status.data}
-      actionLabel="실험 제안받기"
-      pending={run.isPending}
-      error={run.error}
-      onRun={() => run.mutate()}
-    >
-      {run.data && (
-        <div className="stack">
-          {run.data.experiments.map((e) => (
-            <div className="prize-block" key={e.name}>
-              <div className="row">
-                <h3>{e.name}</h3>
-                <span className="pill">{e.durationDays}일</span>
-              </div>
-              <p className="lead">{e.change}</p>
-              <p className="hint">
-                바꾸는 것: {e.variableChanged} · 확인 방법: {e.howToMeasure}
+            <div className="field">
+              <label htmlFor="ai-extra">덧붙일 요청</label>
+              <textarea
+                id="ai-extra"
+                value={extra}
+                maxLength={300}
+                placeholder="가족 손님이 많아요"
+                onChange={(e) => setExtra(e.target.value)}
+              />
+            </div>
+            {run.isError && (
+              <p className="error" role="alert">
+                {errorMessage(run.error)}
               </p>
+            )}
+            <div className="sheet-actions">
+              <button type="button" className="btn ghost" onClick={() => setOpen(false)}>
+                취소
+              </button>
+              <button className="btn" disabled={run.isPending}>
+                {run.isPending ? "만드는 중..." : "만들기"}
+              </button>
             </div>
-          ))}
-          {run.data.hypotheses.length > 0 && <p className="notice">가설: {run.data.hypotheses.join(" / ")}</p>}
+          </form>
         </div>
       )}
-    </AiCard>
+    </section>
   );
 }
 
@@ -255,6 +361,7 @@ export function AiManagerChat({ storeId }: { storeId: string }) {
   const status = useAiStatus(storeId);
   const [message, setMessage] = useState("");
   const [turns, setTurns] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
+  const logRef = useRef<HTMLDivElement>(null);
   const ask = useMutation({
     mutationFn: (question: string) =>
       api<AiChatAnswer>(`/admin/stores/${storeId}/ai/chat`, {
@@ -268,19 +375,23 @@ export function AiManagerChat({ storeId }: { storeId: string }) {
     },
   });
 
-  const row = status.data?.features.find((f) => f.feature === "AI_CHAT");
-  const blocked = !row?.allowed || row.remaining === 0;
+  // 답이 오면 마지막 줄로 내린다. 위쪽을 보고 있으면 새 답이 온 줄도 모른다.
+  useEffect(() => {
+    if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
+  }, [turns]);
+
+  const why = blocked(status.data, "AI_CHAT");
 
   return (
     <section className="panel stack">
       <div className="row">
-        <h2>{AI_FEATURE_LABEL.AI_CHAT}</h2>
+        <h2>물어보기</h2>
         <AiUsageBadge status={status.data} feature="AI_CHAT" />
       </div>
       <p className="lead">이 매장의 운영 데이터만 보고 답합니다. 고객 개인정보는 묻거나 보여줄 수 없습니다.</p>
 
       {turns.length > 0 && (
-        <div className="chat-log">
+        <div className="chat-log" ref={logRef} aria-live="polite">
           {turns.map((t, i) => (
             <p key={i} className={t.role === "user" ? "chat-turn is-me" : "chat-turn"}>
               {t.content}
@@ -311,10 +422,10 @@ export function AiManagerChat({ storeId }: { storeId: string }) {
             {errorMessage(ask.error)}
           </p>
         )}
-        <button className="btn" disabled={ask.isPending || blocked || !message.trim()}>
+        <button className="btn" disabled={ask.isPending || why !== "" || !message.trim()}>
           {ask.isPending ? "생각하는 중..." : "물어보기"}
         </button>
-        {!row?.allowed && <p className="hint">프로 요금제에서 사용할 수 있습니다.</p>}
+        {why && <p className="hint">{why}</p>}
       </form>
     </section>
   );
