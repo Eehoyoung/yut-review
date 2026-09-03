@@ -4,291 +4,359 @@ import { useParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AdminFrame } from "@/features/admin/AdminFrame";
 import { api, errorMessage } from "@/lib/api";
-import type { GameConfig, GameConfigOutcome, Prize, YutResult } from "@/types/api";
+import type { GameConfig, Prize, RedeemPolicy, YutResult } from "@/types/api";
 import { YUT_LABEL, rankLabel } from "@/features/labels";
 
 const YUT_ORDER: YutResult[] = ["DO", "GAE", "GEOL", "YUT", "MO"];
-const MAX_RANK = 5;
-const MAX_WEIGHT = 1000;
+const LADDERS = [3, 4, 5];
 
-/** Rank ladders offered as one-tap presets. Weights are left alone; only the mapping changes. */
+/** Rank ladders offered as one-tap presets. Percentages are left alone; only the mapping changes. */
 const PRESETS: Record<number, Record<YutResult, number>> = {
   3: { DO: 3, GAE: 3, GEOL: 2, YUT: 2, MO: 1 },
   4: { DO: 4, GAE: 4, GEOL: 3, YUT: 2, MO: 1 },
   5: { DO: 5, GAE: 4, GEOL: 3, YUT: 2, MO: 1 },
 };
 
-type Draft = { weight: number; prizeRank: number };
+/**
+ * Owners think in percentages, the server stores integer weights out of 1000. One decimal place of
+ * percent is exactly one unit of weight, so the two are the same number with the point moved.
+ */
+const toTenths = (percent: string) => Math.round(Number(percent) * 10);
+const toPercent = (weight: number) => String(weight / 10);
 
-function percent(draft: Record<YutResult, Draft>, keep: (d: Draft) => boolean) {
-  const all = YUT_ORDER.map((y) => draft[y]);
-  const total = all.reduce((sum, d) => sum + d.weight, 0);
-  if (total === 0) return 0;
-  const part = all.filter(keep).reduce((sum, d) => sum + d.weight, 0);
-  return Math.round((part * 1000) / total) / 10;
+const POLICY_HELP: { value: RedeemPolicy; label: string; help: string }[] = [
+  { value: "ANYTIME", label: "즉시", help: "받은 자리에서 바로 씁니다. 이번 방문의 주문을 늘리고 싶을 때." },
+  { value: "SAME_DAY", label: "당일", help: "지금 동작은 ‘즉시’와 같습니다. 발급 당일부터 쓸 수 있습니다." },
+  { value: "NEXT_DAY", label: "다음 날", help: "발급 다음 날 0시부터 쓸 수 있습니다. 재방문을 유도할 때." },
+];
+
+type OutcomeDraft = { percent: string; prizeRank: number };
+type PrizeDraft = { name: string; description: string; redeemPolicy: RedeemPolicy };
+type Draft = { ladder: number; outcomes: Record<YutResult, OutcomeDraft>; prizes: Record<number, PrizeDraft> };
+
+function buildDraft(config: GameConfig, prizes: Prize[]): Draft {
+  const outcomes = {} as Record<YutResult, OutcomeDraft>;
+  YUT_ORDER.forEach((y) => {
+    const found = config.outcomes.find((o) => o.yutResult === y);
+    outcomes[y] = { percent: toPercent(found?.weight ?? 0), prizeRank: found?.prizeRank ?? 1 };
+  });
+  const ladder = Math.max(...YUT_ORDER.map((y) => outcomes[y].prizeRank), 1);
+  const drafts: Record<number, PrizeDraft> = {};
+  for (let rank = 1; rank <= 5; rank++) {
+    const found = prizes.find((p) => p.rank === rank);
+    drafts[rank] = {
+      name: found?.name ?? `${rank}등 상품`,
+      description: found?.description ?? "",
+      redeemPolicy: found?.redeemPolicy ?? "ANYTIME",
+    };
+  }
+  return { ladder, outcomes, prizes: drafts };
 }
 
-/** Mirrors the server rules so the owner sees the problem before saving, not after. */
-function problem(draft: Record<YutResult, Draft>) {
-  const all = YUT_ORDER.map((y) => draft[y]);
-  if (all.some((d) => !Number.isFinite(d.weight) || d.weight < 0 || d.weight > MAX_WEIGHT))
-    return `가중치는 0에서 ${MAX_WEIGHT} 사이여야 합니다.`;
-  if (all.reduce((sum, d) => sum + d.weight, 0) < 1) return "가중치 합이 0이면 결과를 뽑을 수 없습니다.";
-  const ranks = [...new Set(all.map((d) => d.prizeRank))].sort((a, b) => a - b);
-  if (ranks.some((rank, i) => rank !== i + 1)) return "등급은 1등부터 빠짐없이 이어져야 합니다.";
+const tenthsOf = (draft: Draft) => YUT_ORDER.reduce((sum, y) => sum + toTenths(draft.outcomes[y].percent), 0);
+
+/** Percentage of all throws that land on a given rank. */
+const rankShare = (draft: Draft, rank: number) =>
+  YUT_ORDER.filter((y) => draft.outcomes[y].prizeRank === rank).reduce(
+    (sum, y) => sum + toTenths(draft.outcomes[y].percent),
+    0,
+  ) / 10;
+
+/** Blocks the save on anything a store could get wrong by accident, before the server sees it. */
+function problem(draft: Draft) {
+  const values = YUT_ORDER.map((y) => Number(draft.outcomes[y].percent));
+  if (values.some((v) => !Number.isFinite(v) || v < 0 || v > 100)) return "확률은 0에서 100 사이로 입력해 주세요.";
+  const total = tenthsOf(draft);
+  if (total !== 1000) {
+    const diff = (1000 - total) / 10;
+    return diff > 0 ? `확률 합이 ${100 - diff}%입니다. ${diff}% 더 배분해 주세요.` : `확률 합이 ${-diff}% 초과했습니다.`;
+  }
+  for (let rank = 1; rank <= draft.ladder; rank++)
+    if (!YUT_ORDER.some((y) => draft.outcomes[y].prizeRank === rank))
+      return `${rankLabel(rank)}에 배정된 윷 결과가 없습니다.`;
+  for (let rank = 1; rank <= draft.ladder; rank++)
+    if (!draft.prizes[rank].name.trim()) return `${rankLabel(rank)} 상품명을 입력해 주세요.`;
   return "";
 }
 
-function GameConfigForm({ storeId, config }: { storeId: string; config: GameConfig }) {
-  const qc = useQueryClient();
-  const [draft, setDraft] = useState<Record<YutResult, Draft>>(() => toDraft(config.outcomes));
-  useEffect(() => setDraft(toDraft(config.outcomes)), [config.outcomes]);
-
-  const save = useMutation({
-    mutationFn: () =>
-      api<GameConfig>(`/admin/stores/${storeId}/game-config`, {
-        method: "PUT",
-        body: JSON.stringify({ outcomes: YUT_ORDER.map((y) => ({ yutResult: y, ...draft[y] })) }),
-      }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["game-config", storeId] });
-      qc.invalidateQueries({ queryKey: ["prizes", storeId] });
-    },
-  });
-
-  const ranks = [...new Set(YUT_ORDER.map((y) => draft[y].prizeRank))].sort((a, b) => a - b);
-  const blocked = problem(draft);
-
+function PolicyHelp() {
+  const [open, setOpen] = useState(false);
   return (
-    <form
-      className="panel stack"
-      onSubmit={(e: FormEvent) => {
-        e.preventDefault();
-        save.mutate();
-      }}
-    >
-      <div className="row">
-        <h2>등급 수와 확률</h2>
-        <span className="pill" data-tone="wood">
-          현재 {ranks.length}등급
-        </span>
-      </div>
-      <p className="lead">
-        확률은 등급이 아니라 윷 결과에 붙습니다. 화면에 실제로 떨어지는 것이 도·개·걸·윷·모 다섯 가지라서, 결과별로
-        가중치를 두어야 던진 모양과 드리는 상품이 어긋나지 않습니다.
-      </p>
-
-      <div className="preset-row" role="group" aria-label="등급 수 프리셋">
-        {[3, 4, 5].map((count) => (
-          <button
-            key={count}
-            type="button"
-            className={ranks.length === count ? "btn secondary is-on" : "btn secondary"}
-            onClick={() =>
-              setDraft((prev) => {
-                const next = { ...prev };
-                YUT_ORDER.forEach((y) => (next[y] = { ...prev[y], prizeRank: PRESETS[count][y] }));
-                return next;
-              })
-            }
-          >
-            {count}등급
-          </button>
-        ))}
-      </div>
-
-      <div className="config-table">
-        {YUT_ORDER.map((y) => {
-          const odds = percent(draft, (d) => d === draft[y]);
-          return (
-            <div className="config-row" key={y}>
-              <div className="config-head">
-                <span className="config-yut">{YUT_LABEL[y]}</span>
-                <span className="config-odds" aria-label={`${YUT_LABEL[y]} 확률`}>
-                  {odds}%
-                </span>
-              </div>
-              <label className="field config-weight">
-                <span>가중치</span>
-                <input
-                  type="number"
-                  min={0}
-                  max={MAX_WEIGHT}
-                  inputMode="numeric"
-                  value={draft[y].weight}
-                  onChange={(e) =>
-                    setDraft({ ...draft, [y]: { ...draft[y], weight: Number(e.target.value) } })
-                  }
-                />
-              </label>
-              <label className="field config-rank">
-                <span>상품 등급</span>
-                <select
-                  value={draft[y].prizeRank}
-                  onChange={(e) =>
-                    setDraft({ ...draft, [y]: { ...draft[y], prizeRank: Number(e.target.value) } })
-                  }
-                >
-                  {Array.from({ length: MAX_RANK }, (_, i) => i + 1).map((rank) => (
-                    <option key={rank} value={rank}>
-                      {rankLabel(rank)}
-                    </option>
-                  ))}
-                </select>
-              </label>
+    <>
+      <button
+        type="button"
+        className="hint-toggle"
+        aria-expanded={open}
+        aria-controls="policy-help"
+        onClick={() => setOpen(!open)}
+      >
+        <span aria-hidden="true">?</span>
+        <span className="visually-hidden">사용 시점 설명 {open ? "닫기" : "보기"}</span>
+      </button>
+      {open && (
+        <dl className="hint-popover" id="policy-help">
+          {POLICY_HELP.map((p) => (
+            <div key={p.value}>
+              <dt>{p.label}</dt>
+              <dd>{p.help}</dd>
             </div>
-          );
-        })}
-      </div>
-
-      <div className="list">
-        {ranks.map((rank) => (
-          <div className="list-item" key={rank}>
-            <span className="lead">{rankLabel(rank)} 당첨 확률</span>
-            <span className="name">{percent(draft, (d) => d.prizeRank === rank)}%</span>
-          </div>
-        ))}
-      </div>
-
-      {ranks.some((rank) => percent(draft, (d) => d.prizeRank === rank) === 0) && (
-        <p className="notice" role="status">
-          확률이 0%인 등급은 고객 화면의 상품 목록에 표시되지 않습니다.
-        </p>
+          ))}
+        </dl>
       )}
-      {blocked && (
-        <p className="error" role="alert">
-          {blocked}
-        </p>
-      )}
-      {save.isError && (
-        <p className="error" role="alert">
-          {errorMessage(save.error)}
-        </p>
-      )}
-      <button className="btn" disabled={save.isPending || blocked !== ""}>
-        {save.isPending ? "저장 중..." : "확률 설정 저장"}
-      </button>
-    </form>
-  );
-}
-
-function toDraft(outcomes: GameConfigOutcome[]): Record<YutResult, Draft> {
-  const draft = {} as Record<YutResult, Draft>;
-  YUT_ORDER.forEach((y) => {
-    const found = outcomes.find((o) => o.yutResult === y);
-    draft[y] = { weight: found?.weight ?? 0, prizeRank: found?.prizeRank ?? 1 };
-  });
-  return draft;
-}
-
-function PrizeCard({ storeId, prize }: { storeId: string; prize: Prize }) {
-  const qc = useQueryClient();
-  const [form, setForm] = useState(prize);
-  useEffect(() => setForm(prize), [prize]);
-  const m = useMutation({
-    mutationFn: () =>
-      api<Prize>(`/admin/stores/${storeId}/prizes/${prize.rank}`, {
-        method: "PUT",
-        body: JSON.stringify({
-          name: form.name,
-          description: form.description,
-          redeemPolicy: form.redeemPolicy,
-          active: form.active,
-        }),
-      }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["prizes", storeId] }),
-  });
-  return (
-    <form
-      className="panel stack"
-      onSubmit={(e: FormEvent) => {
-        e.preventDefault();
-        m.mutate();
-      }}
-    >
-      <div className="row">
-        <h3>{rankLabel(prize.rank)} 상품</h3>
-        {!prize.active && (
-          <span className="pill" data-tone="off">
-            사용 안 함
-          </span>
-        )}
-      </div>
-      <div className="field">
-        <label htmlFor={`name-${prize.rank}`}>상품명</label>
-        <input
-          id={`name-${prize.rank}`}
-          value={form.name}
-          onChange={(e) => setForm({ ...form, name: e.target.value })}
-        />
-      </div>
-      <div className="field">
-        <label htmlFor={`desc-${prize.rank}`}>설명</label>
-        <textarea
-          id={`desc-${prize.rank}`}
-          value={form.description}
-          onChange={(e) => setForm({ ...form, description: e.target.value })}
-        />
-      </div>
-      <div className="field">
-        <label htmlFor={`policy-${prize.rank}`}>사용 시점</label>
-        <select
-          id={`policy-${prize.rank}`}
-          value={form.redeemPolicy}
-          onChange={(e) => setForm({ ...form, redeemPolicy: e.target.value as Prize["redeemPolicy"] })}
-        >
-          <option value="ANYTIME">즉시</option>
-          <option value="SAME_DAY">당일</option>
-          <option value="NEXT_DAY">다음 날</option>
-        </select>
-      </div>
-      <label className="check">
-        <input
-          type="checkbox"
-          checked={form.active}
-          onChange={(e) => setForm({ ...form, active: e.target.checked })}
-        />
-        <span>상품 활성화</span>
-      </label>
-      {m.isError && (
-        <p className="error" role="alert">
-          {errorMessage(m.error)}
-        </p>
-      )}
-      <button className="btn" disabled={m.isPending}>
-        저장
-      </button>
-    </form>
+    </>
   );
 }
 
 export default function Prizes() {
   const id = String(useParams().storeId);
+  const qc = useQueryClient();
   const config = useQuery({
     queryKey: ["game-config", id],
     queryFn: () => api<GameConfig>(`/admin/stores/${id}/game-config`),
   });
-  const q = useQuery({ queryKey: ["prizes", id], queryFn: () => api<Prize[]>(`/admin/stores/${id}/prizes`) });
+  const prizes = useQuery({ queryKey: ["prizes", id], queryFn: () => api<Prize[]>(`/admin/stores/${id}/prizes`) });
+  const [draft, setDraft] = useState<Draft>();
+
+  useEffect(() => {
+    if (config.data && prizes.data) setDraft(buildDraft(config.data, prizes.data));
+  }, [config.data, prizes.data]);
+
+  const save = useMutation({
+    mutationFn: async () => {
+      const d = draft!;
+      // The ladder has to exist before its prizes can be written, so the config goes first.
+      await api<GameConfig>(`/admin/stores/${id}/game-config`, {
+        method: "PUT",
+        body: JSON.stringify({
+          outcomes: YUT_ORDER.map((y) => ({
+            yutResult: y,
+            weight: toTenths(d.outcomes[y].percent),
+            prizeRank: d.outcomes[y].prizeRank,
+          })),
+        }),
+      });
+      for (let rank = 1; rank <= d.ladder; rank++)
+        await api<Prize>(`/admin/stores/${id}/prizes/${rank}`, {
+          method: "PUT",
+          body: JSON.stringify({ ...d.prizes[rank], active: true }),
+        });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["game-config", id] });
+      qc.invalidateQueries({ queryKey: ["prizes", id] });
+    },
+  });
+
+  const failed = config.isError || prizes.isError;
+  if (failed)
+    return (
+      <AdminFrame title="상품 설정">
+        <p className="error" role="alert">{errorMessage(config.error ?? prizes.error)}</p>
+      </AdminFrame>
+    );
+  if (!draft)
+    return (
+      <AdminFrame title="상품 설정">
+        <div className="stack" aria-live="polite" aria-busy="true">
+          <span className="visually-hidden">설정을 불러오는 중</span>
+          <div className="skeleton" style={{ height: 220 }} />
+          <div className="skeleton" style={{ height: 180 }} />
+        </div>
+      </AdminFrame>
+    );
+
+  const ranks = Array.from({ length: draft.ladder }, (_, i) => i + 1);
+  const total = tenthsOf(draft) / 10;
+  const blocked = problem(draft);
+
+  const setLadder = (ladder: number) =>
+    setDraft({
+      ...draft,
+      ladder,
+      outcomes: Object.fromEntries(
+        YUT_ORDER.map((y) => [y, { ...draft.outcomes[y], prizeRank: PRESETS[ladder][y] }]),
+      ) as Record<YutResult, OutcomeDraft>,
+    });
+
   return (
     <AdminFrame title="상품 설정">
-      {config.isError && (
-        <p className="error" role="alert">
-          {errorMessage(config.error)}
-        </p>
-      )}
-      {config.data && <GameConfigForm storeId={id} config={config.data} />}
+      <form
+        className="stack"
+        onSubmit={(e: FormEvent) => {
+          e.preventDefault();
+          save.mutate();
+        }}
+      >
+        <section className="panel stack">
+          <h2>등급 수와 확률</h2>
+          <p className="lead">
+            확률은 등급이 아니라 윷 결과에 붙습니다. 화면에 실제로 떨어지는 것이 도·개·걸·윷·모 다섯 가지라서,
+            결과별로 확률을 두어야 던진 모양과 드리는 상품이 어긋나지 않습니다.
+          </p>
 
-      <h2 className="section-head">등급별 상품</h2>
-      {q.isError && (
-        <p className="error" role="alert">
-          {errorMessage(q.error)}
-        </p>
-      )}
-      <div className="stack">
-        {q.data?.map((p) => (
-          <PrizeCard key={p.rank} storeId={id} prize={p} />
-        ))}
-      </div>
+          <div className="preset-row" role="group" aria-label="등급 수">
+            {LADDERS.map((count) => (
+              <button
+                key={count}
+                type="button"
+                className={draft.ladder === count ? "btn secondary is-on" : "btn secondary"}
+                aria-pressed={draft.ladder === count}
+                onClick={() => setLadder(count)}
+              >
+                {count}등급
+              </button>
+            ))}
+          </div>
+
+          <div className="config-table">
+            {YUT_ORDER.map((y) => (
+              <div className="config-row" key={y}>
+                <span className="config-yut">{YUT_LABEL[y]}</span>
+                <label className="field config-weight">
+                  <span>확률 (%)</span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step={0.1}
+                    inputMode="decimal"
+                    value={draft.outcomes[y].percent}
+                    onChange={(e) =>
+                      setDraft({
+                        ...draft,
+                        outcomes: { ...draft.outcomes, [y]: { ...draft.outcomes[y], percent: e.target.value } },
+                      })
+                    }
+                  />
+                </label>
+                <label className="field config-rank">
+                  <span>상품 등급</span>
+                  <select
+                    value={draft.outcomes[y].prizeRank}
+                    onChange={(e) =>
+                      setDraft({
+                        ...draft,
+                        outcomes: {
+                          ...draft.outcomes,
+                          [y]: { ...draft.outcomes[y], prizeRank: Number(e.target.value) },
+                        },
+                      })
+                    }
+                  >
+                    {ranks.map((rank) => (
+                      <option key={rank} value={rank}>
+                        {rankLabel(rank)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            ))}
+          </div>
+
+          <div className={total === 100 ? "config-sum" : "config-sum is-off"} role="status">
+            <span>확률 합계</span>
+            <b>{Number.isFinite(total) ? total : 0}%</b>
+          </div>
+
+          <div className="list">
+            {ranks.map((rank) => (
+              <div className="list-item" key={rank}>
+                <span className="lead">{rankLabel(rank)} 당첨 확률</span>
+                <span className="name">{rankShare(draft, rank)}%</span>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="panel stack">
+          <div className="row">
+            <h2>등급별 상품</h2>
+            <span className="pill" data-tone="wood">{draft.ladder}개</span>
+          </div>
+
+          {ranks.map((rank) => (
+            <div className="prize-block" key={rank}>
+              <div className="row">
+                <h3>{rankLabel(rank)} 상품</h3>
+                <span className="config-odds">당첨 {rankShare(draft, rank)}%</span>
+              </div>
+              <div className="field">
+                <label htmlFor={`name-${rank}`}>상품명</label>
+                <input
+                  id={`name-${rank}`}
+                  value={draft.prizes[rank].name}
+                  maxLength={100}
+                  onChange={(e) =>
+                    setDraft({
+                      ...draft,
+                      prizes: { ...draft.prizes, [rank]: { ...draft.prizes[rank], name: e.target.value } },
+                    })
+                  }
+                />
+              </div>
+              <div className="field">
+                <label htmlFor={`desc-${rank}`}>설명</label>
+                <textarea
+                  id={`desc-${rank}`}
+                  value={draft.prizes[rank].description}
+                  maxLength={500}
+                  onChange={(e) =>
+                    setDraft({
+                      ...draft,
+                      prizes: { ...draft.prizes, [rank]: { ...draft.prizes[rank], description: e.target.value } },
+                    })
+                  }
+                />
+              </div>
+              <div className="field">
+                <div className="label-row">
+                  <label htmlFor={`policy-${rank}`}>사용 시점</label>
+                  <PolicyHelp />
+                </div>
+                <select
+                  id={`policy-${rank}`}
+                  value={draft.prizes[rank].redeemPolicy}
+                  onChange={(e) =>
+                    setDraft({
+                      ...draft,
+                      prizes: {
+                        ...draft.prizes,
+                        [rank]: { ...draft.prizes[rank], redeemPolicy: e.target.value as RedeemPolicy },
+                      },
+                    })
+                  }
+                >
+                  {POLICY_HELP.map((p) => (
+                    <option key={p.value} value={p.value}>
+                      {p.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          ))}
+        </section>
+
+        {blocked && (
+          <p className="error" role="alert">
+            {blocked}
+          </p>
+        )}
+        {save.isError && (
+          <p className="error" role="alert">
+            {errorMessage(save.error)}
+          </p>
+        )}
+        {save.isSuccess && !save.isPending && (
+          <p className="success" role="status">
+            저장했습니다.
+          </p>
+        )}
+        <button className="btn" disabled={save.isPending || blocked !== ""}>
+          {save.isPending ? "저장 중..." : "설정과 상품 저장"}
+        </button>
+      </form>
     </AdminFrame>
   );
 }

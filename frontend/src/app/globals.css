@@ -981,11 +981,10 @@ a {
 
 .config-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  grid-template-areas:
-    "head head"
-    "weight rank";
-  gap: var(--s2) var(--s3);
+  grid-template-columns: 2rem 1fr 1fr;
+  grid-template-areas: "yut weight rank";
+  align-items: end;
+  gap: var(--s3);
   padding: var(--s3) 0;
   border-top: 1px solid var(--line-soft);
 }
@@ -993,14 +992,6 @@ a {
 .config-row:first-child {
   border-top: 0;
   padding-top: 0;
-}
-
-.config-head {
-  grid-area: head;
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--s3);
 }
 
 .config-weight {
@@ -1012,9 +1003,123 @@ a {
 }
 
 .config-yut {
+  grid-area: yut;
+  padding-bottom: var(--s3);
   font-size: var(--t-lg);
   font-weight: 800;
   color: var(--wood-strong);
+}
+
+.config-sum {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s3);
+  padding: var(--s3) var(--s4);
+  border-radius: var(--r-md);
+  background: var(--panel-2);
+  font-size: var(--t-sm);
+  color: var(--ink-2);
+}
+
+.config-sum b {
+  font-size: var(--t-lg);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.config-sum.is-off {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+
+.config-sum.is-off b {
+  color: var(--warn);
+}
+
+.prize-block {
+  display: grid;
+  gap: var(--s3);
+  padding-top: var(--s4);
+  border-top: 1px solid var(--line-soft);
+}
+
+.prize-block:first-of-type {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.label-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.label-row label {
+  font-size: var(--t-sm);
+  font-weight: 700;
+  color: var(--ink-2);
+}
+
+/* 사용 시점 설명: 새 창이 아니라 같은 화면에서 펼쳐지는 안내. 겹치지 않으니 잘릴 일이 없다. */
+/* 원은 22px로 보이지만 버튼 자체는 44px이라 손가락으로 정확히 누를 수 있다. */
+.hint-toggle {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.hint-toggle span[aria-hidden] {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--panel-2);
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.hint-toggle[aria-expanded="true"] span[aria-hidden] {
+  border-color: var(--brand);
+  color: var(--brand);
+}
+
+.hint-toggle:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+.hint-popover {
+  flex-basis: 100%;
+  display: grid;
+  gap: var(--s2);
+  margin: 0;
+  padding: var(--s3) var(--s4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--panel-2);
+  font-size: var(--t-sm);
+  line-height: 1.55;
+}
+
+.hint-popover dt {
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.hint-popover dd {
+  margin: 0;
+  color: var(--ink-2);
 }
 
 .config-odds {
