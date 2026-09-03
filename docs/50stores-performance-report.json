@@ -1,0 +1,147 @@
+{
+  "status": "completed",
+  "measured_at": "2026-09-03T20:20:00+09:00",
+  "changed_files": [
+    "04_ERD.md",
+    "05_API_SPEC.md",
+    "09_SECURITY_AND_ABUSE.md",
+    "backend/src/main/java/com/yutreview/AdminController.java",
+    "backend/src/main/java/com/yutreview/CoreServices.java",
+    "backend/src/main/java/com/yutreview/Domain.java",
+    "backend/src/main/java/com/yutreview/PrivacyCleanupService.java",
+    "backend/src/main/java/com/yutreview/Repositories.java",
+    "backend/src/main/java/com/yutreview/YutReviewApplication.java",
+    "backend/src/test/java/com/yutreview/CoreRulesTest.java",
+    "frontend/src/app/admin/stores/[storeId]/coupons/page.tsx",
+    "frontend/src/app/admin/stores/[storeId]/game-plays/page.tsx",
+    "frontend/src/features/admin/ActivityTable.tsx",
+    "frontend/src/types/api.ts",
+    "scripts/measure-customer-flow.mjs",
+    "scripts/measure-next-assets.mjs",
+    "docs/50stores-performance-report.json",
+    "docs/50stores-performance-report.md"
+  ],
+  "tests": [
+    {"command": "docker run gradle:8.13-jdk17 gradle test --no-daemon", "status": "passed", "tests": 15},
+    {"command": "npm run lint", "status": "passed"},
+    {"command": "npm run test", "status": "passed", "tests": 16},
+    {"command": "npm run build", "status": "passed"},
+    {"command": "docker compose -p yutmeasure up -d --build", "status": "passed", "health": "all core containers healthy"},
+    {"command": "Chrome CDP cold full flow and warm coupon reconnect", "status": "passed_with_finding", "finding": "favicon.ico 404; customer flow completed"}
+  ],
+  "pagination": {
+    "implemented": true,
+    "before": "Unbounded List query loaded and serialized every store row; 100000-row PostgreSQL scans took 20.043 ms for game_plays and 16.690 ms for coupons before decryption and JSON serialization.",
+    "after": "Spring Data Page with DB LIMIT/OFFSET, page default 0, size default 50 and max 100; explicit stable page response.",
+    "query_plan_100000_rows": {
+      "game_plays_limit_50_db_ms": 0.133,
+      "coupons_limit_50_db_ms": 0.125,
+      "game_plays_index": "(store_id, played_at)",
+      "coupons_index": "(store_id, issued_at)"
+    },
+    "http_measurements": [
+      {"dataset_rows": 10000, "game_plays": {"rows": 50, "payload_bytes": 8099, "avg_ms": 42.64}, "coupons": {"rows": 50, "payload_bytes": 7901, "avg_ms": 47.96}},
+      {"dataset_rows": 50000, "game_plays": {"rows": 50, "payload_bytes": 8100, "avg_ms": 46.38}, "coupons": {"rows": 50, "payload_bytes": 7902, "avg_ms": 56.04}},
+      {"dataset_rows": 100000, "game_plays": {"rows": 50, "payload_bytes": 8101, "avg_ms": 29.54}, "coupons": {"rows": 50, "payload_bytes": 7903, "avg_ms": 44.05}}
+    ]
+  },
+  "privacy_cleanup": {
+    "implemented": true,
+    "schedule": "03:15 daily, Asia/Seoul",
+    "boundary": "playedDate < today - 120 days; day 120 retained and day 121 eligible",
+    "batch_size": 1000,
+    "anonymized_columns": ["game_plays.customer_name_encrypted", "game_plays.phone_encrypted", "game_plays.phone_hash", "game_plays.phone_last4", "coupons.phone_hash"],
+    "retained_columns": ["store_id", "qr_code_id", "public_id", "yut_result", "prize_rank", "status", "animation_seed", "idempotency_key", "played_date", "played_at", "revealed_at", "coupon token/status/prize snapshots/timestamps"],
+    "exception": "Linked coupon with status ISSUED and expiresAt >= now is retained until no longer valid.",
+    "idempotent": true
+  },
+  "frontend_bundle": {
+    "cold_cache_mb": 1.534318,
+    "warm_cache_mb": 0.004417,
+    "js_mb": 1.155346,
+    "wasm_mb": 0,
+    "fonts_mb": 0.340436,
+    "css_mb": 0.019689,
+    "decoded_total_mb": 3.825224,
+    "manifest_unique_raw_mb": 3.389976,
+    "manifest_unique_gzip_mb": 1.134942,
+    "manifest_unique_brotli_mb": 0.880316,
+    "route_table": [
+      {"route": "/s/[storeToken]", "raw_bytes": 388783, "gzip_bytes": 117533, "brotli_bytes": 99639, "shared_bytes": 381126, "route_only_bytes": 7657},
+      {"route": "/s/[storeToken]/identify", "raw_bytes": 370807, "gzip_bytes": 110543, "brotli_bytes": 93267, "shared_bytes": 350756, "route_only_bytes": 20051},
+      {"route": "/s/[storeToken]/game", "raw_bytes": 3312904, "gzip_bytes": 1104894, "brotli_bytes": 854078, "shared_bytes": 350756, "route_only_bytes": 2962148},
+      {"route": "/s/[storeToken]/result/[playId]", "raw_bytes": 387228, "gzip_bytes": 116767, "brotli_bytes": 98979, "shared_bytes": 381126, "route_only_bytes": 6102},
+      {"route": "/s/[storeToken]/coupon/[couponToken]", "raw_bytes": 385481, "gzip_bytes": 115596, "brotli_bytes": 97921, "shared_bytes": 372589, "route_only_bytes": 12892}
+    ],
+    "heavy_assets": [
+      {"asset": "Rapier embedded JS", "raw_bytes": 2099917, "gzip_bytes": 771043, "loaded_on_route": "/s/[storeToken]/game"},
+      {"asset": "Three.js chunk 1", "raw_bytes": 367088, "gzip_bytes": 97389, "loaded_on_route": "/s/[storeToken]/game"},
+      {"asset": "Three.js chunk 2", "raw_bytes": 331105, "gzip_bytes": 78687, "loaded_on_route": "/s/[storeToken]/game"},
+      {"asset": "React Three Fiber/Three.js chunk", "raw_bytes": 41187, "gzip_bytes": 14916, "loaded_on_route": "/s/[storeToken]/game"},
+      {"asset": "Pretendard subsets actually requested", "raw_bytes": 331508, "compressed_bytes": 340436, "loaded_on_route": "customer flow"}
+    ],
+    "cache_note": "Shared chunks were transferred once in the cold flow. Warm coupon reload transferred 0 JS/CSS/font bytes. Rapier has no separate WASM request and is embedded in JS.",
+    "attribution_boundary": "Minified production output did not permit a reliable standalone Drei byte attribution; its bytes are included in the measured game route totals. R3F attribution is a combined R3F/Three chunk."
+  },
+  "customer_flow": {
+    "api_requests": 6,
+    "total_requests": 46,
+    "cold_cache_transferred_mb": 1.534318,
+    "cold_cache_resource_mb": 3.825224,
+    "warm_cache_transferred_mb": 0.004417,
+    "warm_cache_resource_mb": 0.803792,
+    "request_bytes": {"js": 1155346, "wasm": 0, "css": 19689, "fonts": 340436, "images": 0, "api_json": 4000},
+    "api_sequence": ["store summary", "customer-state", "game create", "game reveal", "result reveal", "coupon GET"],
+    "duplicate_reveal": {"observed": true, "count": 2, "idempotent": true, "extra_transferred_bytes": 756},
+    "finding": "favicon.ico returned 404 and made the measurement status partial, but the requested customer flow completed."
+  },
+  "fifty_store_projection": {
+    "assumptions": {"days_per_month": 30, "db_bytes_per_play_and_coupon": 960.511, "cold_bytes": 1534318, "warm_reconnect_bytes": 4417},
+    "low": {"plays_per_store_per_day": 30, "monthly_games": 45000, "monthly_api_calls": 270000, "new_game_play_rows": 45000, "new_coupon_rows": 45000, "db_growth_mb": 43.223, "outbound_gb_cold_100pct": 69.044, "outbound_gb_cold_70pct": 48.391, "outbound_gb_cold_30pct": 20.852},
+    "base": {"plays_per_store_per_day": 60, "monthly_games": 90000, "monthly_api_calls": 540000, "new_game_play_rows": 90000, "new_coupon_rows": 90000, "db_growth_mb": 86.446, "outbound_gb_cold_100pct": 138.089, "outbound_gb_cold_70pct": 96.781, "outbound_gb_cold_30pct": 41.705},
+    "high": {"plays_per_store_per_day": 100, "monthly_games": 150000, "monthly_api_calls": 900000, "new_game_play_rows": 150000, "new_coupon_rows": 150000, "db_growth_mb": 144.077, "outbound_gb_cold_100pct": 230.148, "outbound_gb_cold_70pct": 161.302, "outbound_gb_cold_30pct": 69.508},
+    "admin_traffic": "At one game-play page plus one coupon page per store per day, measured API JSON is about 0.024 GB/month. Admin page/static traffic is cache-dependent and was not included."
+  },
+  "runtime_measurements": {
+    "backend_idle_memory_mib": 434.9,
+    "frontend_idle_memory_mib": 54.88,
+    "postgres_memory_mib_after_100000_rows": 163.4,
+    "database_bytes_after_100000_rows": 104535731,
+    "local_docker_build_seconds": {"frontend": 46.7, "backend": 31.5, "parallel_wall_time_approx": 47}
+  },
+  "bottlenecks": [
+    "Rapier embedded chunk is 2.10 MB raw and 0.77 MB gzip.",
+    "Pretendard requested 12 subsets and transferred 0.34 MB in the cold flow.",
+    "Analytics summary performs eight separate count queries per request.",
+    "Game creation takes a store-wide pessimistic write lock, serializing concurrent creates for one store.",
+    "Spring Boot measured 434.9 MiB idle in the uncapped container, leaving little headroom at 512 MB.",
+    "Store poster PNG is stored as Base64 TEXT in PostgreSQL; growth depends on real poster size and was not reliably measurable from bootstrap data."
+  ],
+  "cost_risks": [
+    "Cold customer traffic dominates monthly outbound usage.",
+    "Backend 512 MB can approach OOM under load.",
+    "Non-PII gameplay/statistics rows are retained after PII anonymization, so database storage continues growing.",
+    "Render build and transfer prices are intentionally not hardcoded; apply current pricing to the measured usage."
+  ],
+  "recommended_render_plan": {
+    "web_services": 2,
+    "frontend": "Next.js standalone, 512 MB RAM starting point; measured idle 54.88 MiB.",
+    "backend": "Spring Boot Java 17, 1 GB RAM starting point; do not choose 512 MB without a constrained load test.",
+    "postgres": "Managed PostgreSQL with at least 5 GB storage and growth alerts; measured table growth is about 0.96 KB per play+coupon pair.",
+    "routing": "Preserve one public origin and /api routing. If Render cannot provide this across two services, retain a small reverse-proxy service or equivalent platform route.",
+    "build_minutes": "Observed local Docker steps were 0.78 minutes frontend and 0.53 minutes backend, running in parallel; use actual Render cache behavior for billing."
+  },
+  "recommended_followups": [
+    "Run a constrained 1 GB backend load test and measure peak heap/RSS before launch.",
+    "Aggregate the eight analytics counts into one query if admin dashboard latency becomes material.",
+    "Evaluate lazy-loading the 3D game stack only after the user enters the game route; current route splitting already prevents it on landing.",
+    "Measure real poster PNG sizes before deciding whether PostgreSQL Base64 storage needs object storage.",
+    "Add a favicon only if eliminating the harmless 404 matters operationally."
+  ],
+  "measurement_boundaries": [
+    "Browser figures are localhost production Docker measurements, not Render edge measurements.",
+    "Warm cache means reopening the issued coupon in the same browser profile, not an invalid second play with the same phone.",
+    "Pagination HTTP timings are five-request averages on the local machine and include authentication, count query, decryption and JSON serialization.",
+    "Cloudflare, LTE/5G and real mobile devices were not measured."
+  ]
+}
