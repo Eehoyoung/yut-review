@@ -24,7 +24,10 @@ interface QrRepository extends JpaRepository<StoreQrCode,Long> {
     Optional<StoreQrCode> findFirstByStoreIdAndStatus(Long storeId,QrStatus status);
 }
 interface PrizeRepository extends JpaRepository<Prize,Long> {
-    List<Prize> findByStoreIdOrderByTier(Long storeId); Optional<Prize> findByStoreIdAndTier(Long storeId,Tier tier);
+    List<Prize> findByStoreIdOrderByRank(Long storeId); Optional<Prize> findByStoreIdAndRank(Long storeId,int rank);
+}
+interface StoreOutcomeRepository extends JpaRepository<StoreOutcome,Long> {
+    List<StoreOutcome> findByStoreId(Long storeId);
 }
 interface GameRepository extends JpaRepository<GamePlay,Long> {
     Optional<GamePlay> findByPublicId(String id); Optional<GamePlay> findByIdempotencyKey(String key);

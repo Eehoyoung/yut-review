@@ -23,17 +23,84 @@ import org.springframework.transaction.annotation.Transactional;
 }
 @Service class StoreProvisioningService {
     record Provisioned(Store store,String staffPin,String storeToken){}
-    private final StoreRepository stores;private final MembershipRepository memberships;private final QrRepository qrs;private final PrizeRepository prizes;private final PasswordEncoder encoder;private final SecureRandom random;private final Clock clock;
-    StoreProvisioningService(StoreRepository stores,MembershipRepository memberships,QrRepository qrs,PrizeRepository prizes,PasswordEncoder encoder,SecureRandom random,Clock clock){this.stores=stores;this.memberships=memberships;this.qrs=qrs;this.prizes=prizes;this.encoder=encoder;this.random=random;this.clock=clock;}
+    private final StoreRepository stores;private final MembershipRepository memberships;private final QrRepository qrs;private final GameConfigService config;private final PasswordEncoder encoder;private final SecureRandom random;private final Clock clock;
+    StoreProvisioningService(StoreRepository stores,MembershipRepository memberships,QrRepository qrs,GameConfigService config,PasswordEncoder encoder,SecureRandom random,Clock clock){this.stores=stores;this.memberships=memberships;this.qrs=qrs;this.config=config;this.encoder=encoder;this.random=random;this.clock=clock;}
     @Transactional Provisioned provision(AdminUser owner,String name,String phone,String address,String businessNumber,String naverPlaceUrl,String staffPin){
         Instant now=clock.instant();String pin=staffPin==null||staffPin.isBlank()?Integer.toString(100000+random.nextInt(900000)):staffPin;
         Store s=new Store();s.name=name.trim();s.phone=phone==null?"":phone.trim();s.address=address;s.businessNumber=businessNumber;s.naverPlaceUrl=naverPlaceUrl;s.staffPinHash=encoder.encode(pin);s.status=StoreStatus.ACTIVE;s.createdAt=now;s.updatedAt=now;stores.save(s);
         AdminStoreMembership m=new AdminStoreMembership();m.admin=owner;m.store=s;m.role=MembershipRole.OWNER;m.createdAt=now;memberships.save(m);
         StoreQrCode q=new StoreQrCode();q.store=s;q.publicToken=Tokens.random();q.status=QrStatus.ACTIVE;q.createdAt=now;qrs.save(q);
-        for(Tier tier:Tier.values()){Prize p=new Prize();p.store=s;p.tier=tier;p.name=prizeName(tier);p.description="관리자에서 상품을 설정하세요.";p.redeemPolicy=RedeemPolicy.ANYTIME;p.active=true;p.createdAt=now;p.updatedAt=now;prizes.save(p);}
+        config.save(s,GameConfigService.defaults());
         return new Provisioned(s,pin,q.publicToken);
     }
-    static String prizeName(Tier tier){return switch(tier){case TIER_1->"3등 상품";case TIER_2->"2등 상품";case TIER_3->"1등 상품";};}
+}
+@Service class GameConfigService {
+    /** One row of a store's game configuration: how likely a throw is, and which prize rank it awards. */
+    record Setting(YutResult yutResult,int weight,int prizeRank){}
+    private static final int[] DEFAULT_WEIGHTS={325,325,125,125,100},DEFAULT_RANKS={3,3,2,2,1};
+    private final StoreOutcomeRepository outcomes;private final PrizeRepository prizes;private final Clock clock;
+    GameConfigService(StoreOutcomeRepository outcomes,PrizeRepository prizes,Clock clock){this.outcomes=outcomes;this.prizes=prizes;this.clock=clock;}
+
+    /** Reproduces the behaviour the game had while probabilities were hard-coded. */
+    static List<Setting> defaults(){List<Setting> d=new ArrayList<>();for(YutResult y:YutResult.values())d.add(new Setting(y,DEFAULT_WEIGHTS[y.ordinal()],DEFAULT_RANKS[y.ordinal()]));return d;}
+    static String defaultPrizeName(int rank){return rank+"등 상품";}
+
+    List<StoreOutcome> load(Long storeId){
+        List<StoreOutcome> found=new ArrayList<>(outcomes.findByStoreId(storeId));
+        if(found.size()!=YutResult.values().length)throw new AppException("GAME_CONFIG_MISSING","매장 게임 설정이 없습니다.");
+        found.sort(Comparator.comparingInt(o->o.yutResult.ordinal()));
+        return found;
+    }
+    static int rankCount(List<StoreOutcome> config){return (int)config.stream().mapToInt(o->o.prizeRank).distinct().count();}
+    /** Probability as a percentage rounded to one decimal. Server-computed; never taken from a client. */
+    static double odds(List<StoreOutcome> config,java.util.function.Predicate<StoreOutcome> of){
+        int total=config.stream().mapToInt(o->o.weight).sum();
+        int part=config.stream().filter(of).mapToInt(o->o.weight).sum();
+        return total==0?0:Math.round(part*1000.0/total)/10.0;
+    }
+
+    /**
+     * Saves the whole config in one transaction. A partial write would leave a store running on a
+     * half-applied probability table, so there is deliberately no per-outcome endpoint.
+     */
+    @Transactional List<StoreOutcome> save(Store store,List<Setting> settings){
+        validate(settings);
+        Instant now=clock.instant();
+        int rankCount=settings.stream().mapToInt(Setting::prizeRank).max().orElseThrow();
+        Map<YutResult,StoreOutcome> existing=new EnumMap<>(YutResult.class);
+        for(StoreOutcome o:outcomes.findByStoreId(store.id))existing.put(o.yutResult,o);
+        List<StoreOutcome> saved=new ArrayList<>();
+        for(Setting st:settings){
+            StoreOutcome o=existing.get(st.yutResult());
+            if(o==null){o=new StoreOutcome();o.store=store;o.yutResult=st.yutResult();}
+            o.weight=st.weight();o.prizeRank=st.prizeRank();o.updatedAt=now;
+            saved.add(outcomes.save(o));
+        }
+        // Declaring a rank in the config means the store intends to hand it out, so the slot is created and enabled.
+        Map<Integer,Prize> byRank=new HashMap<>();
+        for(Prize p:prizes.findByStoreIdOrderByRank(store.id))byRank.put(p.rank,p);
+        for(int rank=1;rank<=rankCount;rank++){
+            Prize prize=byRank.remove(rank);
+            if(prize==null){prize=new Prize();prize.store=store;prize.rank=rank;prize.name=defaultPrizeName(rank);prize.description="관리자에서 상품을 설정하세요.";prize.redeemPolicy=RedeemPolicy.ANYTIME;prize.createdAt=now;}
+            prize.active=true;prize.updatedAt=now;prizes.save(prize);
+        }
+        // Ranks that dropped out of the ladder are deactivated, never deleted: issued coupons still point at them.
+        byRank.values().forEach(orphan->{orphan.active=false;orphan.updatedAt=now;prizes.save(orphan);});
+        saved.sort(Comparator.comparingInt(o->o.yutResult.ordinal()));
+        return saved;
+    }
+
+    static void validate(List<Setting> settings){
+        if(settings==null||settings.size()!=YutResult.values().length||settings.stream().map(Setting::yutResult).distinct().count()!=YutResult.values().length)
+            throw new AppException("INVALID_REQUEST","윷 결과 5개의 설정을 모두 보내주세요.");
+        if(settings.stream().anyMatch(st->st.weight()<0||st.weight()>StoreOutcome.MAX_WEIGHT))
+            throw new AppException("INVALID_WEIGHT","가중치는 0에서 "+StoreOutcome.MAX_WEIGHT+" 사이여야 합니다.");
+        if(settings.stream().mapToInt(Setting::weight).sum()<1)
+            throw new AppException("ZERO_WEIGHT_SUM","가중치 합이 0이면 결과를 뽑을 수 없습니다.");
+        int[] ranks=settings.stream().mapToInt(Setting::prizeRank).distinct().sorted().toArray();
+        if(ranks.length>StoreOutcome.MAX_RANK)throw new AppException("INVALID_RANK_SEQUENCE","등급은 최대 "+StoreOutcome.MAX_RANK+"개까지 설정할 수 있습니다.");
+        for(int i=0;i<ranks.length;i++)if(ranks[i]!=i+1)throw new AppException("INVALID_RANK_SEQUENCE","등급은 1등부터 빠짐없이 이어져야 합니다.");
+    }
 }
 @Service class AdminSignupService {
     record Request(String loginId,String password,String passwordConfirm,String email,String ownerName,String phone,String storeName,String businessNumber){}
@@ -65,8 +132,16 @@ import org.springframework.transaction.annotation.Transactional;
 }
 @Service class GameResultGenerator {
     private final SecureRandom random; GameResultGenerator(SecureRandom random){this.random=random;}
-    YutResult generate(){return from(random.nextDouble());}
-    static YutResult from(double r){if(r<0||r>=1)throw new IllegalArgumentException();if(r<.325)return YutResult.DO;if(r<.65)return YutResult.GAE;if(r<.775)return YutResult.GEOL;if(r<.9)return YutResult.YUT;return YutResult.MO;}
+    YutResult generate(List<StoreOutcome> config){int[] weights=new int[YutResult.values().length];for(StoreOutcome o:config)weights[o.yutResult.ordinal()]=o.weight;return from(random.nextDouble(),weights);}
+    /** Pure so the weight boundaries stay testable. An outcome weighted 0 can never be returned. */
+    static YutResult from(double r,int[] weights){
+        if(r<0||r>=1)throw new IllegalArgumentException();
+        int total=0;for(int w:weights)total+=w;
+        if(total<1)throw new IllegalStateException("weights must not sum to zero");
+        int pick=(int)(r*total),cumulative=0;
+        for(YutResult y:YutResult.values()){cumulative+=weights[y.ordinal()];if(pick<cumulative)return y;}
+        throw new IllegalStateException("unreachable");
+    }
 }
 final class Tokens {
     private Tokens(){}
@@ -93,10 +168,10 @@ final class Tokens {
 interface NotificationService { void couponIssued(Coupon coupon); }
 @Service class NoopNotificationService implements NotificationService { public void couponIssued(Coupon coupon){} }
 @Service class GameService {
-    private final StoreAccessService access;private final StoreRepository stores;private final PhoneService phones;private final ParticipationService participation;private final GameResultGenerator generator;private final GameRepository games;private final PrizeRepository prizes;private final CouponRepository coupons;private final Clock clock;private final NotificationService notifications;
-    GameService(StoreAccessService access,StoreRepository stores,PhoneService phones,ParticipationService participation,GameResultGenerator generator,GameRepository games,PrizeRepository prizes,CouponRepository coupons,Clock clock,NotificationService notifications){this.access=access;this.stores=stores;this.phones=phones;this.participation=participation;this.generator=generator;this.games=games;this.prizes=prizes;this.coupons=coupons;this.clock=clock;this.notifications=notifications;}
+    private final StoreAccessService access;private final StoreRepository stores;private final PhoneService phones;private final ParticipationService participation;private final GameResultGenerator generator;private final GameConfigService config;private final GameRepository games;private final PrizeRepository prizes;private final CouponRepository coupons;private final Clock clock;private final NotificationService notifications;
+    GameService(StoreAccessService access,StoreRepository stores,PhoneService phones,ParticipationService participation,GameResultGenerator generator,GameConfigService config,GameRepository games,PrizeRepository prizes,CouponRepository coupons,Clock clock,NotificationService notifications){this.access=access;this.stores=stores;this.phones=phones;this.participation=participation;this.generator=generator;this.config=config;this.games=games;this.prizes=prizes;this.coupons=coupons;this.clock=clock;this.notifications=notifications;}
     @Transactional GamePlay create(String token,String name,String phone,String idem){if(idem==null||idem.isBlank())throw new AppException("INVALID_REQUEST","idempotencyKey가 필요합니다.");StoreQrCode qr=access.activeQr(token);stores.findForUpdate(qr.store.id).orElseThrow(); // ponytail: store-wide lock is enough for single-instance MVP; narrow to customer-key locks if throughput matters.
-        String normalized=phones.normalize(phone);Optional<GamePlay> existing=games.findByIdempotencyKey(idem);if(existing.isPresent()){GamePlay g=existing.get();if(!g.store.id.equals(qr.store.id)||!g.phoneHash.equals(phones.hash(normalized)))throw new AppException("GAME_ALREADY_CREATED","이미 다른 게임에 사용된 요청 키입니다.");return g;}ParticipationService.State state=participation.state(qr.store.id,phone);if(state.state().equals("HAS_ACTIVE_COUPON"))throw new AppException("ACTIVE_COUPON_EXISTS","사용 가능한 쿠폰이 있습니다.");if(state.state().equals("COOLDOWN"))throw new AppException("PARTICIPATION_COOLDOWN",state.nextPlayableDate()+"부터 다시 참여하실 수 있습니다.");YutResult result=generator.generate();Prize prize=prizes.findByStoreIdAndTier(qr.store.id,result.tier).filter(p->p.active).orElseThrow(()->new AppException("PRIZE_NOT_CONFIGURED","활성 상품이 설정되지 않았습니다."));Instant now=clock.instant();GamePlay g=new GamePlay();g.publicId=UUID.randomUUID().toString();g.store=qr.store;g.qrCode=qr;g.customerNameEncrypted=phones.encrypt(name.trim());g.phoneHash=phones.hash(normalized);g.phoneEncrypted=phones.encrypt(normalized);g.phoneLast4=normalized.substring(7);g.yutResult=result;g.rewardTier=result.tier;g.status=GameStatus.CREATED;g.animationSeed="seed_"+Tokens.random();g.idempotencyKey=idem;g.playedDate=LocalDate.now(clock);g.playedAt=now;games.save(g);Coupon c=new Coupon();c.store=qr.store;c.gamePlay=g;c.prize=prize;c.couponToken="cp_"+Tokens.random();c.phoneHash=g.phoneHash;c.prizeNameSnapshot=prize.name;c.prizeDescriptionSnapshot=prize.description;c.redeemPolicySnapshot=prize.redeemPolicy;c.status=CouponStatus.ISSUED;c.issuedAt=now;ZoneId zone=clock.getZone();LocalDate issued=g.playedDate;c.validFrom=prize.redeemPolicy==RedeemPolicy.NEXT_DAY?issued.plusDays(1).atStartOfDay(zone).toInstant():now;c.expiresAt=issued.plusDays(90).atTime(23,59,59).atZone(zone).toInstant();coupons.save(c);notifications.couponIssued(c);return g;}
+        String normalized=phones.normalize(phone);Optional<GamePlay> existing=games.findByIdempotencyKey(idem);if(existing.isPresent()){GamePlay g=existing.get();if(!g.store.id.equals(qr.store.id)||!g.phoneHash.equals(phones.hash(normalized)))throw new AppException("GAME_ALREADY_CREATED","이미 다른 게임에 사용된 요청 키입니다.");return g;}ParticipationService.State state=participation.state(qr.store.id,phone);if(state.state().equals("HAS_ACTIVE_COUPON"))throw new AppException("ACTIVE_COUPON_EXISTS","사용 가능한 쿠폰이 있습니다.");if(state.state().equals("COOLDOWN"))throw new AppException("PARTICIPATION_COOLDOWN",state.nextPlayableDate()+"부터 다시 참여하실 수 있습니다.");List<StoreOutcome> outcomes=config.load(qr.store.id);YutResult result=generator.generate(outcomes);int rank=outcomes.stream().filter(o->o.yutResult==result).mapToInt(o->o.prizeRank).findFirst().orElseThrow();Prize prize=prizes.findByStoreIdAndRank(qr.store.id,rank).filter(p->p.active).orElseThrow(()->new AppException("PRIZE_NOT_CONFIGURED","활성 상품이 설정되지 않았습니다."));Instant now=clock.instant();GamePlay g=new GamePlay();g.publicId=UUID.randomUUID().toString();g.store=qr.store;g.qrCode=qr;g.customerNameEncrypted=phones.encrypt(name.trim());g.phoneHash=phones.hash(normalized);g.phoneEncrypted=phones.encrypt(normalized);g.phoneLast4=normalized.substring(7);g.yutResult=result;g.prizeRank=rank;g.status=GameStatus.CREATED;g.animationSeed="seed_"+Tokens.random();g.idempotencyKey=idem;g.playedDate=LocalDate.now(clock);g.playedAt=now;games.save(g);Coupon c=new Coupon();c.store=qr.store;c.gamePlay=g;c.prize=prize;c.couponToken="cp_"+Tokens.random();c.phoneHash=g.phoneHash;c.prizeNameSnapshot=prize.name;c.prizeDescriptionSnapshot=prize.description;c.prizeRankSnapshot=rank;c.redeemPolicySnapshot=prize.redeemPolicy;c.status=CouponStatus.ISSUED;c.issuedAt=now;ZoneId zone=clock.getZone();LocalDate issued=g.playedDate;c.validFrom=prize.redeemPolicy==RedeemPolicy.NEXT_DAY?issued.plusDays(1).atStartOfDay(zone).toInstant():now;c.expiresAt=issued.plusDays(90).atTime(23,59,59).atZone(zone).toInstant();coupons.save(c);notifications.couponIssued(c);return g;}
     @Transactional Coupon reveal(String playId){GamePlay g=games.findByPublicId(playId).orElseThrow(()->new AppException("GAME_NOT_FOUND","게임을 찾을 수 없습니다.",org.springframework.http.HttpStatus.NOT_FOUND));if(g.status==GameStatus.CREATED){g.status=GameStatus.REVEALED;g.revealedAt=clock.instant();}return coupons.findByGamePlayId(g.id).orElseThrow();}
 }
 @Service class CouponService {
