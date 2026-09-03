@@ -192,6 +192,46 @@ without coupling coupon/game domains directly to the vendor SDK.
 
 ---
 
+### Subscription plans and AI (2026-09-04)
+
+Three plans exist: `BASIC` 9,900 / `STANDARD` 19,900 / `PRO` 29,900 KRW per month.
+
+**The game and the core customer experience are never gated by plan.** Yut throwing, the QR event,
+prize configuration, coupon issue and redemption, the staff PIN and the 2-day cooldown work
+identically on every plan. `Entitlement` deliberately contains none of them; a feature missing from
+that enum is a feature that cannot be sold separately. Differentiation lives only in analytics depth,
+CSV export, branding, and AI.
+
+- A store with no subscription row is treated as `BASIC`. Do not backfill; do not let a missing row
+  lock a store out.
+- Payment (PG) integration is out of scope. Plan changes happen through the admin API only.
+- `analytics_retention_days` (BASIC 90 / STANDARD 365 / PRO unlimited) applies to **de-identified
+  aggregate analytics only**. Customer PII retention stays at the 120-day policy in
+  `PrivacyCleanupService` regardless of plan. Never conflate the two.
+- Data required to redeem a still-valid coupon is never removed by retention.
+
+### AI rules
+
+Four features: `AI_EVENT_COPY`, `AI_REPORT` (STANDARD+), `AI_IMPROVEMENT`, `AI_CHAT` (PRO only).
+
+- **Customer personal data never reaches the model.** Names, phone numbers, `phoneHash`,
+  `phoneLast4`, coupon tokens, staff PINs, JWTs and API keys are all forbidden.
+  `AiContextService` is the only place that builds model input, and it emits aggregates plus public
+  labels (store name, public prize names) only. Add new context there and nowhere else.
+- The API key lives on the server. Model IDs are environment variables.
+- The default provider is `FakeLlmProvider`; OpenAI is enabled with `app.ai.provider=openai`. CI must
+  never call the real API.
+- Quota is consumed with a conditional UPDATE before the model call and refunded when the call fails.
+  Never read-then-write; concurrent requests would exceed the limit.
+- Prompt version and model are recorded with every call. Raw prompts and PII are never logged.
+- The AI chat model may only call read-only aggregate tools. No SQL, no writes, and `storeId` is
+  fixed by the server so the model cannot address another store.
+- **AI has no entry point in the customer API.** A provider outage must not affect the QR, game or
+  coupon flow, and AI code must not appear in the `/s/{storeToken}` bundle.
+
+Forbidden: PG payment integration, a customer-facing chatbot, automatic review writing, and anything
+that induces positive or 5-star reviews as a condition for a benefit.
+
 ## 3. Critical Game Integrity Rules
 
 These rules are non-negotiable unless explicitly changed by the user.

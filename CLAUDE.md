@@ -96,6 +96,30 @@ docker compose --env-file .env.field-test --profile field-test up -d   # Cloudfl
   (`PublicController.publicPrizes`). 받을 수 없는 상품을 확률과 함께 광고하지 않기 위한 규칙이다.
 - 3D는 이 변경과 무관하다. `yut-throw.ts`는 서버가 준 `yutResult` 다섯 값만 본다.
 
+## 요금제와 AI (2026-09-04)
+
+3단계 요금제(BASIC/STANDARD/PRO)와 소담 AI 기능을 넣었다. 상세 규칙은 AGENTS.md에 있고
+여기에는 구현 위치만 적는다.
+
+- `Subscription.java` PlanEntitlementService(무엇이 열리는지), SubscriptionService(현재 등급)
+- `LlmProvider.java` 공급자 경계 + OpenAiLlmProvider + FakeLlmProvider
+- `AiContextService.java` **LLM 입력을 만드는 유일한 자리.** 집계와 공개 라벨만 통과한다.
+- `AiQuotaService.java` 월 한도(조건부 UPDATE)와 사용 기록, `AiPromptService.java` 프롬프트·스키마
+- `AiService.java` 도구 레지스트리 + 네 기능의 공통 경로, `AiController.java` 관리자 전용 엔드포인트
+- 테스트: `SubscriptionAiTest.java` (등급별 허용/거부, 한도 경계와 동시성, PII 배제, 타 매장 차단,
+  AI 장애 시 고객 흐름 정상)
+
+되돌리면 안 되는 지점:
+
+- `Entitlement` enum에 게임 관련 항목을 넣지 말 것. 목록에 없다는 것이 "등급으로 팔지 않는다"는 뜻이다.
+- 한도 차감을 읽고-쓰기로 바꾸지 말 것. 동시 요청이 한도를 넘긴다.
+- 쿼터 행 생성 실패를 같은 트랜잭션에서 잡지 말 것. 영속성 컨텍스트가 오염돼 다음 flush에서 죽는다.
+- 요금제·AI 문자열을 공용 `features/labels.ts`에 두지 말 것. 고객 번들로 샌다.
+  관리자 전용은 `features/admin/labels.ts`에 둔다.
+- 분석 보관기간과 개인정보 보존(120일)을 한 값으로 합치지 말 것.
+
+기본 공급자는 fake다. 실제 호출은 `AI_PROVIDER=openai`와 `OPENAI_API_KEY`가 있을 때만 일어난다.
+
 ## 스키마 변경
 
 마이그레이션 도구가 없고 `ddl-auto=update`는 컬럼 타입 변경과 NOT NULL 제거를 못 한다.

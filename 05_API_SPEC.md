@@ -309,6 +309,48 @@ GET /api/admin/stores/{storeId}/coupons?page=0&size=50
 }
 ```
 
+## 요금제 조회/변경
+```http
+GET /api/admin/stores/{storeId}/subscription
+PUT /api/admin/stores/{storeId}/subscription
+GET /api/admin/stores/{storeId}/subscription/plans
+```
+Request(PUT):
+```json
+{ "plan": "STANDARD", "note": "" }
+```
+
+구독 행이 없는 매장은 `BASIC`으로 응답한다. 결제(PG) 연동은 범위 밖이라 등급 변경은 관리자
+조작으로만 일어난다.
+
+`analyticsRetentionDays`는 **비식별 집계**에만 적용된다. 고객 개인정보 보존은 요금제와 무관하게
+120일 기준을 유지한다.
+
+## AI
+```http
+GET  /api/admin/stores/{storeId}/ai/status
+POST /api/admin/stores/{storeId}/ai/event-copy
+POST /api/admin/stores/{storeId}/ai/report?from=&to=
+GET  /api/admin/stores/{storeId}/ai/report/latest
+POST /api/admin/stores/{storeId}/ai/improvement?from=&to=
+GET  /api/admin/stores/{storeId}/ai/improvement/latest
+POST /api/admin/stores/{storeId}/ai/chat
+```
+
+모든 요청이 인증 → 매장 멤버십 → 요금제 권한 → 월 한도 순으로 검사된다.
+
+| code | 상황 |
+|---|---|
+| `PLAN_UPGRADE_REQUIRED` | 402. 현재 요금제에 없는 기능 |
+| `AI_QUOTA_EXCEEDED` | 429. 이번 달 한도 소진 |
+| `AI_PROVIDER_UNAVAILABLE` | 503. 공급자 오류·타임아웃 |
+| `AI_RESPONSE_INVALID` | 503. 응답이 스키마와 맞지 않음 |
+
+고객 API에는 AI 엔드포인트가 없다. 공급자 장애가 QR·게임·쿠폰 흐름에 전파되지 않아야 한다.
+
+모델에 전달되는 값은 집계와 공개 라벨(매장명, 공개 상품명)뿐이다. 고객 이름·전화번호·phoneHash·
+phoneLast4·쿠폰 토큰·직원 PIN은 어떤 기능에서도 전달되지 않는다.
+
 ## 통계
 ```http
 GET /api/admin/stores/{storeId}/analytics/summary
