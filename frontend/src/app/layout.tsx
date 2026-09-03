@@ -1,4 +1,8 @@
 import type { Metadata, Viewport } from "next";
+// 한글 웹폰트는 반드시 자체 호스팅한다. Nginx CSP가 font-src/style-src를 'self'로 묶어서
+// CDN을 쓰면 조용히 무시되고 폴백된다. 이 CSS는 unicode-range로 92조각을 나눠 두어
+// 브라우저가 화면에 실제로 쓰인 글자 범위만 내려받는다.
+import "pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css";
 import "./globals.css";
 import { Providers } from "./providers";
 

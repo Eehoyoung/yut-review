@@ -2,11 +2,15 @@
   윷 리뷰 이벤트 — 디자인 시스템
   --------------------------------
   장면: 저녁 8시, 조명이 낮은 매장 테이블. 손님은 한 손으로 폰을 들고 30초 안에 끝낸다.
-  그래서 바탕은 3D 씬의 펠트 매트와 같은 딥그린-블랙이다. 화면이 윷판의 연장처럼 보이고,
-  어두운 실내에서 눈이 부시지 않으며, 밝은 야외에서도 대비가 충분하다.
+  바탕은 매트의 초록 기운만 남긴 밝은 중성색이고, 어두운 펠트는 3D 무대 안에만 둔다.
+  밝은 화면 위에 어두운 매트가 놓인 구도라 게임 영역이 또렷하게 분리되고,
+  실내 조명과 밝은 야외 어느 쪽에서도 본문 대비가 4.5:1을 넘는다.
 
-  색 전략: Committed — 어두운 펠트가 화면의 대부분을 차지하고,
-  매장 액션은 테라코타 하나, 윷과 보상은 나무·금색 하나로만 말한다.
+  색 전략: Restrained — 화면 대부분은 중성색이고,
+  매장 액션은 테라코타 하나, 윷과 보상은 나무색 하나로만 말한다.
+
+  타이포: Pretendard Variable 한 가족. 굵기 축이 실제로 있어야
+  600/700/800의 구분이 기기와 상관없이 살아난다.
 */
 
 :root {
@@ -44,15 +48,17 @@
   --ok: oklch(0.45 0.12 158);
   --ok-bg: oklch(0.95 0.04 158);
 
-  /* 타이포 (제품 UI라 고정 rem 스케일) */
-  --t-xs: 0.75rem;
+  /*
+    타이포 (제품 UI라 유동 스케일이 아닌 고정 rem)
+    13 / 16 / 20 / 24 / 30 / 38 — 단계 사이가 약 1.25배로 벌어져 있다.
+    16과 17px을 함께 두면 위계가 아니라 잡음이 되어 17px 단계는 없앴다.
+    굵기 역할: 400 본문 · 600 보조 라벨 · 700 강조와 값 · 800 제목과 버튼.
+  */
   --t-sm: 0.8125rem;
   --t-base: 1rem;
-  --t-md: 1.0625rem;
   --t-lg: 1.25rem;
   --t-xl: 1.5rem;
   --t-2xl: 1.875rem;
-  --t-3xl: 2.375rem;
 
   /* 간격 */
   --s1: 4px;
@@ -124,11 +130,13 @@ body {
   min-height: 100dvh;
   color: var(--ink);
   background: var(--bg);
-  font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard",
+  font-family: "Pretendard Variable", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo",
     "Noto Sans KR", "Malgun Gothic", Roboto, system-ui, sans-serif;
   font-size: var(--t-base);
   line-height: 1.55;
   letter-spacing: -0.01em;
+  font-optical-sizing: auto;
+  font-kerning: normal;
   overscroll-behavior-y: contain;
   -webkit-tap-highlight-color: transparent;
 }
@@ -203,14 +211,6 @@ a {
   padding-bottom: calc(96px + var(--safe-b));
 }
 
-.shell {
-  position: relative;
-  width: min(100%, 460px);
-  min-height: 100dvh;
-  margin-inline: auto;
-  padding: var(--s5) var(--s4) calc(var(--s7) + var(--safe-b));
-}
-
 .admin-shell {
   position: relative;
   width: min(1080px, 100%);
@@ -238,6 +238,25 @@ a {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: var(--s4);
+}
+
+/* 제목과 부제는 한 덩어리로 읽혀야 해서 기본 stack보다 좁게 붙인다. */
+.screen > header.stack,
+.admin-shell > header.stack {
+  gap: var(--s2);
+}
+
+/* 폼 안의 상태 메시지는 패널에서 한 칸 떨어져 나온다. */
+form > .error,
+form > .notice,
+form > .success {
+  margin-top: var(--s4);
+}
+
+/* 표는 스스로 가로 스크롤한다. 페이지가 옆으로 밀리면 안 된다. */
+.table-wrap {
+  overflow-x: auto;
+  padding: var(--s2) var(--s3);
 }
 
 /* ---------- 타이포 ---------- */
@@ -335,6 +354,7 @@ a {
 
 .list-item .name {
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
 /* ---------- 버튼 ---------- */
@@ -351,7 +371,7 @@ a {
   border-radius: var(--r-md);
   background: var(--brand);
   color: var(--brand-ink);
-  font-size: var(--t-md);
+  font-size: var(--t-base);
   font-weight: 800;
   text-decoration: none;
   cursor: pointer;
@@ -527,6 +547,7 @@ a {
   background: var(--panel-2);
   border: 1px solid var(--line);
   border-radius: var(--r-full);
+  /* 알약 모양은 4px 스케일에 맞추면 세로로 부어 보여서 시각 보정한 값이다. */
   padding: 5px 10px;
   font-size: var(--t-sm);
   font-weight: 700;
@@ -589,6 +610,7 @@ a {
   color: var(--ink-2);
   background: var(--panel);
   border: 1px solid var(--line-soft);
+  /* 위와 같은 이유의 시각 보정값. */
   padding: 10px 14px;
   border-radius: var(--r-full);
   font-size: var(--t-sm);
@@ -599,12 +621,20 @@ a {
   background: var(--panel-2);
 }
 
+.nav a[aria-current="page"] {
+  color: var(--brand);
+  border-color: var(--brand);
+  background: var(--panel);
+  font-weight: 700;
+}
+
 /* ---------- 표 ---------- */
 
 .table {
   width: 100%;
   border-collapse: collapse;
   font-size: var(--t-sm);
+  font-variant-numeric: tabular-nums;
 }
 
 .table th {
@@ -690,17 +720,13 @@ a {
   font-size: clamp(3.5rem, 22vw, 5.5rem);
   line-height: 1;
   font-weight: 800;
-  letter-spacing: -0.04em;
+  /* 글자가 하나뿐이라 자간은 뒤쪽 여백으로만 남아 가운데를 밀어낸다. */
+  letter-spacing: normal;
   color: var(--wood);
 }
 
 .stage .result-mark {
   color: var(--wood-strong);
-}
-
-.hero-mark {
-  font-size: var(--t-3xl);
-  text-align: center;
 }
 
 /* ---------- 모션 ---------- */
@@ -719,11 +745,9 @@ a {
 @media (max-width: 340px) {
   :root {
     --t-2xl: 1.625rem;
-    --t-3xl: 2rem;
   }
 
-  .screen,
-  .shell {
+  .screen {
     padding-inline: var(--s3);
   }
 }
@@ -819,7 +843,7 @@ a {
 }
 
 .stage-phase {
-  font-size: var(--t-md);
+  font-size: var(--t-lg);
   font-weight: 700;
   color: var(--ink-2);
   min-height: 1.6em;
