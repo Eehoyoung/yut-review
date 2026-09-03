@@ -53,7 +53,7 @@ export default function Identify() {
         <span>3 쿠폰</span>
       </nav>
 
-      <header className="stack" style={{ gap: "var(--s2)" }}>
+      <header className="stack">
         <h1>참여자 정보를 알려주세요</h1>
         <p className="lead">쿠폰을 찾아드릴 때 쓰는 정보예요. 인증 문자는 보내지 않습니다.</p>
       </header>
@@ -90,12 +90,12 @@ export default function Identify() {
         </div>
 
         {cooldown && (
-          <p className="notice" style={{ marginTop: "var(--s4)" }} role="status">
+          <p className="notice" role="status">
             이미 최근에 참여하셨어요. <b>{cooldown.nextPlayableDate}</b>부터 다시 참여할 수 있습니다.
           </p>
         )}
         {mutation.isError && (
-          <p className="error" style={{ marginTop: "var(--s4)" }} role="alert">
+          <p className="error" role="alert">
             {errorMessage(mutation.error)}
           </p>
         )}

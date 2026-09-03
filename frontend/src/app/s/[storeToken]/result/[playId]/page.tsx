@@ -35,7 +35,7 @@ export default function Result(){
         <b>3 쿠폰</b>
       </nav>
 
-      <header className="stack" style={{gap:"var(--s2)"}}>
+      <header className="stack">
         <p className="eyebrow">던진 결과</p>
         <p className="result-mark">{YUT_LABEL[q.data.yutResult]}</p>
         <p className="pill" data-tone="wood">{rankLabel(q.data.prizeRank)} 상품</p>

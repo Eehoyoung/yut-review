@@ -16,6 +16,7 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const body = (await response.json().catch(() => null)) as Envelope<T> | null;
   if (response.status === 401 && path.startsWith("/admin/") && path !== "/admin/auth/login" && typeof window !== "undefined") {
     sessionStorage.removeItem("adminToken");
+    sessionStorage.removeItem("adminRole");
     window.location.assign("/admin/login");
   }
   if (!response.ok || !body?.success || body.data === null) {
@@ -24,8 +25,17 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   return body.data;
 }
 
-export function setAdminToken(token: string) {
+export function setAdminToken(token: string, role?: string) {
   sessionStorage.setItem("adminToken", token);
+  if (role) sessionStorage.setItem("adminRole", role);
+}
+
+/**
+ * 매장 생성은 운영자 전용이라, 매장 대표에게 그 버튼을 보여주면 누를 때마다 403만 돌아온다.
+ * 권한 판단은 서버가 하고, 이 값은 못 하는 일을 화면에서 감추는 용도로만 쓴다.
+ */
+export function isSystemAdmin() {
+  return typeof window !== "undefined" && sessionStorage.getItem("adminRole") === "SYSTEM_ADMIN";
 }
 
 const friendly: Record<string, string> = {

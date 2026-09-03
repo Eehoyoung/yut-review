@@ -28,7 +28,7 @@ export default function CouponPage(){
   const c=q.data,name=c.prizeName??c.prize?.name??"당첨 상품",notYet=c.status==="ISSUED"&&new Date(c.validFrom)>new Date();
   return (
     <main className={c.status==="ISSUED"?"screen has-bar":"screen"}>
-      <header className="stack" style={{gap:"var(--s2)"}}>
+      <header className="stack">
         <p className="eyebrow">내 쿠폰</p>
         <h1>{name}</h1>
       </header>

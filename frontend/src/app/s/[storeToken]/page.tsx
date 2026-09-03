@@ -28,7 +28,7 @@ export default function StoreLanding(){
   );
   return (
     <main className="screen has-bar">
-      <header className="stack" style={{gap:"var(--s2)"}}>
+      <header className="stack">
         <p className="brand">윷 한 판, 오늘의 상품</p>
         <h1>{store.data.name}</h1>
         <p className="lead">네이버 플레이스에 솔직한 방문 경험을 남긴 뒤 직원에게 작성 여부를 확인받아 주세요.</p>
