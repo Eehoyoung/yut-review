@@ -37,6 +37,7 @@ export interface GameConfig {
 export interface StoreSummary {
   id: number | string;
   name: string;
+  businessNumber?: string;
   publicToken?: string;
   naverPlaceUrl?: string;
   active?: boolean;

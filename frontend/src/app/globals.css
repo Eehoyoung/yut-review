@@ -491,7 +491,7 @@ form > .success {
   outline-offset: 2px;
 }
 
-.field .hint {
+.hint {
   font-size: var(--t-sm);
   color: var(--ink-muted);
 }

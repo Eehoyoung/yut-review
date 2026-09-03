@@ -16,7 +16,6 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const body = (await response.json().catch(() => null)) as Envelope<T> | null;
   if (response.status === 401 && path.startsWith("/admin/") && path !== "/admin/auth/login" && typeof window !== "undefined") {
     sessionStorage.removeItem("adminToken");
-    sessionStorage.removeItem("adminRole");
     window.location.assign("/admin/login");
   }
   if (!response.ok || !body?.success || body.data === null) {
@@ -25,17 +24,8 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   return body.data;
 }
 
-export function setAdminToken(token: string, role?: string) {
+export function setAdminToken(token: string) {
   sessionStorage.setItem("adminToken", token);
-  if (role) sessionStorage.setItem("adminRole", role);
-}
-
-/**
- * 매장 생성은 운영자 전용이라, 매장 대표에게 그 버튼을 보여주면 누를 때마다 403만 돌아온다.
- * 권한 판단은 서버가 하고, 이 값은 못 하는 일을 화면에서 감추는 용도로만 쓴다.
- */
-export function isSystemAdmin() {
-  return typeof window !== "undefined" && sessionStorage.getItem("adminRole") === "SYSTEM_ADMIN";
 }
 
 const friendly: Record<string, string> = {
@@ -45,11 +35,12 @@ const friendly: Record<string, string> = {
   STAFF_PIN_INVALID: "직원 PIN이 올바르지 않습니다.", STAFF_PIN_RATE_LIMITED: "입력 횟수를 초과했습니다. 잠시 후 다시 시도해주세요.",
   COUPON_NOT_YET_VALID: "아직 사용할 수 없는 쿠폰입니다.", COUPON_EXPIRED: "사용 기간이 지난 쿠폰입니다.",
   COUPON_ALREADY_REDEEMED: "이미 사용한 쿠폰입니다.", COUPON_NOT_ACTIVE: "사용할 수 없는 쿠폰입니다.",
-  AUTH_INVALID: "아이디 또는 비밀번호가 올바르지 않습니다.", AUTH_RATE_LIMITED: "로그인 시도가 너무 많습니다. 잠시 후 다시 시도해주세요.",
-  INVALID_LOGIN_ID: "아이디는 영문 소문자, 숫자, _ 조합 4~20자로 입력해주세요.", PASSWORD_MISMATCH: "비밀번호가 일치하지 않습니다.",
+  AUTH_INVALID: "이메일 또는 비밀번호가 올바르지 않습니다.", AUTH_RATE_LIMITED: "로그인 시도가 너무 많습니다. 잠시 후 다시 시도해주세요.",
+  PASSWORD_MISMATCH: "비밀번호가 일치하지 않습니다.",
   WEAK_PASSWORD: "비밀번호는 영문과 숫자를 포함해 10자 이상이어야 합니다.", INVALID_EMAIL: "이메일 주소를 확인해주세요.",
-  INVALID_BUSINESS_NUMBER: "사업자등록번호 10자리를 확인해주세요.", DUPLICATE_LOGIN_ID: "이미 사용 중인 아이디입니다.",
+  INVALID_BUSINESS_NUMBER: "사업자등록번호는 숫자 10자리로 입력해주세요.",
   DUPLICATE_EMAIL: "이미 가입된 이메일입니다.", DUPLICATE_BUSINESS_NUMBER: "이미 등록된 사업자등록번호입니다.",
+  STORE_LIMIT_REACHED: "한 계정이 관리할 수 있는 매장 수를 넘었습니다.",
 };
 
 export function errorMessage(error: unknown) {

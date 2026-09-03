@@ -4,6 +4,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
 import { api, errorMessage } from "@/lib/api";
 import { useSession } from "@/lib/session";
+import { PHONE_LENGTH, isPhone, onlyDigits } from "@/features/normalize";
 import type { CustomerState, GameCreated } from "@/types/api";
 
 export default function Identify() {
@@ -76,11 +77,13 @@ export default function Identify() {
               type="tel"
               inputMode="numeric"
               placeholder="01012345678"
+              maxLength={PHONE_LENGTH}
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              onChange={(e) => setPhone(onlyDigits(e.target.value, PHONE_LENGTH))}
               required
               autoComplete="tel"
             />
+            <small className="hint">010으로 시작하는 숫자 11자리</small>
           </div>
           <hr className="hair" />
           <label className="check">
@@ -102,7 +105,7 @@ export default function Identify() {
 
         <div className="actionbar">
           <div className="inner">
-            <button className="btn" disabled={mutation.isPending}>{mutation.isPending ? "준비 중..." : "윷 던지러 가기"}</button>
+            <button className="btn" disabled={mutation.isPending || !name.trim() || !isPhone(phone) || !agreed}>{mutation.isPending ? "준비 중..." : "윷 던지러 가기"}</button>
           </div>
         </div>
       </form>
