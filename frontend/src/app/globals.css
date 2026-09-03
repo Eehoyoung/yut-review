@@ -969,6 +969,50 @@ form > .success {
   height: auto;
 }
 
+.poster-workspace {
+  display: grid;
+  grid-template-columns: minmax(260px, 360px) minmax(280px, 1fr);
+  gap: var(--s6);
+  align-items: start;
+}
+
+.poster-preview {
+  min-height: 320px;
+  display: grid;
+  place-items: center;
+  padding: var(--s3);
+  border-radius: var(--r-lg);
+  background: var(--bg-deep);
+}
+
+.poster-preview img {
+  display: block;
+  width: min(100%, 320px);
+  height: auto;
+  aspect-ratio: 105 / 148;
+  object-fit: contain;
+  box-shadow: 0 12px 32px oklch(0.26 0.02 165 / 0.16);
+}
+
+.poster-controls { padding-block: var(--s3); }
+
+.poster-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s3);
+}
+
+.wrap-anywhere { overflow-wrap: anywhere; }
+
+@media (max-width: 700px) {
+  .poster-workspace { grid-template-columns: 1fr; gap: var(--s4); }
+  .poster-preview img { width: min(100%, 280px); }
+}
+
+@media (max-width: 360px) {
+  .poster-actions { grid-template-columns: 1fr; }
+}
+
 .store-link {
   text-decoration: none;
   color: inherit;

@@ -5,7 +5,7 @@ import { useMutation } from "@tanstack/react-query";
 import { api, errorMessage } from "@/lib/api";
 import { BUSINESS_NUMBER_LENGTH, PHONE_LENGTH, onlyDigits } from "@/features/normalize";
 
-type SignUpResult = { storeId: number; storeName: string; staffPin: string; storeToken: string };
+type SignUpResult = { storeId: number; storeName: string; staffPin: string; storeToken: string; posterReady: boolean };
 
 type Field = {
   key: string;
@@ -62,7 +62,7 @@ export default function SignUp() {
             {done.staffPin}
           </p>
           <p className="notice">
-            PIN은 관리자 화면에서 다시 발급할 수 있습니다. 고객용 QR은 로그인 후 &lsquo;QR 관리&rsquo;에서 만드세요.
+            매장명과 전용 QR이 들어간 A6 안내물도 서버에 저장했습니다. 로그인 후 &lsquo;QR 안내물&rsquo;에서 휴대폰 저장이나 공유를 할 수 있습니다.
           </p>
         </div>
         <Link className="btn" href="/admin/login">

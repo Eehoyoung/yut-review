@@ -5,7 +5,7 @@ import { useParams, usePathname } from "next/navigation";
 const menus = [
   ["dashboard", "대시보드"],
   ["prizes", "상품 설정"],
-  ["qr", "QR 관리"],
+  ["qr", "QR 안내물"],
   ["staff-pin", "직원 PIN"],
   ["game-plays", "참여 내역"],
   ["coupons", "쿠폰 내역"],
