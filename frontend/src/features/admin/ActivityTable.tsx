@@ -61,3 +61,14 @@ export function ActivityTable({ rows, kind }: { rows: ActivityRow[]; kind: "play
     </div>
   );
 }
+
+export function ActivityPager({ page, totalPages, onChange }: { page: number; totalPages: number; onChange: (page: number) => void }) {
+  if (totalPages <= 1) return null;
+  return (
+    <nav className="actions" aria-label="목록 페이지">
+      <button type="button" className="btn secondary" disabled={page === 0} onClick={() => onChange(page - 1)}>이전</button>
+      <span>{page + 1} / {totalPages}</span>
+      <button type="button" className="btn secondary" disabled={page + 1 >= totalPages} onClick={() => onChange(page + 1)}>다음</button>
+    </nav>
+  );
+}

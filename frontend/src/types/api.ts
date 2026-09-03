@@ -1,5 +1,6 @@
 export type ApiError = { code: string; message: string };
 export type Envelope<T> = { success: boolean; data: T | null; error: ApiError | null };
+export type PageData<T> = { content: T[]; page: number; size: number; totalElements: number; totalPages: number };
 
 export type RedeemPolicy = "SAME_DAY" | "NEXT_DAY" | "ANYTIME";
 export type CouponStatus = "ISSUED" | "REDEEMED" | "EXPIRED" | "CANCELLED";
