@@ -1,7 +1,8 @@
 # CLAUDE.md
 
 `AGENTS.md`가 이 저장소의 개발 규칙 원본이다. 코딩 전에 `AGENTS.md`를 먼저 읽고,
-잠긴 비즈니스 규칙(확률, 쿨타임, 쿠폰 정책, 게임 무결성)은 사용자가 명시적으로 바꾸기 전까지 유지한다.
+잠긴 비즈니스 규칙(쿨타임, 쿠폰 정책, 게임 무결성)은 사용자가 명시적으로 바꾸기 전까지 유지한다.
+확률과 등급 수는 2026-09-03부터 매장 설정이다. 서버 검증과 무결성 규칙 자체는 여전히 잠겨 있다.
 이 문서는 규칙을 복제하지 않고, **현재 구현 상태와 실제로 동작하는 명령**만 기록한다.
 
 ## 현재 스택 (문서의 "추천 스택"과 다른 부분 포함)
@@ -18,12 +19,12 @@
 백엔드는 패키지를 잘게 쪼개지 않고 `backend/src/main/java/com/yutreview/` 아래 역할별 파일로 모아 둔 상태다.
 
 - `Domain.java` 엔티티/enum, `Repositories.java` 리포지토리
-- `CoreServices.java` PhoneService(정규화·HMAC·AES-256-GCM), StoreAccessService, GameResultGenerator,
-  StaffVerificationService, PinAttemptLimiter/LoginAttemptLimiter, ParticipationService, GameService, CouponService
+- `CoreServices.java` PhoneService(정규화·HMAC·AES-256-GCM), StoreAccessService, GameConfigService,
+  GameResultGenerator, PinAttemptLimiter/LoginAttemptLimiter, ParticipationService, GameService, CouponService
 - `PublicController.java` 고객 API, `AdminController.java` 관리자 API, `SecurityConfig.java` JWT 필터,
   `ApiSupport.java` 에러 응답 규격, `Bootstrap.java` 현장테스트용 초기 계정/매장 시드
-- 테스트: `backend/src/test/java/com/yutreview/CoreRulesTest.java` (확률 경계, 멱등 발급, 쿨타임/쿠폰,
-  1회용 직원 승인, NEXT_DAY/만료/PIN, 개인정보 암복호화)
+- 테스트: `backend/src/test/java/com/yutreview/CoreRulesTest.java` (가중치 경계, 설정 검증 4종,
+  3·4·5등급 발급, 발급 쿠폰 동결, 멱등 발급, 쿨타임/쿠폰, NEXT_DAY/만료/PIN, 개인정보 암복호화)
 
 프런트는 `frontend/src/app/s/[storeToken]/...` 고객 플로우, `frontend/src/app/admin/...` 관리자 화면,
 3D 윷은 `frontend/src/components/yut/YutGame.tsx` 한 파일이다.
@@ -76,12 +77,39 @@ docker compose --env-file .env.field-test --profile field-test up -d   # Cloudfl
 `script-src`에 `'unsafe-inline'`(Next.js 하이드레이션 인라인 스크립트)과 `'wasm-unsafe-eval'`(Rapier WASM)이
 반드시 있어야 한다. 빼면 화면이 흰 채로 뜨고 콘솔 에러도 남지 않는다.
 
+## 매장별 등급 수와 확률 (2026-09-03)
+
+확률은 **등급이 아니라 윷 결과에 붙는다.** 화면에 실제로 떨어지는 것이 도개걸윷모 다섯 가지라,
+등급에 확률을 걸면 던져진 모양과 드리는 상품이 어긋난다. 이 방향을 뒤집지 말 것.
+
+- `store_outcomes` 매장당 5행 = (윷 결과, weight 0~1000, prize_rank). 쓰이는 prize_rank의 종류 수가
+  그 매장의 등급 수(1~5)다. 3/4/5등급은 관리자 UI의 프리셋일 뿐 백엔드에 분기가 없다.
+- 등급은 `rank` 정수이며 **1이 1등**. 뒤집힌 의미의 `Tier` enum은 제거했다. 등급 수가 매장마다
+  다르면 `TIER_1`이 3등인지 5등인지 정할 수 없어서 되돌리면 안 된다.
+- `GameConfigService.save()`는 5개 결과 전체를 한 트랜잭션으로만 저장한다. 부분 저장 엔드포인트를
+  추가하지 말 것(확률 표가 반쯤 적용된 상태가 생긴다).
+- 저장 시 1..N 등급의 상품 행을 만들고 활성화하며, 빠진 등급의 상품은 **비활성화만** 한다.
+  발급된 쿠폰이 그 상품을 FK로 참조하므로 삭제하면 안 된다.
+- 쿠폰은 발급 시점에 `prize_rank_snapshot`과 상품명·설명·사용정책을 동결한다. 사장이 나중에
+  확률이나 상품을 바꿔도 고객이 이미 받은 쿠폰은 그대로다.
+- 고객 화면에도 확률을 표시한다. weight 0이라 도달할 수 없는 등급은 공개 목록에서 제외한다
+  (`PublicController.publicPrizes`). 받을 수 없는 상품을 확률과 함께 광고하지 않기 위한 규칙이다.
+- 3D는 이 변경과 무관하다. `yut-throw.ts`는 서버가 준 `yutResult` 다섯 값만 본다.
+
+## 스키마 변경
+
+마이그레이션 도구가 없고 `ddl-auto=update`는 컬럼 타입 변경과 NOT NULL 제거를 못 한다.
+2026-09-03 등급/확률 작업에서 postgres 볼륨을 재생성했다(`down -v` 후 `up -d --build`).
+`.env.field-test`의 `PHONE_HMAC_SECRET`/`PHONE_ENCRYPTION_KEY`는 유지했으므로 파일은 그대로 쓰면 된다.
+운영 데이터가 생긴 뒤에는 이 방법을 쓸 수 없으니 그때는 마이그레이션 절차를 먼저 정해야 한다.
+
 ## 관리자 계정
 
 직원 PIN은 **쿠폰 사용 처리에만** 쓴다. 게임 시작에는 직원 확인이 없다(2일 쿨타임과 미사용 쿠폰
-우선 규칙이 유일한 참여 제한). 상품 등급 표기는 고객 화면 기준 도·개=3등, 걸·윷=2등, 모=1등이다.
+우선 규칙이 유일한 참여 제한). 상품 등급 표기는 `rank`(1이 1등)이며 결과별 매핑은 매장 설정이다. 기본값은 도·개=3등, 걸·윷=2등, 모=1등.
 
 매장 대표는 `/admin/signup`에서 직접 가입한다(대표 이름·연락처·아이디·비밀번호·이메일·상호명·사업자등록번호).
-가입 한 트랜잭션에서 계정·매장·OWNER 멤버십·QR 토큰·상품 3개가 생성되고 직원 PIN은 응답에서 한 번만 노출된다.
+가입 한 트랜잭션에서 계정·매장·OWNER 멤버십·QR 토큰·기본 3등급 상품·기본 가중치 설정이 생성되고
+직원 PIN은 응답에서 한 번만 노출된다.
 로그인 입력값(`loginId`)에는 아이디와 이메일을 모두 받는다.
 
