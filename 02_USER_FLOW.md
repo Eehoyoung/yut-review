@@ -45,15 +45,22 @@ flowchart TD
 - 당첨상품
 - 사용 가능기간
 
+### `/admin/stores/{storeId}/qr`
+- 서버에 저장된 매장명 포함 A6 QR 안내물 미리보기
+- PNG 휴대폰 저장
+- OS 공유 시트로 카카오톡·메일 등 공유
+- 현재 공개 origin으로 안내물 재생성
+
 ## 관리자 Flow
 ```mermaid
 flowchart TD
     S[매장 회원가입] --> A[로그인]
+    S --> T[A6 QR 안내물 서버 자동 생성]
     A --> B[매장 목록]
     B --> C[매장 선택]
     C --> D[대시보드]
     D --> E[상품 관리]
-    D --> F[QR 관리]
+    D --> F[QR 안내물 저장/공유]
     D --> G[직원 PIN]
     D --> H[참여 내역]
     D --> I[쿠폰 내역]

@@ -6,6 +6,7 @@ erDiagram
     ADMIN_USERS ||--o{ ADMIN_STORE_MEMBERSHIPS : manages
     STORES ||--o{ ADMIN_STORE_MEMBERSHIPS : managed_by
     STORES ||--o{ STORE_QR_CODES : has
+    STORES ||--|| STORE_POSTERS : has
     STORES ||--o{ PRIZES : has
     STORES ||--o{ STORE_OUTCOMES : has
     STORES ||--o{ GAME_PLAYS : has
@@ -63,6 +64,20 @@ UNIQUE(admin_user_id, store_id)
 | status | VARCHAR(20) | ACTIVE / REVOKED |
 | created_at | DATETIME | |
 | revoked_at | DATETIME | nullable |
+
+## `store_posters`
+매장 생성 시 현재 공개 origin, 매장명, 활성 QR로 자동 생성되는 A6 비율 PNG 안내물이다.
+
+| Column | Type | Note |
+|---|---|---|
+| id | BIGINT | PK |
+| store_id | BIGINT | FK, UNIQUE |
+| content_base64 | TEXT | PNG 원본의 Base64, 서버 저장 |
+| public_origin | VARCHAR(500) | 생성 당시 공개 origin |
+| created_at | DATETIME | |
+| updated_at | DATETIME | |
+
+Quick Tunnel 주소, 매장명 또는 QR 토큰이 바뀌면 같은 행을 새 PNG로 갱신한다.
 
 ## `prizes`
 | Column | Type | Note |

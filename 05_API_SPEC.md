@@ -163,7 +163,8 @@ Response:
   "storeId": 3,
   "storeName": "홍대포차",
   "staffPin": "483921",
-  "storeToken": "qR7..."
+  "storeToken": "qR7...",
+  "posterReady": true
 }
 ```
 가입과 동시에 `STORE_ADMIN` 계정, 매장, OWNER 멤버십, QR 토큰, 기본 3등급 상품과
@@ -260,6 +261,22 @@ Response / Request:
 GET  /api/admin/stores/{storeId}/qr-codes
 POST /api/admin/stores/{storeId}/qr-codes/regenerate
 ```
+
+매장 생성과 회원가입은 요청의 현재 공개 origin으로 A6 비율 PNG 안내물을 서버 DB에 함께 저장한다.
+매장명 변경과 QR 토큰 재발급은 저장된 안내물도 갱신한다.
+
+## 매장 QR 안내물
+```http
+GET  /api/admin/stores/{storeId}/poster
+POST /api/admin/stores/{storeId}/poster/regenerate
+```
+
+`GET /poster`는 서버에 저장된 PNG와 함께 `X-Poster-Public-Origin` 응답 헤더를 반환한다. 관리 화면은 이 값으로 실제 저장본의 QR 주소를 표시하고 현재 접속 origin과 다르면 재생성을 안내한다.
+
+- `GET`은 인증된 매장 관리자에게 `image/png` 첨부 파일을 반환한다.
+- `POST`는 현재 공개 origin, 현재 매장명, 활성 QR 토큰으로 서버 저장본을 다시 만든다.
+- 기존 매장에 저장본이 없으면 첫 `GET`에서 한 번 생성한다.
+- Quick Tunnel 주소가 바뀐 세션에서는 `POST` 후 새 안내물을 내려받아야 한다.
 
 ## 직원 PIN 재발급
 ```http

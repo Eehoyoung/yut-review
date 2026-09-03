@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-03T15:00:00+09:00",
+  "title": "Design System: 윷 리뷰 이벤트",
+  "extensions": {
+    "colorMeta": {
+      "stage-green": { "role": "neutral", "displayName": "무대 초록", "canonical": "#16241F", "tonalRamp": ["#0B1210", "#16241F", "#294138", "#466157", "#6D8178", "#99A8A1", "#CBD4D0", "#F4F7F5"] },
+      "terracotta": { "role": "primary", "displayName": "테라코타", "canonical": "#B34A20", "tonalRamp": ["#351309", "#5A210E", "#7E3116", "#B34A20", "#D76535", "#E99570", "#F4C6B2", "#FBEDE7"] },
+      "wood": { "role": "secondary", "displayName": "윷 나무", "canonical": "#8A5320", "tonalRamp": ["#291606", "#4A2A0C", "#693C13", "#8A5320", "#A97541", "#CFA273", "#E5C9A8", "#F7EEE3"] },
+      "paper": { "role": "neutral", "displayName": "행동 백지", "canonical": "#FFFFFF", "tonalRamp": ["#202422", "#414745", "#656C69", "#8E9592", "#B8BEBC", "#D8DDDB", "#EFF2F1", "#FFFFFF"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "결과형 제목", "purpose": "게임 결과와 인쇄물의 한 번뿐인 큰 제목." },
+      "headline": { "displayName": "화면 제목", "purpose": "한 화면의 핵심 행동 또는 상태." },
+      "body": { "displayName": "본문", "purpose": "짧은 안내와 설명." },
+      "label": { "displayName": "라벨", "purpose": "매장명, 필드명, 상태 표기." }
+    },
+    "shadows": [
+      { "name": "surface-hairline", "value": "0 1px 2px oklch(0.26 0.02 165 / 0.05)", "purpose": "웹 카드가 배경에서 조용히 분리될 때만 사용." }
+    ],
+    "motion": [
+      { "name": "pressed", "value": "180ms cubic-bezier(0.22, 1, 0.36, 1)", "purpose": "버튼과 입력 상태 전환." }
+    ],
+    "breakpoints": [
+      { "name": "customer-column", "value": "460px" },
+      { "name": "compact", "value": "340px" },
+      { "name": "dialog-center", "value": "700px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "한 화면의 주 행동 하나를 표시한다.",
+      "html": "<button class=\"ds-btn-primary\">바로 참여하기</button>",
+      "css": ".ds-btn-primary { width: 100%; min-height: 54px; padding: 12px 16px; border: 0; border-radius: 14px; background: #B34A20; color: #FFFFFF; font: 800 16px/1.55 system-ui, sans-serif; transition: transform 180ms cubic-bezier(0.22,1,0.36,1), background 180ms cubic-bezier(0.22,1,0.36,1); } .ds-btn-primary:hover { background: #A4431D; } .ds-btn-primary:active { background: #973C17; transform: scale(.985); } .ds-btn-primary:focus-visible { outline: 2px solid #B34A20; outline-offset: 2px; }"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "정보 또는 행동을 담는 조용한 흰 면이다.",
+      "html": "<section class=\"ds-card\"><strong>사용 가능한 쿠폰</strong><p>직원에게 화면을 보여주세요.</p></section>",
+      "css": ".ds-card { display: grid; gap: 12px; padding: 16px; border: 1px solid #DDE5E1; border-radius: 20px; background: #FFFFFF; color: #16241F; box-shadow: 0 1px 2px rgba(22,36,31,.05); font: 400 16px/1.55 system-ui, sans-serif; }"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "field",
+      "description": "현장에서 빠르게 입력하는 단일 필드다.",
+      "html": "<input class=\"ds-field\" placeholder=\"이름을 입력하세요\">",
+      "css": ".ds-field { width: 100%; min-height: 52px; padding: 12px 16px; border: 1px solid #DDE5E1; border-radius: 14px; background: #FFFFFF; color: #16241F; font: 400 16px/1.55 system-ui, sans-serif; } .ds-field:hover { border-color: #AAB8B2; } .ds-field:focus-visible { outline: 2px solid #B34A20; outline-offset: 2px; }"
+    },
+    {
+      "name": "QR Action Plate",
+      "kind": "custom",
+      "description": "인쇄물에서 QR과 스캔 지시를 하나의 지배적인 흰 면으로 묶는다.",
+      "html": "<section class=\"ds-qr-plate\"><small>카메라를 켜고</small><strong>QR을 스캔하세요</strong><div class=\"ds-qr-placeholder\">QR</div></section>",
+      "css": ".ds-qr-plate { width: 230px; padding: 24px; border-radius: 20px; background: #FFFFFF; color: #16241F; text-align: center; font-family: system-ui, sans-serif; } .ds-qr-plate strong { display: block; margin: 6px 0 16px; font-size: 20px; } .ds-qr-placeholder { display: grid; place-items: center; aspect-ratio: 1; background: #16241F; color: #FFFFFF; font-weight: 800; }"
+    },
+    {
+      "name": "QR Poster Workspace",
+      "kind": "custom",
+      "description": "서버 저장 A6 미리보기와 저장·공유·주소 갱신 행동을 반응형 두 열로 묶는다.",
+      "html": "<section class=\"ds-poster-workspace\"><div class=\"ds-poster-preview\"><div class=\"ds-poster-sheet\">A6 PNG</div></div><div class=\"ds-poster-controls\"><strong>매장용 A6 안내물</strong><div class=\"ds-poster-actions\"><button>이미지 저장</button><button>공유하기</button></div><p>서버에 저장된 안내물 QR 주소</p></div></section>",
+      "css": ".ds-poster-workspace { display: grid; grid-template-columns: minmax(260px,360px) minmax(280px,1fr); gap: 32px; align-items: start; color: #16241F; font: 400 16px/1.55 system-ui,sans-serif; } .ds-poster-preview { min-height: 320px; display: grid; place-items: center; padding: 12px; border-radius: 20px; background: #EEF2F0; } .ds-poster-sheet { width: min(100%,320px); aspect-ratio: 105/148; display: grid; place-items: center; background: #FFFFFF; box-shadow: 0 12px 32px rgba(22,36,31,.16); font-weight: 800; } .ds-poster-controls { display: grid; gap: 12px; padding-block: 12px; } .ds-poster-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; } .ds-poster-actions button { min-height: 54px; border: 1px solid #DDE5E1; border-radius: 14px; background: #B34A20; color: #FFFFFF; font-weight: 800; } .ds-poster-actions button + button { background: #F7FAF8; color: #16241F; } .ds-poster-actions button:focus-visible { outline: 2px solid #B34A20; outline-offset: 2px; } .ds-poster-controls p { overflow-wrap: anywhere; padding: 12px 16px; border-radius: 14px; background: #FDF3D6; } @media (max-width:700px) { .ds-poster-workspace { grid-template-columns: 1fr; gap: 16px; } } @media (max-width:360px) { .ds-poster-actions { grid-template-columns: 1fr; } }"
+    },
+    {
+      "name": "Status Feedback",
+      "kind": "custom",
+      "refersTo": "status-feedback",
+      "description": "비동기 저장·공유·재생성 결과를 행동 가까이에서 즉시 확인시킨다.",
+      "html": "<div class=\"ds-status-stack\"><p class=\"ds-status-success\" role=\"status\">현재 접속 주소로 안내물을 다시 만들었습니다.</p><p class=\"ds-status-error\" role=\"alert\">현재 접속 주소와 다릅니다.</p></div>",
+      "css": ".ds-status-stack { display: grid; gap: 8px; font: 400 13px/1.55 system-ui,sans-serif; } .ds-status-success, .ds-status-error { margin: 0; padding: 12px 16px; border-radius: 14px; } .ds-status-success { background: #E4F6ED; color: #14684A; } .ds-status-error { background: #FDECE8; color: #A32B1C; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "고요한 매장 위의 한 번의 던짐",
+    "overview": "평소 화면은 차분한 매장 도구처럼 물러나고, 윷 결과와 참여 행동에서만 색과 크기가 강해진다. 인쇄물은 짙은 초록 무대를 가득 채운 뒤 흰색·테라코타 제목과 공중의 윷가락으로 그 순간을 압축한다. 웹 화면은 같은 초록 기운의 밝은 바탕과 동일한 테라코타·나무색을 사용한다.\n\n정보보다 행동이 먼저 읽혀야 한다. A6 인쇄물의 큰 흰 QR 면처럼, 각 화면의 주 행동은 주변과 명확히 분리된 하나의 면 또는 버튼으로 표현한다.",
+    "keyCharacteristics": ["차분한 초록 중성 바탕과 제한된 테라코타 강조", "굵고 짧은 한국어 제목, 조용한 보조 문장", "윷가락의 길쭉한 캡슐 실루엣과 단단한 행동 면", "사행성 장식 없이 결과 순간에만 집중되는 에너지"],
+    "rules": [
+      { "name": "The One Accent Rule", "body": "한 화면의 주 행동색은 테라코타 하나다. 나무색은 윷과 보상 의미를 대신하지 않는다.", "section": "colors" },
+      { "name": "The No Casino Rule", "body": "네온, 금화, 슬롯머신 색채와 과도한 금색은 사용하지 않는다.", "section": "colors" },
+      { "name": "The Short Headline Rule", "body": "큰 제목은 한 번에 읽히는 짧은 한국어 문구로 유지한다.", "section": "typography" },
+      { "name": "The One Action Plane Rule", "body": "한 장면에서 가장 중요한 행동은 가장 큰 독립 면 하나로 즉시 구분되어야 한다.", "section": "layout" },
+      { "name": "The Flat-by-Default Rule", "body": "장식적 그림자로 주목을 만들지 않는다. 크기, 색면, 간격이 먼저다.", "section": "elevation" }
+    ],
+    "dos": ["Do 매장명, 결과, QR처럼 현장에서 필요한 정보가 첫 시선에 읽히게 한다.", "Do 짙은 초록 위에는 흰색 또는 밝은 테라코타로 충분한 대비를 만든다.", "Do 인쇄 QR 교체 경고를 7.2pt 이상과 안전 여백 안에 유지한다.", "Do 다운로드·공유·재생성 결과를 행동 영역 바로 아래에서 짧은 상태 문장으로 확인시킨다.", "Do 저장된 주소와 현재 주소가 다르면 주소, 경고, 재생성 행동을 한 흐름으로 배치한다."],
+    "donts": ["Don't 카지노, 잭팟, 대박 같은 사행성 언어나 장식을 사용한다.", "Don't 테라코타와 나무색을 여러 행동에 경쟁시키지 않는다.", "Don't QR 주변 여백을 장식이나 문구로 침범하지 않는다.", "Don't 카카오톡이나 메일 전용 버튼을 만들지 않는다. 가능한 앱 선택은 운영체제 공유 시트에 맡긴다."]
+  }
+}

@@ -170,7 +170,7 @@ Quick Tunnel hostname은 임시 주소이기 때문이다.
 https://random.trycloudflare.com/s/qR7GdJ42mKX1
 ```
 
-관리자 페이지가 Tunnel URL로 열려 있다면 **현재 브라우저 origin을 사용하여 QR을 생성/다운로드**할 수 있도록 구현하는 것을 권장한다.
+관리자 페이지가 Tunnel URL로 열려 있다면 **현재 요청 origin으로 서버 저장 A6 안내물을 재생성/다운로드**한다.
 
 ### 중요
 
@@ -182,7 +182,8 @@ Quick Tunnel을 재시작해 hostname이 바뀌면 기존에 출력한 테스트
 Docker 실행
 -> Tunnel URL 확인
 -> Tunnel URL로 관리자 접속
--> 매장 QR 생성/다운로드
+-> QR 안내물에서 `현재 주소로 안내물 다시 만들기`
+-> PNG 저장 또는 휴대폰 공유
 -> 현장 출력 또는 태블릿/화면으로 제공
 -> 고객 실테스트 시작
 ```
@@ -354,6 +355,8 @@ Router Port Forwarding은 필요하지 않다.
 - [ ] Cloudflare Quick Tunnel HTTPS 접속 성공
 - [ ] 외부 LTE/5G 휴대폰 접속 성공
 - [ ] 현재 Tunnel origin 기반 매장 QR 생성 성공
+- [ ] 서버 저장 A6 PNG에 매장명과 현재 Tunnel QR 반영
+- [ ] 휴대폰 이미지 저장 및 OS 공유 시트 동작
 - [ ] QR 스캔 후 올바른 Store 식별
 - [ ] 직원 PIN 승인 성공/실패 검증
 - [ ] 서버 확정 결과와 3D 윷 결과 일치
