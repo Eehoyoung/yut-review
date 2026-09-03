@@ -3,6 +3,8 @@ package com.yutreview;
 import jakarta.persistence.LockModeType;
 import java.time.LocalDate;
 import java.util.*;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
 
@@ -36,12 +38,12 @@ interface StoreOutcomeRepository extends JpaRepository<StoreOutcome,Long> {
 interface GameRepository extends JpaRepository<GamePlay,Long> {
     Optional<GamePlay> findByPublicId(String id); Optional<GamePlay> findByIdempotencyKey(String key);
     Optional<GamePlay> findFirstByStoreIdAndPhoneHashOrderByPlayedDateDesc(Long storeId,String phoneHash);
-    List<GamePlay> findByStoreIdOrderByPlayedAtDesc(Long storeId); long countByStoreId(Long storeId); long countByStoreIdAndPlayedDate(Long storeId,LocalDate date); long countByStoreIdAndYutResult(Long storeId,YutResult result);
+    Page<GamePlay> findByStoreIdOrderByPlayedAtDesc(Long storeId,Pageable pageable); long countByStoreId(Long storeId); long countByStoreIdAndPlayedDate(Long storeId,LocalDate date); long countByStoreIdAndYutResult(Long storeId,YutResult result);
 }
 interface CouponRepository extends JpaRepository<Coupon,Long> {
     Optional<Coupon> findByCouponToken(String token); Optional<Coupon> findByGamePlayId(Long gamePlayId);
     Optional<Coupon> findFirstByStoreIdAndPhoneHashAndStatusOrderByIssuedAtDesc(Long storeId,String hash,CouponStatus status);
-    List<Coupon> findByStoreIdOrderByIssuedAtDesc(Long storeId); long countByStoreIdAndStatus(Long storeId,CouponStatus status);
+    Page<Coupon> findByStoreIdOrderByIssuedAtDesc(Long storeId,Pageable pageable); long countByStoreIdAndStatus(Long storeId,CouponStatus status);
     @Lock(LockModeType.PESSIMISTIC_WRITE) @Query("select c from Coupon c join fetch c.store where c.couponToken=:token")
     Optional<Coupon> findForUpdate(@Param("token") String token);
 }

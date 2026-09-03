@@ -285,12 +285,28 @@ POST /api/admin/stores/{storeId}/staff-pin/regenerate
 
 ## 참여 내역
 ```http
-GET /api/admin/stores/{storeId}/game-plays
+GET /api/admin/stores/{storeId}/game-plays?page=0&size=50
 ```
+
+`page`는 0부터 시작하고 `size` 기본값은 50, 허용 범위는 1~100이다. `playedAt DESC`로 DB에서 페이지 조회한다.
 
 ## 쿠폰 내역
 ```http
-GET /api/admin/stores/{storeId}/coupons
+GET /api/admin/stores/{storeId}/coupons?page=0&size=50
+```
+
+`page`는 0부터 시작하고 `size` 기본값은 50, 허용 범위는 1~100이다. `issuedAt DESC`로 DB에서 페이지 조회한다.
+
+두 목록의 `data` 형식:
+
+```json
+{
+  "content": [],
+  "page": 0,
+  "size": 50,
+  "totalElements": 0,
+  "totalPages": 0
+}
 ```
 
 ## 통계

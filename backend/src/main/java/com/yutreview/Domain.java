@@ -82,7 +82,7 @@ enum CouponStatus { ISSUED, REDEEMED, EXPIRED, CANCELLED }
     @Column(nullable=false) String animationSeed; @Column(nullable=false,unique=true) String idempotencyKey;
     @Column(nullable=false) LocalDate playedDate; @Column(nullable=false) Instant playedAt; Instant revealedAt;
 }
-@Entity @Table(name="coupons", indexes={@Index(columnList="store_id,phone_hash,status"),@Index(columnList="store_id,status")}) class Coupon {
+@Entity @Table(name="coupons", indexes={@Index(columnList="store_id,phone_hash,status"),@Index(columnList="store_id,status"),@Index(columnList="store_id,issued_at")}) class Coupon {
     @Id @GeneratedValue(strategy=GenerationType.IDENTITY) Long id;
     @ManyToOne(optional=false) Store store; @OneToOne(optional=false) GamePlay gamePlay; @ManyToOne(optional=false) Prize prize;
     @Column(nullable=false,unique=true) String couponToken; @Column(nullable=false,length=64) String phoneHash;
