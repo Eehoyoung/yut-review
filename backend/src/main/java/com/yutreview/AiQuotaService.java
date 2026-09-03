@@ -153,10 +153,44 @@ class AiQuotaRowFactory {
 class AiUsageService {
     private final AiUsageEventRepository events;
     private final Clock clock;
+    /** 공급자 가격은 코드에 박지 않는다. 값이 바뀌면 설정만 고친다. 0이면 비용을 계산하지 않는다. */
+    private final double inputPerMillion;
+    private final double outputPerMillion;
 
-    AiUsageService(AiUsageEventRepository events, Clock clock) {
+    AiUsageService(AiUsageEventRepository events, Clock clock,
+                   @org.springframework.beans.factory.annotation.Value("${app.ai.pricing.input-per-million:0}") double inputPerMillion,
+                   @org.springframework.beans.factory.annotation.Value("${app.ai.pricing.output-per-million:0}") double outputPerMillion) {
         this.events = events;
         this.clock = clock;
+        this.inputPerMillion = inputPerMillion;
+        this.outputPerMillion = outputPerMillion;
+    }
+
+    /**
+     * 이번 달 누적 토큰과 추정 비용.
+     *
+     * 단가가 설정돼 있지 않으면 비용을 만들어 내지 않는다. 0원이라고 말하는 것과 모른다고 말하는 것은
+     * 다르고, 여기서 짐작한 숫자가 정산 근거처럼 읽히면 곤란하다.
+     */
+    Map<String, Object> monthlyCost(Long storeId, String month) {
+        java.time.YearMonth ym = java.time.YearMonth.parse(month);
+        java.time.ZoneId zone = clock.getZone();
+        java.time.Instant from = ym.atDay(1).atStartOfDay(zone).toInstant();
+        java.time.Instant to = ym.plusMonths(1).atDay(1).atStartOfDay(zone).toInstant();
+        long input = 0, output = 0;
+        for (AiUsageEvent e : events.findByStoreIdAndCreatedAtBetween(storeId, from, to)) {
+            input += e.inputTokens;
+            output += e.outputTokens;
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("inputTokens", input);
+        out.put("outputTokens", output);
+        boolean priced = inputPerMillion > 0 || outputPerMillion > 0;
+        out.put("estimatedCostUsd", priced
+                ? Math.round((input * inputPerMillion + output * outputPerMillion) / 1_000_000 * 10000) / 10000.0
+                : null);
+        out.put("pricingConfigured", priced);
+        return out;
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)

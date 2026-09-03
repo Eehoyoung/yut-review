@@ -60,6 +60,11 @@ interface AiMonthlyQuotaRepository extends JpaRepository<AiMonthlyQuota,Long> {
 }
 interface AiUsageEventRepository extends JpaRepository<AiUsageEvent,Long> {
     List<AiUsageEvent> findTop20ByStoreIdOrderByCreatedAtDesc(Long storeId);
+    /**
+     * 누적 토큰 계산용. 월 경계는 호출부가 매장 시간(Asia/Seoul)으로 계산해 Instant로 넘긴다.
+     * DB의 날짜 포맷 함수(to_char 등)는 방언마다 달라 H2와 PostgreSQL이 갈린다.
+     */
+    List<AiUsageEvent> findByStoreIdAndCreatedAtBetween(Long storeId,java.time.Instant from,java.time.Instant to);
 }
 interface AiReportRepository extends JpaRepository<AiReport,Long> {
     Optional<AiReport> findFirstByStoreIdAndFeatureOrderByCreatedAtDesc(Long storeId,AiFeature feature);

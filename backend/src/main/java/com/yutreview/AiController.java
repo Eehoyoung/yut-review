@@ -145,7 +145,8 @@ class SubscriptionController {
     @PutMapping
     ApiResponse<?> change(@PathVariable Long storeId, @Valid @RequestBody PlanChange body, Authentication auth) {
         Long adminId = (Long) auth.getPrincipal();
-        access.member(adminId, storeId);
+        // 운영자 확인이 먼저다. 멤버십을 먼저 보면 운영자는 어느 매장의 멤버도 아니라서 자기가
+        // 만들어야 할 변경을 스스로 막게 된다. 실제로 그렇게 되어 아무도 등급을 못 바꿨다.
         subscriptions.requireOperator(admins.findById(adminId).orElse(null));
         Store store = stores.findById(storeId)
                 .orElseThrow(() -> new AppException("STORE_NOT_FOUND", "매장을 찾을 수 없습니다."));

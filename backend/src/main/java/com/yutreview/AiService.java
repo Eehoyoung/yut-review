@@ -228,12 +228,12 @@ class AiService {
                 total = add(total, response.usage());
             }
             if (response.wantsTools()) {
-                // 상한에 닿았다. 도구는 닫되 지금까지 모은 결과는 그대로 들려 보낸다. 근거를 비우고
-                // 답을 요구하면 모델이 숫자를 지어낸다.
-                for (LlmToolCall call : response.toolCalls())
-                    exchanges.add(new LlmToolExchange(call, runTool(store, plan, call)));
+                // 상한에 닿았다. 도구를 한 번 더 돌리지 않는다(계약상 요청당 4회가 상한이다).
+                // 대신 지금까지 모은 결과를 그대로 들려 보내고 더 부르지만 못하게 닫는다. 근거를
+                // 비운 채 답을 요구하면 모델이 숫자를 지어낸다. 정의를 지우지 않는 이유는, 지난
+                // function_call만 남고 도구 정의가 없으면 공급자가 요청을 거부할 수 있어서다.
                 LlmRequest closing = new LlmRequest(chatModel, prompts.systemPrompt(AiFeature.AI_CHAT), messages,
-                        null, null, MAX_CHAT_OUTPUT_TOKENS, List.of());
+                        null, null, MAX_CHAT_OUTPUT_TOKENS, toolRegistry.tools(), true);
                 response = provider.continueWithToolResults(closing, exchanges);
                 total = add(total, response.usage());
             }
@@ -269,6 +269,7 @@ class AiService {
         out.put("provider", provider.name());
         out.put("features", features);
         out.put("recentUsage", usage.recent(store.id));
+        out.put("monthlyTokens", usage.monthlyCost(store.id, quota.currentMonth()));
         return out;
     }
 
@@ -324,6 +325,8 @@ class AiService {
      */
     private static final java.util.Set<String> REFUNDABLE =
             java.util.Set.of("AI_PROVIDER_UNAVAILABLE", "AI_NOT_CONFIGURED", "AI_REQUEST_INVALID");
+    // AI_TIMEOUT과 AI_RESPONSE_INVALID는 여기 없다. 요청이 이미 나갔고 모델이 생성까지 마쳤을 수
+    // 있어서, 되돌려 주면 느린 응답이 반복되는 동안 비용만 나가고 사용량은 오르지 않는다.
 
     private void fail(Store store, AiFeature feature, String model, String version, String chargedMonth,
                       LlmUsage used, RuntimeException e) {
@@ -345,8 +348,20 @@ class AiService {
             JsonNode arguments = call.argumentsJson() == null || call.argumentsJson().isBlank()
                     ? json.createObjectNode() : json.readTree(call.argumentsJson());
             return write(toolRegistry.invoke(store, plan, call.name(), arguments));
+        } catch (AppException known) {
+            // 이유를 알려 준다. "실패했습니다"만 돌려주면 모델이 같은 기간을 다시 물으며 왕복만
+            // 소진하고, 사장은 그게 요금제 한계라는 걸 끝내 듣지 못한다.
+            return "{\"error\":" + quote(known.getMessage()) + "}";
         } catch (RuntimeException | com.fasterxml.jackson.core.JsonProcessingException e) {
             return "{\"error\":\"도구 실행에 실패했습니다.\"}";
+        }
+    }
+
+    private String quote(String value) {
+        try {
+            return json.writeValueAsString(value == null ? "" : value);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            return "\"\"";
         }
     }
 

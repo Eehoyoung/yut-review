@@ -27,10 +27,18 @@ import org.springframework.stereotype.Service;
     StorePosterService(StorePosterRepository posters,Clock clock){this.posters=posters;this.clock=clock;}
 
     StorePoster save(Store store,String storeToken,String publicOrigin){
+        return save(store,storeToken,publicOrigin,null);
+    }
+
+    /**
+     * 안내물 저장. tagline은 STANDARD 이상에서만 채워져 들어온다(브랜딩 권한).
+     * 권한 판단은 호출부가 하고 여기서는 받은 값을 그릴 뿐이다.
+     */
+    StorePoster save(Store store,String storeToken,String publicOrigin,String tagline){
         String origin=origin(publicOrigin),url=origin+"/s/"+storeToken;
         StorePoster poster=posters.findByStoreId(store.id).orElseGet(StorePoster::new);Instant now=clock.instant();
         if(poster.id==null){poster.store=store;poster.createdAt=now;}
-        poster.contentBase64=Base64.getEncoder().encodeToString(render(store.name,url));poster.publicOrigin=origin;poster.updatedAt=now;
+        poster.contentBase64=Base64.getEncoder().encodeToString(render(store.name,url,tagline));poster.publicOrigin=origin;poster.updatedAt=now;
         return posters.save(poster);
     }
 
@@ -41,7 +49,13 @@ import org.springframework.stereotype.Service;
         catch(IllegalArgumentException e){throw new AppException("INVALID_PUBLIC_ORIGIN","공개 접속 주소가 올바르지 않습니다.");}
     }
 
-    static byte[] render(String storeName,String url){
+    static byte[] render(String storeName,String url){return render(storeName,url,null);}
+
+    /**
+     * tagline은 매장이 직접 쓴 한 줄이며 STANDARD 이상에서만 채워진다(브랜딩 권한).
+     * 없으면 기본 문구를 그대로 쓴다. 안내물의 구조는 등급과 무관하게 같다.
+     */
+    static byte[] render(String storeName,String url,String tagline){
         BufferedImage image=new BufferedImage(WIDTH,HEIGHT,BufferedImage.TYPE_INT_RGB);Graphics2D g=image.createGraphics();
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,RenderingHints.VALUE_ANTIALIAS_ON);g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
         g.setColor(INK);g.fillRect(0,0,WIDTH,HEIGHT);
@@ -49,7 +63,7 @@ import org.springframework.stereotype.Service;
         g.setColor(PAPER);g.setFont(fit(g,storeName,Font.BOLD,34,900));g.drawString(storeName,220,137);
         g.setFont(new Font(Font.SANS_SERIF,Font.BOLD,86));g.drawString("리뷰 후",118,382);
         g.setColor(TERRACOTTA_BRIGHT);g.setFont(new Font(Font.SANS_SERIF,Font.BOLD,132));g.drawString("윷 한 판!",112,530);
-        g.setColor(MUTED);g.setFont(new Font(Font.SANS_SERIF,Font.PLAIN,35));g.drawString("솔직한 리뷰를 남기고 행운을 던져보세요",118,625);
+        g.setColor(MUTED);g.setFont(new Font(Font.SANS_SERIF,Font.PLAIN,35));g.drawString(tagline==null||tagline.isBlank()?"솔직한 리뷰를 남기고 행운을 던져보세요":tagline.trim(),118,625);
         stick(g,805,305,-24,WOOD_LIGHT,true);stick(g,930,300,-8,TERRACOTTA_BRIGHT,false);stick(g,1040,325,13,WOOD,true);stick(g,1145,250,26,WOOD_LIGHT,false);
 
         int plateX=250,plateY=675,plateW=740,plateH=805;g.setColor(PAPER);g.fillRoundRect(plateX,plateY,plateW,plateH,70,70);

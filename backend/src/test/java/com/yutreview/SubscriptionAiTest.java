@@ -42,6 +42,11 @@ class SubscriptionAiTest {
     @Autowired AdminSignupService signup;
     @Autowired AdminUserRepository admins;
     @Autowired FakeLlmProvider fake;
+    @Autowired AnalyticsService analytics;
+    @Autowired WeeklyReportScheduler weekly;
+    @Autowired AiUsageService quotaUsage;
+    @Autowired com.fasterxml.jackson.databind.ObjectMapper json;
+    private static final String QUOTE = String.valueOf('"');
 
     Store store;
     String qr;
@@ -50,7 +55,7 @@ class SubscriptionAiTest {
     void setup() {
         fake.failing = false;
         fake.brokenJson = false;
-        fake.nextToolCalls = List.of();
+        fake.resetToolCalls();
         fake.lastExchanges = List.of();
         fake.lastRequest = null;
         Instant now = Instant.now();
@@ -358,36 +363,144 @@ class SubscriptionAiTest {
     void chatKeepsEveryToolResultAcrossRounds() {
         subscriptions.changePlan(store, Plan.PRO, "테스트");
         games.create(qr, "홍길동", "01012345678", "tool-rounds");
-        // 모델이 도구를 한 번 부르게 만든다.
-        fake.nextToolCalls = List.of(new LlmToolCall("call-1", "get_period_summary", "{}"));
+
+        // 라운드를 두 번 돌린다. 한 번만 돌면 누적이든 마지막 것만 보내든 결과가 같아서, 고치기
+        // 전 코드로도 통과하는 무의미한 테스트가 된다.
+        fake.queueToolCalls(List.of(new LlmToolCall("call-1", "get_period_summary", "{}")));
+        fake.queueToolCalls(List.of(new LlmToolCall("call-2", "get_prize_performance", "{}")));
 
         Map<String, Object> answer = ai.chat(store, "지난 30일 참여 몇 건이야?", List.of());
         assertNotNull(answer.get("answer"));
         @SuppressWarnings("unchecked")
         List<String> used = (List<String>) answer.get("toolsUsed");
-        assertEquals(List.of("get_period_summary"), used);
+        assertEquals(List.of("get_period_summary", "get_prize_performance"), used);
 
-        // 이어지는 호출에 도구 결과가 실제로 실려 갔는지. 비우고 답을 요구하면 모델이 숫자를 지어낸다.
-        assertEquals(1, fake.lastExchanges.size());
-        assertEquals("call-1", fake.lastExchanges.get(0).call().callId());
+        // 두 라운드의 결과가 모두 실려 가야 한다. 마지막 것만 보내면 앞의 근거가 사라져 모델이
+        // 숫자를 지어낸다.
+        assertEquals(2, fake.lastExchanges.size(), "앞 라운드의 도구 결과가 버려졌다");
+        assertEquals(List.of("call-1", "call-2"),
+                fake.lastExchanges.stream().map(x -> x.call().callId()).toList());
         assertTrue(fake.lastExchanges.get(0).resultJson().contains("plays"));
-        assertFalse(fake.lastExchanges.get(0).resultJson().contains("01012345678"));
+        assertTrue(fake.lastExchanges.get(1).resultJson().contains("prizes"));
+        for (LlmToolExchange x : fake.lastExchanges)
+            assertFalse(x.resultJson().contains("01012345678"), "도구 결과에 전화번호가 들어갔다");
+    }
+
+    @Test
+    void chatStopsCallingToolsAtTheCapButKeepsTheEvidence() {
+        subscriptions.changePlan(store, Plan.PRO, "테스트");
+        games.create(qr, "손님", "01055554444", "tool-cap");
+        // 계약상 요청당 도구 호출 상한은 4회다. 그보다 많이 요구해도 넘지 않아야 한다.
+        for (int i = 1; i <= 8; i++)
+            fake.queueToolCalls(List.of(new LlmToolCall("c" + i, "get_period_summary", "{}")));
+
+        Map<String, Object> answer = ai.chat(store, "계속 확인해줘", List.of());
+        @SuppressWarnings("unchecked")
+        List<String> used = (List<String>) answer.get("toolsUsed");
+        assertEquals(AiService.MAX_TOOL_CALLS, used.size(), "상한을 넘겨 도구를 돌렸다");
+        // 닫는 호출에도 모은 근거는 그대로 실린다.
+        assertEquals(AiService.MAX_TOOL_CALLS, fake.lastExchanges.size());
+        // 도구 정의를 지우지 않는다. 지난 function_call만 남으면 공급자가 요청을 거부할 수 있다.
+        assertFalse(fake.lastRequest.tools().isEmpty());
+        assertTrue(fake.lastRequest.toolChoiceNone());
+    }
+
+    @Test
+    void outOfRetentionInsideChatTellsTheModelWhy() throws Exception {
+        // 도구가 보관기간 밖을 물으면 이유가 담긴 오류가 나가야 한다. "실패했습니다"만 돌려주면
+        // 모델이 같은 기간을 다시 물으며 왕복만 소진하고, 사장은 요금제 한계라는 걸 못 듣는다.
+        AiAnalyticsToolRegistry registry = new AiAnalyticsToolRegistry(context);
+        AppException thrown = assertThrows(AppException.class, () -> registry.invoke(store, Plan.BASIC,
+                "get_period_summary", json.readTree("{" + QUOTE + "from" + QUOTE + ":" + QUOTE + "2020-01-01"
+                        + QUOTE + "," + QUOTE + "to" + QUOTE + ":" + QUOTE + "2020-02-01" + QUOTE + "}")));
+        assertEquals("ANALYTICS_OUT_OF_RETENTION", thrown.code);
+        assertTrue(thrown.getMessage().contains("요금제"));
     }
 
     @Test
     void hourBucketsUseStoreTimeNotServerDefault() {
         // 시간대 집계가 서버 기본 타임존을 따라가면 "피크 시간"이 통째로 밀린다.
         subscriptions.changePlan(store, Plan.PRO, "테스트");
-        games.create(qr, "손님", "01033332222", "hour-1");
-        AiContextService.Window w = context.window(Plan.PRO, LocalDate.now().minusDays(1), LocalDate.now());
+        GamePlay play = games.create(qr, "손님", "01033332222", "hour-1");
+        // 기대 시각은 그 참여의 playedAt에서 뽑는다. 지금 시각으로 계산하면 자정 직전에 만든 참여가
+        // 다음 날 시각과 비교되어 가끔 깨진다.
+        int seoulHour = play.playedAt.atZone(java.time.ZoneId.of("Asia/Seoul")).getHour();
+        AiContextService.Window w = context.window(Plan.PRO, play.playedDate.minusDays(1), play.playedDate);
         @SuppressWarnings("unchecked")
         Map<String, Long> byHour = (Map<String, Long>) context.hourlyDistribution(store.id, w).get("playsByHour");
         assertEquals(24, byHour.size());
         assertEquals(1L, byHour.values().stream().mapToLong(Long::longValue).sum());
-
-        int seoulHour = java.time.ZonedDateTime.now(java.time.ZoneId.of("Asia/Seoul")).getHour();
         assertEquals(1L, byHour.get(String.format("%02d", seoulHour)),
                 "매장 시간 기준 시각에 잡혀야 한다");
+    }
+
+    @Test
+    void analyticsDepthAndExportsFollowThePlan() {
+        // BASIC은 요약만. 상세와 CSV는 402로 막힌다.
+        assertEquals("PLAN_UPGRADE_REQUIRED",
+                assertThrows(AppException.class, () -> analytics.detailed(store.id, null, null)).code);
+        assertEquals("PLAN_UPGRADE_REQUIRED",
+                assertThrows(AppException.class, () -> analytics.dailyCsv(store.id, LocalDate.now().minusDays(3), LocalDate.now())).code);
+        assertEquals(List.of(), analytics.availableExports(store.id));
+        assertEquals(false, analytics.summary(store.id).get("advancedAvailable"));
+
+        subscriptions.changePlan(store, Plan.STANDARD, "테스트");
+        games.create(qr, "손님", "01011112222", "csv-1");
+        assertTrue(analytics.detailed(store.id, null, null).containsKey("hourly"));
+        assertEquals(List.of("daily", "prize"), analytics.availableExports(store.id));
+
+        String csv = analytics.dailyCsv(store.id, LocalDate.now().minusDays(1), LocalDate.now());
+        assertTrue(csv.contains("날짜,참여수,쿠폰발급,쿠폰사용"));
+        assertTrue(csv.contains(LocalDate.now().toString()));
+        // 집계만 나간다. 참여자 명단을 내려주는 기능이 아니다.
+        for (String forbidden : List.of("홍길동", "손님", "01011112222", "1122"))
+            assertFalse(csv.contains(forbidden), "CSV에 " + forbidden + "이 들어갔다");
+
+        String prizeCsv = analytics.prizeCsv(store.id, LocalDate.now().minusDays(1), LocalDate.now());
+        assertTrue(prizeCsv.contains("등급,상품명,쿠폰발급,쿠폰사용,사용률(%)"));
+        assertFalse(prizeCsv.contains("01011112222"));
+    }
+
+    @Test
+    void weeklyReportsAreGeneratedForProOnly() {
+        // 이 테스트 클래스는 롤백하지 않아 다른 테스트가 만든 매장이 DB에 남는다. 전체 건수 대신
+        // 이 매장에 리포트가 생겼는지로 확인한다.
+        subscriptions.changePlan(store, Plan.STANDARD, "테스트");
+        weekly.generateAll();
+        assertEquals("AI_REPORT_NOT_FOUND",
+                assertThrows(AppException.class, () -> ai.latestReport(store, AiFeature.AI_REPORT)).code,
+                "PRO가 아니면 자동 생성 대상이 아니다");
+
+        subscriptions.changePlan(store, Plan.PRO, "테스트");
+        weekly.generateAll();
+        assertNotNull(ai.latestReport(store, AiFeature.AI_REPORT).get("content"));
+
+        // 한 매장이 실패해도 예외가 밖으로 나가지 않는다. 자동 생성이 통째로 멈추면 안 된다.
+        fake.failing = true;
+        assertDoesNotThrow(() -> weekly.generateAll());
+    }
+
+    @Test
+    void tokenUsageIsSummarisedAndCostIsNotInvented() {
+        subscriptions.changePlan(store, Plan.PRO, "테스트");
+        ai.eventCopy(store, null);
+        Map<String, Object> cost = quotaUsage.monthlyCost(store.id, quota.currentMonth());
+        assertEquals(120L, cost.get("inputTokens"));
+        assertEquals(80L, cost.get("outputTokens"));
+        // 단가가 설정돼 있지 않으면 0원이라고 말하지 않고 모른다고 말한다.
+        assertEquals(false, cost.get("pricingConfigured"));
+        assertNull(cost.get("estimatedCostUsd"));
+    }
+
+    @Test
+    void brandingTaglineNeedsThePlan() {
+        // 브랜딩은 STANDARD 이상. 안내물 렌더링 자체는 등급과 무관하게 같은 구조다.
+        assertFalse(entitlements.has(Plan.BASIC, Entitlement.BRANDING));
+        assertTrue(entitlements.has(Plan.STANDARD, Entitlement.BRANDING));
+        byte[] plain = StorePosterService.render("테스트포차", "http://localhost:8088/s/token", null);
+        byte[] branded = StorePosterService.render("테스트포차", "http://localhost:8088/s/token", "오늘도 고맙습니다");
+        assertTrue(plain.length > 0);
+        assertNotEquals(plain.length, branded.length, "문구가 실제로 안내물에 반영된다");
     }
 
     @Test

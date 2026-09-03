@@ -45,6 +45,8 @@ enum AiFeature { AI_EVENT_COPY, AI_REPORT, AI_IMPROVEMENT, AI_CHAT }
     @Id @GeneratedValue(strategy=GenerationType.IDENTITY) Long id;
     @Column(nullable=false) String name;
     String businessNumber; @Column(nullable=false) String phone; String address; String naverPlaceUrl;
+    /** 안내물에 넣는 매장 한 줄. STANDARD 이상(브랜딩 권한)에서만 설정된다. */
+    @Column(length=60) String posterTagline;
     @Column(nullable=false) String staffPinHash;
     @Enumerated(EnumType.STRING) @Column(nullable=false) StoreStatus status;
     @Column(nullable=false) Instant createdAt; @Column(nullable=false) Instant updatedAt;

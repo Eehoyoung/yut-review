@@ -6,12 +6,44 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+
+/**
+ * 어떤 공급자를 쓸지 고른다.
+ *
+ * 조건부 빈으로 고르면 `AI_PROVIDER=azure` 같은 오타 하나로 어떤 구현도 등록되지 않아 컨텍스트가
+ * 아예 뜨지 않는다. 관리자 전용 기능의 설정 실수가 손님의 QR·게임·쿠폰까지 멈추게 하는 것이라
+ * 선택을 코드로 옮겼다. 모르는 값이면 경고를 남기고 fake로 내려간다. AI만 죽고 나머지는 산다.
+ */
+@Configuration
+class AiProviderConfig {
+    private static final Logger log = LoggerFactory.getLogger(AiProviderConfig.class);
+
+    @Bean
+    @Primary
+    LlmProvider llmProvider(FakeLlmProvider fake,
+                            ObjectMapper json,
+                            @Value("${app.ai.provider:fake}") String configured,
+                            @Value("${app.ai.openai.api-key:}") String apiKey,
+                            @Value("${app.ai.openai.base-url:https://api.openai.com/v1}") String baseUrl,
+                            @Value("${app.ai.timeout-seconds:45}") long timeoutSeconds) {
+        String choice = configured == null ? "" : configured.trim().toLowerCase();
+        if ("openai".equals(choice)) return new OpenAiLlmProvider(apiKey, baseUrl, timeoutSeconds, json);
+        if (!"fake".equals(choice))
+            log.warn("app.ai.provider='{}'는 알 수 없는 값이라 AI를 비활성(fake)으로 둡니다. 고객 흐름은 정상입니다.",
+                    configured);
+        return fake;
+    }
+}
 
 /** 모델에 보내는 한 번의 요청. 여기 담기는 것은 이미 비식별 집계뿐이어야 한다. */
 record LlmRequest(
@@ -22,7 +54,13 @@ record LlmRequest(
         Map<String, Object> jsonSchema,
         String schemaName,
         int maxOutputTokens,
-        List<LlmTool> tools) {
+        List<LlmTool> tools,
+        /** 도구 정의는 유지하되 더 부르지는 못하게 한다. 왕복 상한에 닿았을 때 쓴다. */
+        boolean toolChoiceNone) {
+    LlmRequest(String model, String systemPrompt, List<LlmMessage> messages, Map<String, Object> jsonSchema,
+               String schemaName, int maxOutputTokens, List<LlmTool> tools) {
+        this(model, systemPrompt, messages, jsonSchema, schemaName, maxOutputTokens, tools, false);
+    }
 }
 
 record LlmMessage(String role, String content) {
@@ -84,8 +122,6 @@ class LlmException extends RuntimeException {
  * 키는 서버에만 두고, 모델 ID는 환경변수로 바꿀 수 있게 둔다. 타임아웃을 짧게 잡는 이유는 관리자가
  * 응답을 기다리다 화면이 멈춘 것처럼 보이는 쪽이 실패 메시지보다 나쁘기 때문이다.
  */
-@Service
-@ConditionalOnProperty(name = "app.ai.provider", havingValue = "openai")
 class OpenAiLlmProvider implements LlmProvider {
     private final RestClient client;
     private final ObjectMapper json;
@@ -150,14 +186,23 @@ class OpenAiLlmProvider implements LlmProvider {
                     "name", request.schemaName(),
                     "strict", true,
                     "schema", request.jsonSchema())));
-        if (request.tools() != null && !request.tools().isEmpty())
+        if (request.tools() != null && !request.tools().isEmpty()) {
             payload.put("tools", request.tools().stream().map(t -> Map.<String, Object>of(
                     "type", "function",
                     "name", t.name(),
                     "description", t.description(),
                     "parameters", t.parameters(),
                     "strict", false)).toList());
+            // 더 부르지 못하게 닫을 때도 정의는 남긴다. 정의를 지운 채 지난 function_call만 보내면
+            // 공급자가 알 수 없는 도구 참조로 보고 요청 전체를 거부할 수 있다.
+            if (request.toolChoiceNone()) payload.put("tool_choice", "none");
+        }
         return payload;
+    }
+
+    private static boolean hasCause(Throwable e, Class<? extends Throwable> type) {
+        for (Throwable t = e; t != null; t = t.getCause()) if (type.isInstance(t)) return true;
+        return false;
     }
 
     private LlmResponse call(Map<String, Object> payload) {
@@ -168,7 +213,13 @@ class OpenAiLlmProvider implements LlmProvider {
             root = client.post().uri("/responses").body(payload).retrieve().body(JsonNode.class);
         } catch (RestClientException e) {
             // 실패 메시지에 요청 본문을 넣지 않는다. 집계뿐이라도 로그로 흘리지 않는 편이 낫다.
-            throw new LlmException("AI_PROVIDER_UNAVAILABLE", "AI 응답을 받지 못했습니다.", e);
+            //
+            // 읽기 타임아웃은 요청이 이미 나갔고 모델이 생성까지 마쳤을 수 있다는 뜻이다. 연결
+            // 실패와 같은 코드로 묶어 되돌려 주면, 느린 응답이 반복되는 동안 사용량은 그대로인 채
+            // 비용만 나간다. 그래서 코드를 나눈다.
+            boolean sent = hasCause(e, java.net.SocketTimeoutException.class);
+            throw new LlmException(sent ? "AI_TIMEOUT" : "AI_PROVIDER_UNAVAILABLE",
+                    sent ? "AI 응답이 제한 시간을 넘겼습니다." : "AI 응답을 받지 못했습니다.", e);
         }
         if (root == null) throw new LlmException("AI_PROVIDER_UNAVAILABLE", "AI 응답이 비어 있습니다.", null);
 
@@ -198,7 +249,6 @@ class OpenAiLlmProvider implements LlmProvider {
  * OpenAI는 `app.ai.provider=openai`일 때만 뜬다.
  */
 @Service
-@ConditionalOnProperty(name = "app.ai.provider", havingValue = "fake", matchIfMissing = true)
 class FakeLlmProvider implements LlmProvider {
     private final ObjectMapper json;
     /** 테스트가 실패 경로를 확인할 수 있도록 켜고 끈다. */
@@ -206,8 +256,32 @@ class FakeLlmProvider implements LlmProvider {
     volatile LlmRequest lastRequest;
     /** 테스트가 도구 왕복 누적을 확인한다. */
     volatile List<LlmToolExchange> lastExchanges = List.of();
-    /** 다음 complete() 한 번이 요청할 도구 호출. 도구 경로를 테스트하려고 둔다. */
+    /**
+     * 다음 한 번의 호출이 요청할 도구. 한 번 쓰이면 비워진다. 여러 번 넣어 두면 여러 라운드가
+     * 돌아 누적이 실제로 검증된다.
+     */
     volatile List<LlmToolCall> nextToolCalls = List.of();
+    private final java.util.Queue<List<LlmToolCall>> queuedToolCalls = new java.util.concurrent.ConcurrentLinkedQueue<>();
+
+    /** 라운드를 여러 번 돌리고 싶을 때 순서대로 쌓는다. */
+    void queueToolCalls(List<LlmToolCall> calls) {
+        queuedToolCalls.add(calls);
+    }
+
+    void resetToolCalls() {
+        nextToolCalls = List.of();
+        queuedToolCalls.clear();
+    }
+
+    private List<LlmToolCall> takeToolCalls() {
+        if (!nextToolCalls.isEmpty()) {
+            List<LlmToolCall> calls = nextToolCalls;
+            nextToolCalls = List.of();
+            return calls;
+        }
+        List<LlmToolCall> queued = queuedToolCalls.poll();
+        return queued == null ? List.of() : queued;
+    }
     /** 응답은 받았지만 형식이 깨진 경우. 이미 과금된 실패를 테스트한다. */
     volatile boolean brokenJson;
 
@@ -224,8 +298,7 @@ class FakeLlmProvider implements LlmProvider {
     public LlmResponse complete(LlmRequest request) {
         lastRequest = request;
         if (failing) throw new LlmException("AI_PROVIDER_UNAVAILABLE", "테스트용 실패", null);
-        List<LlmToolCall> calls = nextToolCalls;
-        nextToolCalls = List.of();
+        List<LlmToolCall> calls = takeToolCalls();
         if (!calls.isEmpty()) return new LlmResponse("", calls, new LlmUsage(60, 20), request.model());
         return new LlmResponse(sample(request), List.of(), new LlmUsage(120, 80), request.model());
     }
@@ -235,6 +308,8 @@ class FakeLlmProvider implements LlmProvider {
         lastRequest = request;
         lastExchanges = List.copyOf(exchanges);
         if (failing) throw new LlmException("AI_PROVIDER_UNAVAILABLE", "테스트용 실패", null);
+        List<LlmToolCall> calls = takeToolCalls();
+        if (!calls.isEmpty()) return new LlmResponse("", calls, new LlmUsage(50, 15), request.model());
         return new LlmResponse(sample(request), List.of(), new LlmUsage(140, 90), request.model());
     }
 
