@@ -7,14 +7,15 @@ import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
 
 interface AdminUserRepository extends JpaRepository<AdminUser,Long> {
-    Optional<AdminUser> findByEmail(String email); Optional<AdminUser> findByLoginId(String loginId);
-    boolean existsByLoginId(String loginId); boolean existsByEmail(String email);
+    Optional<AdminUser> findByEmail(String email);
+    boolean existsByEmail(String email);
 }
 interface StoreRepository extends JpaRepository<Store,Long> {
     boolean existsByBusinessNumber(String businessNumber);
     @Lock(LockModeType.PESSIMISTIC_WRITE) @Query("select s from Store s where s.id=:id") Optional<Store> findForUpdate(@Param("id") Long id);
 }
 interface MembershipRepository extends JpaRepository<AdminStoreMembership,Long> {
+    long countByAdminId(Long adminId);
     boolean existsByAdminIdAndStoreId(Long adminId, Long storeId);
     List<AdminStoreMembership> findByAdminId(Long adminId);
 }

@@ -16,10 +16,46 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service class PhoneService {
     private final byte[] hmacKey,encryptionKey; PhoneService(@Value("${app.phone-hmac-key}") String hmacKey,@Value("${app.phone-encryption-key}") String encryptionKey){this.hmacKey=hmacKey.getBytes(StandardCharsets.UTF_8);this.encryptionKey=Base64.getDecoder().decode(encryptionKey);if(this.encryptionKey.length!=32)throw new IllegalArgumentException("PHONE_ENCRYPTION_KEY must be a Base64-encoded 32-byte key");}
-    String normalize(String phone){String p=phone==null?"":phone.replaceAll("[ -]","");if(!p.matches("010\\d{8}"))throw new AppException("INVALID_PHONE","올바른 휴대전화 번호를 입력해 주세요.");return p;}
+    String normalize(String phone){return Inputs.phone(phone);}
     String hash(String phone){try{Mac m=Mac.getInstance("HmacSHA256");m.init(new SecretKeySpec(hmacKey,"HmacSHA256"));return HexFormat.of().formatHex(m.doFinal(normalize(phone).getBytes(StandardCharsets.UTF_8)));}catch(GeneralSecurityException e){throw new IllegalStateException(e);}}
     String encrypt(String value){try{byte[] iv=new byte[12];SecureRandom.getInstanceStrong().nextBytes(iv);Cipher cipher=Cipher.getInstance("AES/GCM/NoPadding");cipher.init(Cipher.ENCRYPT_MODE,new SecretKeySpec(encryptionKey,"AES"),new GCMParameterSpec(128,iv));byte[] encrypted=cipher.doFinal(value.getBytes(StandardCharsets.UTF_8));byte[] packed=new byte[iv.length+encrypted.length];System.arraycopy(iv,0,packed,0,iv.length);System.arraycopy(encrypted,0,packed,iv.length,encrypted.length);return Base64.getEncoder().encodeToString(packed);}catch(GeneralSecurityException e){throw new IllegalStateException("Personal data encryption failed",e);}}
     String decrypt(String value){try{byte[] packed=Base64.getDecoder().decode(value),iv=Arrays.copyOfRange(packed,0,12);Cipher cipher=Cipher.getInstance("AES/GCM/NoPadding");cipher.init(Cipher.DECRYPT_MODE,new SecretKeySpec(encryptionKey,"AES"),new GCMParameterSpec(128,iv));return new String(cipher.doFinal(Arrays.copyOfRange(packed,12,packed.length)),StandardCharsets.UTF_8);}catch(GeneralSecurityException|IllegalArgumentException e){throw new IllegalStateException("Personal data decryption failed",e);}}
+}
+/**
+ * 사용자가 손으로 넣는 값을 한 곳에서 정규화한다. 회원가입과 매장 추가가 같은 규칙을 쓰도록
+ * 화면마다 정규식을 다시 적지 않는다.
+ */
+final class Inputs {
+    private Inputs(){}
+    static String text(String v){return v==null?"":v.trim();}
+    static String digits(String v){return v==null?"":v.replaceAll("\\D","");}
+    static String lower(String v){return text(v).toLowerCase();}
+    /** 휴대전화는 010으로 시작하는 숫자 11자리만 받는다. */
+    static String phone(String v){
+        String p=digits(v);
+        if(!p.matches("010\\d{8}"))throw new AppException("INVALID_PHONE","휴대폰 번호는 010으로 시작하는 숫자 11자리로 입력해 주세요.");
+        return p;
+    }
+    static String businessNumber(String v){
+        String b=digits(v);
+        if(!b.matches("\\d{10}"))throw new AppException("INVALID_BUSINESS_NUMBER","사업자등록번호는 숫자 10자리로 입력해 주세요.");
+        return b;
+    }
+    static String email(String v){
+        String e=lower(v);
+        if(!e.matches("[^@\\s]+@[^@\\s]+\\.[^@\\s]+"))throw new AppException("INVALID_EMAIL","이메일 주소를 확인해 주세요.");
+        return e;
+    }
+    static String required(String v,String message){
+        String t=text(v);
+        if(t.isEmpty())throw new AppException("INVALID_REQUEST",message);
+        return t;
+    }
+    static void password(String password,String confirm){
+        if(password==null||!password.equals(confirm))throw new AppException("PASSWORD_MISMATCH","비밀번호가 일치하지 않습니다.");
+        if(password.length()<10||!password.matches(".*[A-Za-z].*")||!password.matches(".*\\d.*"))
+            throw new AppException("WEAK_PASSWORD","비밀번호는 영문과 숫자를 포함해 10자 이상이어야 합니다.");
+    }
 }
 @Service class StoreProvisioningService {
     record Provisioned(Store store,String staffPin,String storeToken){}
@@ -103,26 +139,19 @@ import org.springframework.transaction.annotation.Transactional;
     }
 }
 @Service class AdminSignupService {
-    record Request(String loginId,String password,String passwordConfirm,String email,String ownerName,String phone,String storeName,String businessNumber){}
+    record Request(String password,String passwordConfirm,String email,String ownerName,String phone,String storeName,String businessNumber){}
     private final AdminUserRepository admins;private final StoreRepository stores;private final StoreProvisioningService provisioning;private final PasswordEncoder encoder;private final Clock clock;
     AdminSignupService(AdminUserRepository admins,StoreRepository stores,StoreProvisioningService provisioning,PasswordEncoder encoder,Clock clock){this.admins=admins;this.stores=stores;this.provisioning=provisioning;this.encoder=encoder;this.clock=clock;}
     @Transactional StoreProvisioningService.Provisioned signUp(Request r){
-        String loginId=text(r.loginId).toLowerCase(),email=text(r.email).toLowerCase(),owner=text(r.ownerName),storeName=text(r.storeName),phone=digits(r.phone),business=digits(r.businessNumber);
-        if(!loginId.matches("[a-z0-9_]{4,20}"))throw new AppException("INVALID_LOGIN_ID","아이디는 영문 소문자, 숫자, _ 조합 4~20자로 입력해 주세요.");
-        if(r.password==null||!r.password.equals(r.passwordConfirm))throw new AppException("PASSWORD_MISMATCH","비밀번호가 일치하지 않습니다.");
-        if(r.password.length()<10||!r.password.matches(".*[A-Za-z].*")||!r.password.matches(".*\\d.*"))throw new AppException("WEAK_PASSWORD","비밀번호는 영문과 숫자를 포함해 10자 이상이어야 합니다.");
-        if(!email.matches("[^@\\s]+@[^@\\s]+\\.[^@\\s]+"))throw new AppException("INVALID_EMAIL","이메일 주소를 확인해 주세요.");
-        if(!phone.matches("0\\d{9,10}"))throw new AppException("INVALID_PHONE","대표 연락처를 확인해 주세요.");
-        if(!business.matches("\\d{10}"))throw new AppException("INVALID_BUSINESS_NUMBER","사업자등록번호 10자리를 입력해 주세요.");
-        if(owner.isEmpty()||storeName.isEmpty())throw new AppException("INVALID_REQUEST","대표자 이름과 매장 상호명을 입력해 주세요.");
-        if(admins.existsByLoginId(loginId))throw new AppException("DUPLICATE_LOGIN_ID","이미 사용 중인 아이디입니다.");
+        String email=Inputs.email(r.email),owner=Inputs.required(r.ownerName,"대표자 이름을 입력해 주세요."),
+            storeName=Inputs.required(r.storeName,"매장 상호명을 입력해 주세요."),
+            phone=Inputs.phone(r.phone),business=Inputs.businessNumber(r.businessNumber);
+        Inputs.password(r.password,r.passwordConfirm);
         if(admins.existsByEmail(email))throw new AppException("DUPLICATE_EMAIL","이미 가입된 이메일입니다.");
         if(stores.existsByBusinessNumber(business))throw new AppException("DUPLICATE_BUSINESS_NUMBER","이미 등록된 사업자등록번호입니다.");
-        AdminUser a=new AdminUser();a.loginId=loginId;a.email=email;a.passwordHash=encoder.encode(r.password);a.name=owner;a.phone=phone;a.role=AdminRole.STORE_ADMIN;a.createdAt=clock.instant();admins.save(a);
+        AdminUser a=new AdminUser();a.email=email;a.passwordHash=encoder.encode(r.password);a.name=owner;a.phone=phone;a.role=AdminRole.STORE_ADMIN;a.createdAt=clock.instant();admins.save(a);
         return provisioning.provision(a,storeName,phone,null,business,null,null);
     }
-    private static String text(String v){return v==null?"":v.trim();}
-    private static String digits(String v){return v==null?"":v.replaceAll("\\D","");}
 }
 @Service class StoreAccessService {
     private final QrRepository qrs; private final MembershipRepository memberships;

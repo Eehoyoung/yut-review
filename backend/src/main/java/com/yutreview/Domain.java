@@ -15,7 +15,7 @@ enum CouponStatus { ISSUED, REDEEMED, EXPIRED, CANCELLED }
 
 @Entity @Table(name="admin_users") class AdminUser {
     @Id @GeneratedValue(strategy=GenerationType.IDENTITY) Long id;
-    @Column(unique=true,length=20) String loginId; String phone;
+    String phone;
     @Column(nullable=false,unique=true) String email;
     @Column(nullable=false) String passwordHash;
     @Column(nullable=false) String name;
