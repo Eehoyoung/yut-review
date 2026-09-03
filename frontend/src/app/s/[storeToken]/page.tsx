@@ -4,6 +4,7 @@ import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { api, errorMessage } from "@/lib/api";
 import type { StoreSummary } from "@/types/api";
+import { oddsLabel, rankLabel } from "@/features/labels";
 
 export default function StoreLanding(){
   const token=String(useParams().storeToken);
@@ -39,12 +40,12 @@ export default function StoreLanding(){
           <span className="pill" data-tone="wood">도개걸윷모</span>
         </div>
         <div className="list">
-          {store.data.prizes?.map(p=>(
-            <div className="list-item" key={p.tier}>
-              <span className="name">{p.name}</span>
-              <span className="pill">{p.tier.replace("TIER_","")}등</span>
+          {store.data.prizes?.length?store.data.prizes.map(p=>(
+            <div className="list-item" key={p.rank}>
+              <span className="name">{rankLabel(p.rank)} {p.name}</span>
+              <span className="pill">{oddsLabel(p.odds)}</span>
             </div>
-          ))??<p className="lead">윷을 던져 나온 결과에 따라 매장 상품을 드려요.</p>}
+          )):<p className="lead">윷을 던져 나온 결과에 따라 매장 상품을 드려요.</p>}
         </div>
       </section>
 

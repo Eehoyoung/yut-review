@@ -4,6 +4,7 @@ import { useParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, errorMessage } from "@/lib/api";
 import type { Coupon } from "@/types/api";
+import { rankLabel } from "@/features/labels";
 
 export default function CouponPage(){
   const token=String(useParams().couponToken),qc=useQueryClient(),[open,setOpen]=useState(false),[pin,setPin]=useState("");
@@ -34,6 +35,7 @@ export default function CouponPage(){
 
       <section className="ticket">
         <div className="row">
+          {c.prizeRank?<span className="pill" data-tone="wood">{rankLabel(c.prizeRank)}</span>:null}
           <span className="pill" data-tone={c.status==="REDEEMED"?"ok":notYet||c.status!=="ISSUED"?"off":"wood"}>
             {notYet?"아직 사용 불가":c.status==="ISSUED"?"사용 가능":c.status==="REDEEMED"?"사용 완료":c.status==="EXPIRED"?"기간 만료":"사용 취소"}
           </span>

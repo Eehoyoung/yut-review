@@ -953,3 +953,76 @@ a {
   background: var(--panel);
 }
 
+
+/* ---------- 확률·등급 설정 ---------- */
+
+.field > span {
+  font-size: var(--t-sm);
+  font-weight: 700;
+  color: var(--ink-2);
+}
+
+.preset-row {
+  display: flex;
+  gap: var(--s2);
+}
+
+.preset-row .btn {
+  flex: 1;
+  min-width: 0;
+}
+
+.preset-row .btn.is-on {
+  border-color: var(--brand);
+  color: var(--brand);
+  background: var(--panel);
+  box-shadow: inset 0 0 0 1px var(--brand);
+}
+
+.config-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-areas:
+    "head head"
+    "weight rank";
+  gap: var(--s2) var(--s3);
+  padding: var(--s3) 0;
+  border-top: 1px solid var(--line-soft);
+}
+
+.config-row:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.config-head {
+  grid-area: head;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s3);
+}
+
+.config-weight {
+  grid-area: weight;
+}
+
+.config-rank {
+  grid-area: rank;
+}
+
+.config-yut {
+  font-size: var(--t-lg);
+  font-weight: 800;
+  color: var(--wood-strong);
+}
+
+.config-odds {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--ink-2);
+}
+
+.section-head {
+  margin-top: var(--s5);
+}

@@ -4,7 +4,7 @@ import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { api, errorMessage } from "@/lib/api";
 import type { RevealResponse } from "@/types/api";
-import { YUT_LABEL } from "@/features/labels";
+import { YUT_LABEL, rankLabel } from "@/features/labels";
 
 export default function Result(){
   const p=useParams(),playId=String(p.playId),token=String(p.storeToken);
@@ -38,6 +38,7 @@ export default function Result(){
       <header className="stack" style={{gap:"var(--s2)"}}>
         <p className="eyebrow">던진 결과</p>
         <p className="result-mark">{YUT_LABEL[q.data.yutResult]}</p>
+        <p className="pill" data-tone="wood">{rankLabel(q.data.prizeRank)} 상품</p>
         <h1>{q.data.prize.name}</h1>
         {q.data.prize.description&&<p className="lead">{q.data.prize.description}</p>}
       </header>

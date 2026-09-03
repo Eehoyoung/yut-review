@@ -1,17 +1,37 @@
 export type ApiError = { code: string; message: string };
 export type Envelope<T> = { success: boolean; data: T | null; error: ApiError | null };
 
-export type PrizeTier = "TIER_1" | "TIER_2" | "TIER_3";
 export type RedeemPolicy = "SAME_DAY" | "NEXT_DAY" | "ANYTIME";
 export type CouponStatus = "ISSUED" | "REDEEMED" | "EXPIRED" | "CANCELLED";
 export type YutResult = "DO" | "GAE" | "GEOL" | "YUT" | "MO";
 
 export interface Prize {
-  tier: PrizeTier;
+  /** 1 is the best prize. How many ranks a store has is its own configuration. */
+  rank: number;
   name: string;
   description: string;
   redeemPolicy: RedeemPolicy;
   active: boolean;
+}
+
+/** Customer-facing prize entry. `odds` is computed by the server; a rank nobody can reach is not listed. */
+export interface PublicPrize {
+  rank: number;
+  name: string;
+  description: string;
+  odds: number;
+}
+
+export interface GameConfigOutcome {
+  yutResult: YutResult;
+  weight: number;
+  prizeRank: number;
+  odds: number;
+}
+
+export interface GameConfig {
+  rankCount: number;
+  outcomes: GameConfigOutcome[];
 }
 
 export interface StoreSummary {
@@ -20,7 +40,7 @@ export interface StoreSummary {
   publicToken?: string;
   naverPlaceUrl?: string;
   active?: boolean;
-  prizes?: Prize[];
+  prizes?: PublicPrize[];
 }
 
 export type CustomerState = {
@@ -35,6 +55,7 @@ export interface Coupon {
   status: CouponStatus;
   prizeName?: string;
   prizeDescription?: string;
+  prizeRank?: number;
   prize?: { name: string; description: string };
   validFrom: string;
   expiresAt: string;
@@ -50,7 +71,7 @@ export interface GameCreated {
 export interface GameResult {
   playId: string;
   yutResult: YutResult;
-  tier: PrizeTier;
+  prizeRank: number;
   couponToken: string;
   prize: { name: string; description: string };
   validFrom: string;
