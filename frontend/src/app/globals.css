@@ -35,6 +35,7 @@
   --brand-ink: oklch(0.99 0.01 85);
 
   /* 윷과 보상 */
+  --wood-light: oklch(0.74 0.075 66);
   --wood: oklch(0.55 0.1 62);
   --wood-strong: oklch(0.45 0.09 62);
   --wood-deep: oklch(0.38 0.08 62);
@@ -102,6 +103,7 @@
     --brand: #b34a20;
     --brand-press: #973c17;
     --brand-ink: #fffaf5;
+    --wood-light: #cfa273;
     --wood: #8a5320;
     --wood-strong: #7a4a1c;
     --wood-deep: #5e3813;
@@ -1154,4 +1156,114 @@ form > .success {
 
 .section-head {
   margin-top: var(--s5);
+}
+
+
+/* ---------- 인트로 (QR을 찍고 처음 만나는 화면) ---------- */
+
+.intro h1 {
+  font-size: var(--t-2xl);
+  line-height: 1.25;
+}
+
+/*
+  큰 윷. 게임과 같은 장작윷 실루엣이며 물리도 3D도 쓰지 않는다.
+  네 짝이 차례로 내려앉아 방금 던진 것처럼 보이게 한다.
+*/
+.yut-fan {
+  display: block;
+  width: min(100%, 300px);
+  margin-inline: auto;
+  overflow: visible;
+}
+
+.yut-fan-belly {
+  fill: var(--wood-light);
+  stroke: var(--wood-strong);
+  stroke-width: 1.5;
+}
+
+.yut-fan-back {
+  fill: var(--wood-strong);
+}
+
+.yut-fan-ridge {
+  fill: var(--wood);
+}
+
+.yut-fan-grain {
+  stroke: var(--wood-strong);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  opacity: 0.35;
+}
+
+.yut-fan-mark line {
+  stroke: var(--wood-deep);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.yut-fan-shadow {
+  fill: var(--ink);
+  opacity: 0.14;
+}
+
+/*
+  기본값은 이미 보이는 상태다. animation-delay + backwards로 시차를 주면 애니메이션이
+  시작되기 전까지 윷이 숨는데, 백그라운드 탭이나 스로틀링하는 인앱 브라우저에서는
+  그 시작이 오지 않아 히어로가 빈 채로 남는다. QR로 들어오는 첫 화면이라 그건 안 된다.
+  그래서 지연 없이 짝마다 길이만 달리해 시차를 만든다. 애니메이션이 아예 돌지 않으면
+  네 짝은 그냥 제자리에 보인다.
+*/
+.yut-fan-stick {
+  animation: yut-land var(--fall, 620ms) cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/*
+  투명도는 건드리지 않는다. 스로틀링된 탭에서는 애니메이션이 시작만 되고 진행이 멈춰
+  0% 키프레임 값이 그대로 굳는데, 거기에 opacity: 0이 있으면 윷이 사라진 채로 남는다.
+  위치만 움직이므로 최악의 경우에도 네 짝은 26px 높은 자리에 그대로 보인다.
+*/
+@keyframes yut-land {
+  from {
+    transform: translateY(-26px);
+  }
+}
+
+.howto {
+  display: grid;
+  gap: var(--s4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.howto li {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  font-size: var(--t-base);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.howto-n {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-full);
+  background: var(--wood-strong);
+  color: var(--brand-ink);
+  font-size: var(--t-sm);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .yut-fan-stick {
+    animation: none;
+  }
 }
