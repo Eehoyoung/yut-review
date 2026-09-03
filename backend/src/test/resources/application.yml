@@ -10,3 +10,4 @@ app:
   phone-encryption-key: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
   jwt-key: test-jwt-key-that-is-at-least-32-bytes-long
   bootstrap.enabled: false
+  ai.provider: fake

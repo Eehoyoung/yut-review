@@ -59,8 +59,8 @@ final class Inputs {
 }
 @Service class StoreProvisioningService {
     record Provisioned(Store store,String staffPin,String storeToken){}
-    private final StoreRepository stores;private final MembershipRepository memberships;private final QrRepository qrs;private final GameConfigService config;private final StorePosterService posters;private final PasswordEncoder encoder;private final SecureRandom random;private final Clock clock;
-    StoreProvisioningService(StoreRepository stores,MembershipRepository memberships,QrRepository qrs,GameConfigService config,StorePosterService posters,PasswordEncoder encoder,SecureRandom random,Clock clock){this.stores=stores;this.memberships=memberships;this.qrs=qrs;this.config=config;this.posters=posters;this.encoder=encoder;this.random=random;this.clock=clock;}
+    private final StoreRepository stores;private final MembershipRepository memberships;private final QrRepository qrs;private final GameConfigService config;private final StorePosterService posters;private final SubscriptionService subscriptions;private final PasswordEncoder encoder;private final SecureRandom random;private final Clock clock;
+    StoreProvisioningService(StoreRepository stores,MembershipRepository memberships,QrRepository qrs,GameConfigService config,StorePosterService posters,SubscriptionService subscriptions,PasswordEncoder encoder,SecureRandom random,Clock clock){this.stores=stores;this.memberships=memberships;this.qrs=qrs;this.config=config;this.posters=posters;this.subscriptions=subscriptions;this.encoder=encoder;this.random=random;this.clock=clock;}
     @Transactional Provisioned provision(AdminUser owner,String name,String phone,String address,String businessNumber,String naverPlaceUrl,String staffPin){
         return provision(owner,name,phone,address,businessNumber,naverPlaceUrl,staffPin,"http://localhost:8088");
     }
@@ -70,6 +70,8 @@ final class Inputs {
         AdminStoreMembership m=new AdminStoreMembership();m.admin=owner;m.store=s;m.role=MembershipRole.OWNER;m.createdAt=now;memberships.save(m);
         StoreQrCode q=new StoreQrCode();q.store=s;q.publicToken=Tokens.random();q.status=QrStatus.ACTIVE;q.createdAt=now;qrs.save(q);
         config.save(s,GameConfigService.defaults());
+        // 신규 매장은 BASIC으로 시작한다. 게임과 쿠폰은 어떤 등급에서도 다 열려 있으므로 이걸로 막히는 건 없다.
+        subscriptions.start(s,Plan.BASIC);
         posters.save(s,q.publicToken,publicOrigin);
         return new Provisioned(s,pin,q.publicToken);
     }
