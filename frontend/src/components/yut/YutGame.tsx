@@ -130,11 +130,16 @@ function Sticks({
   );
 }
 
+/**
+ * 판은 서비스 색인 테라코타 계열의 아주 어두운 톤이다. 초록에서 옮겨오면서 윷도 더 잘 보인다.
+ * 어두운 등(#8f5c2c) 대비가 2.15:1에서 3.10:1로 올라간다. 판은 배경이므로 물러나 있어야 하고,
+ * 주인공은 윷이다.
+ */
 function Mat({ shadows }: { shadows: boolean }) {
   return (
     <mesh position={[0, -0.09, 0]} receiveShadow={shadows}>
       <cylinderGeometry args={[4.2, 4.5, 0.18, 48]} />
-      <meshStandardMaterial color="#173c35" roughness={0.94} />
+      <meshStandardMaterial color="#2a140b" roughness={0.94} />
     </mesh>
   );
 }
@@ -244,7 +249,14 @@ export default function YutGame({ playId, animationSeed, reveal, onRevealed, cla
       </div>
 
       <div className="stage-canvas">
-        <Canvas shadows={shadows} camera={{ position: [0, 5.4, 6.2], fov: 40 }} dpr={[1, 1.5]} gl={{ antialias: false, powerPreference: "high-performance" }}>
+        {/*
+          카메라는 실제 착지 범위(x -1.94~2.02, z -2.90~3.80, 40번 던져 실측)를 폰 세로 화면에
+          전부 담도록 맞췄다. 이전 [0, 5.4, 6.2]에서는 아이폰 12 기준 가로가 1.62배 넘쳐
+          던지기 10번 중 9번꼴로 윷 한 짝 이상이 화면 밖으로 나갔다. 던져진 모양이 곧 결과인
+          게임에서 보이지 않는 윷은 작은 윷보다 나쁘다.
+          R3F가 기본으로 원점을 바라보므로 위치만 바꾸면 된다. 이 값을 줄이면 다시 잘린다.
+        */}
+        <Canvas shadows={shadows} camera={{ position: [0, 9.86, 5.69], fov: 40 }} dpr={[1, 1.5]} gl={{ antialias: false, powerPreference: "high-performance" }}>
           <Suspense fallback={null}>
             <ambientLight intensity={1.2} />
             <directionalLight position={[3, 7, 4]} intensity={2.3} castShadow={shadows} shadow-mapSize={[512, 512]} />
