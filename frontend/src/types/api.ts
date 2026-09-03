@@ -6,6 +6,78 @@ export type RedeemPolicy = "SAME_DAY" | "NEXT_DAY" | "ANYTIME";
 export type CouponStatus = "ISSUED" | "REDEEMED" | "EXPIRED" | "CANCELLED";
 export type YutResult = "DO" | "GAE" | "GEOL" | "YUT" | "MO";
 
+export type Plan = "BASIC" | "STANDARD" | "PRO";
+export type AiFeature = "AI_EVENT_COPY" | "AI_REPORT" | "AI_IMPROVEMENT" | "AI_CHAT";
+
+export interface PlanOption {
+  plan: Plan;
+  monthlyPriceKrw: number;
+  analyticsRetentionDays: number;
+  entitlements: string[];
+  aiFeatures: AiFeature[];
+  automaticWeeklyReport: boolean;
+  monthlyAiQuota: Partial<Record<AiFeature, number>>;
+}
+
+export interface Subscription {
+  plan: Plan;
+  monthlyPriceKrw: number;
+  entitlements: string[];
+  aiFeatures: AiFeature[];
+  analyticsRetentionDays: number;
+  analyticsFrom?: string;
+  status?: string;
+  startedAt?: string;
+  note?: string;
+}
+
+export interface AiFeatureStatus {
+  feature: AiFeature;
+  allowed: boolean;
+  used: number;
+  limitPerMonth: number;
+  remaining: number;
+}
+
+export interface AiStatus {
+  plan: Plan;
+  month: string;
+  provider: string;
+  features: AiFeatureStatus[];
+  recentUsage: { feature: AiFeature; model: string; succeeded: boolean; createdAt: string }[];
+}
+
+export interface AiEventCopy {
+  headline: string;
+  subheadline: string;
+  cta: string;
+  posterLines: string[];
+  staffGuide: string;
+  policyNotice: string;
+}
+
+export interface AiReportContent {
+  title: string;
+  summary: string;
+  highlights: { title: string; evidence: string }[];
+  concerns: { title: string; evidence: string }[];
+  recommendations: { action: string; reason: string; successMetric: string }[];
+  dataLimitations: string[];
+  window?: { from: string; to: string; clampedByPlanRetention: boolean };
+}
+
+export interface AiImprovement {
+  observations: { fact: string; evidence: string }[];
+  hypotheses: string[];
+  experiments: { name: string; change: string; variableChanged: string; howToMeasure: string; durationDays: number }[];
+  window?: { from: string; to: string; clampedByPlanRetention: boolean };
+}
+
+export interface AiChatAnswer {
+  answer: string;
+  toolsUsed: string[];
+}
+
 export interface Prize {
   /** 1 is the best prize. How many ranks a store has is its own configuration. */
   rank: number;

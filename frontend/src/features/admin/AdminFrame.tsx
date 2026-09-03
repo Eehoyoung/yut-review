@@ -10,6 +10,8 @@ const menus = [
   ["game-plays", "참여 내역"],
   ["coupons", "쿠폰 내역"],
   ["analytics", "통계"],
+  ["ai", "AI 도우미"],
+  ["plan", "요금제"],
 ];
 
 export function AdminFrame({ title, children }: { title: string; children: React.ReactNode }) {
