@@ -141,11 +141,11 @@ class AiService {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("instruction", "다음 이벤트 정보로 고객 안내 문구를 작성해라.");
         payload.put("storeName", store.name);
-        payload.put("tone", request == null || request.tone() == null || request.tone().isBlank()
-                ? "담백하고 신뢰감 있는" : request.tone().trim());
+        String tone = AiContextService.withoutPersonalData(request == null ? null : request.tone(), "말투");
+        payload.put("tone", tone.isEmpty() ? "담백하고 신뢰감 있는" : tone);
         payload.put("prizes", context.prizeConfig(store.id));
-        payload.put("additionalRequest", request == null || request.additionalRequest() == null
-                ? "" : request.additionalRequest().trim());
+        payload.put("additionalRequest",
+                AiContextService.withoutPersonalData(request == null ? null : request.additionalRequest(), "요청"));
         return structured(store, plan, AiFeature.AI_EVENT_COPY, fastModel, payload, 900);
     }
 
@@ -187,7 +187,7 @@ class AiService {
      */
     Map<String, Object> chat(Store store, String message, List<ChatTurn> history) {
         Plan plan = requirePlan(store, AiFeature.AI_CHAT);
-        String question = message == null ? "" : message.trim();
+        String question = AiContextService.withoutPersonalData(message, "질문");
         if (question.isEmpty()) throw new AppException("INVALID_REQUEST", "질문을 입력해 주세요.");
         if (question.length() > MAX_CHAT_MESSAGE_CHARS)
             throw new AppException("INVALID_REQUEST", "질문은 " + MAX_CHAT_MESSAGE_CHARS + "자 이내로 입력해 주세요.");

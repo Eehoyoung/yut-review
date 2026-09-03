@@ -504,6 +504,31 @@ class SubscriptionAiTest {
     }
 
     @Test
+    void adminFreeTextCannotCarryPersonalDataToTheModel() {
+        subscriptions.changePlan(store, Plan.PRO, "테스트");
+        // 집계 경로는 설계상 개인정보가 못 지나가지만 자유 입력은 다르다. 사장이 손님 번호를 적으면
+        // 그대로 모델에 간다. 약속은 시스템 프롬프트가 아니라 코드가 지켜야 한다.
+        assertEquals("PERSONAL_DATA_NOT_ALLOWED",
+                assertThrows(AppException.class,
+                        () -> ai.eventCopy(store, new AiService.EventCopyRequest(null, "010-1234-5678 손님처럼"))).code);
+        assertEquals("PERSONAL_DATA_NOT_ALLOWED",
+                assertThrows(AppException.class,
+                        () -> ai.eventCopy(store, new AiService.EventCopyRequest(null, "hong@example.com 님께"))).code);
+        assertEquals("PERSONAL_DATA_NOT_ALLOWED",
+                assertThrows(AppException.class,
+                        () -> ai.chat(store, "01099998888 손님 언제 왔어?", List.of())).code);
+
+        // 평범한 숫자는 막지 않는다. 과하게 막으면 사장이 쓸 수 없다.
+        assertTrue(ai.eventCopy(store, new AiService.EventCopyRequest("친근하게", "3등 상품 위주로 20자 내외"))
+                .containsKey("headline"));
+        // 막힌 호출은 한도를 쓰지 않는다.
+        int used = quotaRows
+                .findByStoreIdAndFeatureAndQuotaMonth(store.id, AiFeature.AI_EVENT_COPY, quota.currentMonth())
+                .orElseThrow().used;
+        assertEquals(1, used, "차단된 요청까지 한도를 깎으면 안 된다");
+    }
+
+    @Test
     void statusExplainsWhyAFeatureIsClosed() {
         subscriptions.changePlan(store, Plan.STANDARD, "테스트");
         Map<String, Object> status = ai.status(store);

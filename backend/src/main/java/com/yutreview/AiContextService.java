@@ -213,6 +213,30 @@ class AiContextService {
         return out;
     }
 
+    /**
+     * 관리자가 직접 쓴 문장을 모델에 넘기기 전에 거른다.
+     *
+     * 집계 경로는 설계상 개인정보가 지나갈 수 없지만, 자유 입력은 다르다. 사장이 "010-1234-5678
+     * 손님한테 보낸 문구처럼"이라고 적으면 그대로 모델에 간다. 개인정보를 보내지 않는다는 약속은
+     * 시스템 프롬프트가 아니라 코드가 지켜야 한다.
+     *
+     * 숫자를 지우지 않고 거부하는 이유는, 가려서 보내면 사장은 자기가 쓴 내용이 그대로 갔다고
+     * 믿은 채 남게 되기 때문이다.
+     */
+    static String withoutPersonalData(String text, String field) {
+        if (text == null || text.isBlank()) return "";
+        String value = text.trim();
+        String digits = value.replaceAll("[^0-9]", "");
+        // 휴대전화·일반전화·사업자번호가 될 만한 숫자 덩어리. 구분자가 섞여 있어도 잡힌다.
+        if (digits.length() >= 9)
+            throw new AppException("PERSONAL_DATA_NOT_ALLOWED",
+                    field + "에 전화번호처럼 보이는 숫자가 있습니다. AI에는 고객 개인정보를 보낼 수 없습니다.");
+        if (value.matches(".*[\\w.+-]+@[\\w-]+\\.[\\w.]+.*"))
+            throw new AppException("PERSONAL_DATA_NOT_ALLOWED",
+                    field + "에 이메일 주소가 있습니다. AI에는 고객 개인정보를 보낼 수 없습니다.");
+        return value;
+    }
+
     private static Map<String, Long> counts(List<Object[]> rows) {
         Map<String, Long> out = new LinkedHashMap<>();
         for (Object[] row : rows) {

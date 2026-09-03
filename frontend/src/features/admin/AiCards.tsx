@@ -1,8 +1,8 @@
 "use client";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, errorMessage } from "@/lib/api";
-import { PLAN_LABEL } from "@/features/admin/labels";
+import { ApiClientError, api, errorMessage } from "@/lib/api";
+import { ADMIN_ERROR_HINT, PLAN_LABEL } from "@/features/admin/labels";
 import type { AiChatAnswer, AiEventCopy, AiFeature, AiImprovement, AiReportContent, AiStatus } from "@/types/api";
 
 /**
@@ -35,6 +35,12 @@ export function AiUsageBadge({ status, feature }: { status?: AiStatus; feature: 
 
 function useAiStatus(storeId: string) {
   return useQuery({ queryKey: ["ai-status", storeId], queryFn: () => api<AiStatus>(`/admin/stores/${storeId}/ai/status`) });
+}
+
+/** 관리자 전용 코드는 여기서 풀고, 나머지는 서버 메시지를 그대로 쓴다. */
+function adminError(error: unknown) {
+  const hint = error instanceof ApiClientError ? ADMIN_ERROR_HINT[error.code] : undefined;
+  return hint ?? errorMessage(error);
 }
 
 function blocked(status: AiStatus | undefined, feature: AiFeature) {
@@ -91,7 +97,7 @@ export function AiInsightCard({ storeId }: { storeId: string }) {
       </p>
       {run.isError && (
         <p className="error" role="alert">
-          {errorMessage(run.error)}
+          {adminError(run.error)}
         </p>
       )}
       <button className="btn" onClick={() => run.mutate()} disabled={run.isPending || why !== ""}>
@@ -184,7 +190,7 @@ export function AiReportCard({ storeId }: { storeId: string }) {
 
       {run.isError && (
         <p className="error" role="alert">
-          {errorMessage(run.error)}
+          {adminError(run.error)}
         </p>
       )}
       <button className="btn secondary" onClick={() => run.mutate()} disabled={run.isPending || why !== ""}>
@@ -240,7 +246,7 @@ export function AiImprovementCard({ storeId }: { storeId: string }) {
 
       {run.isError && (
         <p className="error" role="alert">
-          {errorMessage(run.error)}
+          {adminError(run.error)}
         </p>
       )}
       <button className="btn secondary" onClick={() => run.mutate()} disabled={run.isPending || why !== ""}>
@@ -337,7 +343,7 @@ export function AiEventCopyDialog({ storeId }: { storeId: string }) {
             </div>
             {run.isError && (
               <p className="error" role="alert">
-                {errorMessage(run.error)}
+                {adminError(run.error)}
               </p>
             )}
             <div className="sheet-actions">
@@ -419,7 +425,7 @@ export function AiManagerChat({ storeId }: { storeId: string }) {
         </div>
         {ask.isError && (
           <p className="error" role="alert">
-            {errorMessage(ask.error)}
+            {adminError(ask.error)}
           </p>
         )}
         <button className="btn" disabled={ask.isPending || why !== "" || !message.trim()}>
