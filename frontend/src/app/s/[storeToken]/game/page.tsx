@@ -50,8 +50,8 @@ export default function Game() {
   if (!playId || !seed) {
     return (
       <main className="screen">
-        <h1>게임 정보가 없어요</h1>
-        <p className="error" role="alert">참여 절차를 처음부터 다시 진행해주세요.</p>
+        <h1>게임을 시작할 수 없어요</h1>
+        <p className="error" role="alert">QR을 다시 스캔해 주세요.</p>
       </main>
     );
   }

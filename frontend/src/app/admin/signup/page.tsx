@@ -82,19 +82,19 @@ export default function SignUp() {
   if (done)
     return (
       <main className="screen">
-        <p className="brand">가입 완료</p>
-        <h1>{done.storeName} 등록됐어요</h1>
+        <p className="brand">윷리뷰</p>
+        <h1>{done.storeName} 등록 완료</h1>
         <div className="panel stack">
           <p className="lead">직원 PIN은 지금 한 번만 표시됩니다. 매장 직원에게 안전하게 전달하세요.</p>
           <p className="pin-readout" aria-label="직원 PIN">
             {done.staffPin}
           </p>
           <p className="notice">
-            매장명과 전용 QR이 들어간 A6 안내물도 서버에 저장했습니다. 로그인 후 &lsquo;QR 안내물&rsquo;에서 휴대폰 저장이나 공유를 할 수 있습니다.
+            A6 QR 안내물도 만들었습니다. 로그인 후 &lsquo;QR 안내물&rsquo;에서 저장하거나 공유하세요.
           </p>
         </div>
         <Link className="btn" href="/admin/login">
-          로그인하러 가기
+          로그인
         </Link>
       </main>
     );
@@ -154,7 +154,7 @@ export default function SignUp() {
         {/* 조건이 안 맞아도 버튼을 비활성화하지 않는다. disabled 버튼은 탭 순서에서 빠져
             화면낭독기가 발견조차 못 하고, 무엇이 막고 있는지 물어볼 방법도 사라진다. */}
         <button className="btn" disabled={signUp.isPending}>
-          {signUp.isPending ? "등록 중..." : "가입하고 매장 만들기"}
+          {signUp.isPending ? "등록 중" : "가입하고 매장 등록"}
         </button>
         <p className="lead">
           이미 계정이 있나요? <Link href="/admin/login">로그인</Link>

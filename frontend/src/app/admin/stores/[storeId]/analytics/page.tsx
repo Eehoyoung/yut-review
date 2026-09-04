@@ -89,10 +89,9 @@ export default function AnalyticsPage() {
 
       {!advanced && (
         <section className="panel stack">
-          <h2>언제 붐비는지 보려면</h2>
+          <h2>상세 분석</h2>
           <p className="lead">
-            시간대와 요일, 상품별 사용률, 재참여율은 스탠다드 요금제부터 볼 수 있습니다. 알바 배치나
-            이벤트 시간을 정할 때 쓰는 숫자입니다.
+            시간대·요일·상품별 사용률과 재참여율은 스탠다드부터 볼 수 있습니다.
           </p>
           <Link className="btn secondary" href={`/admin/stores/${id}/plan`}>
             요금제 보기
@@ -127,7 +126,7 @@ export default function AnalyticsPage() {
             <>
               <section className="panel stack">
                 <div className="row">
-                  <h2>언제 붐비나</h2>
+                  <h2>시간대별 참여</h2>
                   {detailed.data.window.clampedByPlanRetention && (
                     <span className="pill" data-tone="off">보관기간까지</span>
                   )}
@@ -154,7 +153,7 @@ export default function AnalyticsPage() {
               </section>
 
               <section className="panel stack">
-                <h2>다시 오는 손님</h2>
+                <h2>재참여</h2>
                 <div className="list">
                   <div className="list-item">
                     <span className="lead">참여자</span>
@@ -168,7 +167,7 @@ export default function AnalyticsPage() {
                   </div>
                 </div>
                 <p className="hint">
-                  전화번호를 저장하지 않고 익명 기준으로만 셉니다. 보관기간이 지난 참여는 제외됩니다.
+                  전화번호 대신 익명 식별값으로 집계합니다. 보관 기간이 지난 참여는 제외됩니다.
                 </p>
               </section>
 
@@ -197,7 +196,7 @@ export default function AnalyticsPage() {
                             .finally(() => setExporting(""));
                         }}
                       >
-                        {exporting === e.kind ? "내려받는 중..." : e.label}
+                        {exporting === e.kind ? "내려받는 중" : e.label}
                       </button>
                     ))}
                   </div>

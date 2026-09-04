@@ -51,8 +51,8 @@ export default function Stores() {
 
       {created && (
         <p className="notice" role="status">
-          {created.name} 등록 완료 · 최초 직원 PIN <b>{created.staffPin}</b>
-          <br />이 번호는 지금만 표시됩니다. 안전한 곳에 기록하세요.
+          {created.name}을 등록했습니다. 직원 PIN <b>{created.staffPin}</b>
+          <br />지금 기록하세요. 다시 볼 수 없습니다.
         </p>
       )}
 
@@ -71,10 +71,10 @@ export default function Stores() {
 
       {q.data?.length === 0 && !adding && (
         <section className="panel stack">
-          <h2>아직 연결된 매장이 없어요</h2>
-          <p className="lead">매장을 추가하면 고객용 QR과 직원 PIN이 함께 발급됩니다.</p>
+          <h2>등록된 매장이 없어요</h2>
+          <p className="lead">매장을 추가하면 QR과 직원 PIN을 발급합니다.</p>
           <button className="btn" onClick={() => setAdding(true)}>
-            첫 매장 만들기
+            매장 추가
           </button>
         </section>
       )}
@@ -110,7 +110,7 @@ export default function Stores() {
           }}
         >
           <h2>매장 추가</h2>
-          <p className="lead">사업자등록번호는 매장마다 달라야 합니다. 등록하면 QR과 직원 PIN이 새로 발급됩니다.</p>
+          <p className="lead">매장마다 다른 사업자등록번호가 필요합니다. QR과 직원 PIN은 등록 후 발급됩니다.</p>
           <div className="field">
             <label htmlFor="store-name">매장 상호명</label>
             <input
@@ -170,7 +170,7 @@ export default function Stores() {
               취소
             </button>
             <button className="btn" disabled={create.isPending}>
-              {create.isPending ? "등록 중..." : "매장 등록"}
+              {create.isPending ? "등록 중" : "매장 등록"}
             </button>
           </div>
         </form>

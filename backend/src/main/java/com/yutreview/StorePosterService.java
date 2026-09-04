@@ -63,16 +63,16 @@ import org.springframework.stereotype.Service;
         g.setColor(PAPER);g.setFont(fit(g,storeName,Font.BOLD,34,900));g.drawString(storeName,220,137);
         g.setFont(new Font(Font.SANS_SERIF,Font.BOLD,86));g.drawString("리뷰 후",118,382);
         g.setColor(TERRACOTTA_BRIGHT);g.setFont(new Font(Font.SANS_SERIF,Font.BOLD,132));g.drawString("윷 한 판!",112,530);
-        g.setColor(MUTED);g.setFont(new Font(Font.SANS_SERIF,Font.PLAIN,35));g.drawString(tagline==null||tagline.isBlank()?"솔직한 리뷰를 남기고 행운을 던져보세요":tagline.trim(),118,625);
+        g.setColor(MUTED);g.setFont(new Font(Font.SANS_SERIF,Font.PLAIN,35));g.drawString(tagline==null||tagline.isBlank()?"리뷰를 작성하고 윷을 던져 보세요":tagline.trim(),118,625);
         stick(g,805,305,-24,WOOD_LIGHT,true);stick(g,930,300,-8,TERRACOTTA_BRIGHT,false);stick(g,1040,325,13,WOOD,true);stick(g,1145,250,26,WOOD_LIGHT,false);
 
         int plateX=250,plateY=675,plateW=740,plateH=805;g.setColor(PAPER);g.fillRoundRect(plateX,plateY,plateW,plateH,70,70);
-        g.setColor(new Color(0x4F5F58));g.setFont(new Font(Font.SANS_SERIF,Font.PLAIN,31));center(g,"카메라를 켜고",WIDTH/2,770);
+        g.setColor(new Color(0x4F5F58));g.setFont(new Font(Font.SANS_SERIF,Font.PLAIN,31));center(g,"참여하려면",WIDTH/2,770);
         g.setColor(INK);g.setFont(new Font(Font.SANS_SERIF,Font.BOLD,52));center(g,"QR을 스캔하세요",WIDTH/2,842);
         drawQr(g,url,343,904,555);
 
         g.setColor(TERRACOTTA);g.fillRect(0,1570,WIDTH,178);g.setColor(PAPER);g.setFont(new Font(Font.SANS_SERIF,Font.BOLD,38));center(g,"앱 설치 없이 바로 참여",WIDTH/2,1650);
-        g.setColor(new Color(0xF4D8CB));g.setFont(new Font(Font.SANS_SERIF,Font.PLAIN,24));center(g,"매장 전용 QR · 휴대폰에 저장하거나 바로 공유하세요",WIDTH/2,1708);
+        g.setColor(new Color(0xF4D8CB));g.setFont(new Font(Font.SANS_SERIF,Font.PLAIN,24));center(g,"리뷰 내용과 별점은 참여에 영향을 주지 않아요",WIDTH/2,1708);
         g.dispose();
         try(ByteArrayOutputStream out=new ByteArrayOutputStream()){ImageIO.write(image,"png",out);return out.toByteArray();}
         catch(IOException e){throw new IllegalStateException("매장 QR 템플릿 생성에 실패했습니다.",e);}

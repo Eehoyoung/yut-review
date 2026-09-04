@@ -10,7 +10,7 @@ export const PLAN_LABEL: Record<Plan, string> = { BASIC: "베이직", STANDARD: 
 
 export const PLAN_TAGLINE: Record<Plan, string> = {
   BASIC: "윷리뷰 핵심 기능",
-  STANDARD: "가장 인기",
+  STANDARD: "분석·AI 기능",
   PRO: "AI 매장 운영",
 };
 
@@ -30,5 +30,5 @@ export const priceLabel = (krw: number) => `월 ${krw.toLocaleString("ko-KR")}�
  * 메시지를 그대로 쓰는 편이 더 구체적이라, 여기에는 화면에서 다시 풀어 줘야 하는 것만 둔다.
  */
 export const ADMIN_ERROR_HINT: Record<string, string> = {
-  PERSONAL_DATA_NOT_ALLOWED: "전화번호나 이메일은 AI에 보낼 수 없습니다. 그 부분만 빼고 다시 써 주세요.",
+  PERSONAL_DATA_NOT_ALLOWED: "전화번호와 이메일을 빼고 다시 입력해 주세요.",
 };

@@ -164,14 +164,14 @@ function Mat({ shadows }: { shadows: boolean }) {
 }
 
 const PHASE_LABEL: Record<Phase, string> = {
-  READY: "던질 준비가 됐어요",
-  THROW: "힘껏 던졌어요",
-  AIR: "윷이 날아갑니다",
+  READY: "윷을 던져 주세요",
+  THROW: "던지는 중",
+  AIR: "날아가는 중",
   IMPACT: "탁!",
   ROLL: "구르는 중",
-  SETTLE: "윷이 멈춰갑니다",
-  RESULT_LOCK: "윷이 멈췄어요",
-  REVEAL: "결과가 나왔어요",
+  SETTLE: "멈추는 중",
+  RESULT_LOCK: "결과 확인 중",
+  REVEAL: "결과 확인",
 };
 
 export default function YutGame({ playId, animationSeed, reveal, onRevealed, className }: Props) {
@@ -231,7 +231,7 @@ export default function YutGame({ playId, animationSeed, reveal, onRevealed, cla
       revealed = await reveal();
     } catch {
       // reveal 자체가 실패하면 아직 쿠폰이 발급되지 않았을 수 있으니 재시도할 수 있게 둔다.
-      setError("결과를 불러오지 못했어요. 잠시 후 다시 던져주세요.");
+      setError("결과를 확인하지 못했어요. 다시 던져 주세요.");
       setPreparing(false);
       return;
     }
@@ -272,7 +272,7 @@ export default function YutGame({ playId, animationSeed, reveal, onRevealed, cla
   }, [onRevealed, result, sound]);
 
   const idle = phase === "READY" && !preparing;
-  const buttonLabel = preparing ? "윷을 고르는 중..." : error ? "다시 던지기" : phase === "READY" ? "윷 던지기" : "결과를 기다리는 중";
+  const buttonLabel = preparing ? "결과 확인 중" : error ? "다시 던지기" : phase === "READY" ? "윷 던지기" : "던지는 중";
 
   return (
     <section className={className ? `stage ${className}` : "stage"} aria-label={`윷놀이 ${playId}`}>

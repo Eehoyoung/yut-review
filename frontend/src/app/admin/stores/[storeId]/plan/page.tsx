@@ -90,10 +90,9 @@ export default function PlanPage() {
       </section>
 
       <section className="panel stack">
-        <h2>모든 요금제에 들어 있는 것</h2>
+        <h2>모든 요금제 공통</h2>
         <p className="lead">
-          윷놀이와 손님이 겪는 흐름은 등급과 무관하게 전부 같습니다. 등급 차이는 매장 운영을 돕는
-          기능에서만 생깁니다.
+          게임, QR, 상품, 쿠폰은 모든 요금제에서 같습니다.
         </p>
         <ul className="included">
           {ALWAYS_INCLUDED.map((item) => (
@@ -118,10 +117,10 @@ export default function PlanPage() {
             </div>
 
             {isCurrent ? (
-              <p className="lead">지금 쓰고 있는 요금제입니다.</p>
+              <p className="lead">현재 요금제</p>
             ) : isUpgrade ? (
               <>
-                <p className="lead">올리면 이만큼 더 열립니다.</p>
+                <p className="lead">추가되는 기능</p>
                 <ul className="included">
                   {added.map((item) => (
                     <li key={item}>{item}</li>
@@ -129,7 +128,7 @@ export default function PlanPage() {
                 </ul>
               </>
             ) : (
-              <p className="lead">지금보다 낮은 등급입니다. 내리면 위 기능이 잠깁니다.</p>
+              <p className="lead">변경하면 일부 기능을 사용할 수 없습니다.</p>
             )}
 
             <div className="list">
@@ -155,7 +154,7 @@ export default function PlanPage() {
 
             {!isCurrent && (
               <button className="btn secondary" disabled={change.isPending} onClick={() => change.mutate(plan)}>
-                {PLAN_LABEL[plan]}로 변경 요청
+                {PLAN_LABEL[plan]}로 변경
               </button>
             )}
           </section>
@@ -169,16 +168,14 @@ export default function PlanPage() {
       )}
       {change.isSuccess && (
         <p className="success" role="status">
-          요금제를 변경했습니다.
+          요금제를 변경했어요.
         </p>
       )}
       <p className="hint">
-        결제 연동 전이라 요금제 변경은 운영자가 처리합니다. 변경 버튼은 권한이 있는 계정에서만 즉시
-        반영되고, 그 외에는 안내 메시지가 표시됩니다.
+        결제 기능은 아직 없습니다. 권한이 있는 계정만 요금제를 바로 변경할 수 있습니다.
       </p>
       <p className="hint">
-        고객 개인정보 보관 기준(120일)은 요금제와 무관하게 같습니다. 위 보관 기간은 이미 비식별인 분석
-        집계에만 적용됩니다.
+        분석 집계 보관 기간만 요금제별로 다릅니다. 고객 개인정보는 모든 요금제에서 120일 보관합니다.
       </p>
     </AdminFrame>
   );

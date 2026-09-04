@@ -21,7 +21,7 @@ async function posterBlob(storeId: string) {
     sessionStorage.removeItem("adminToken");
     window.location.assign("/admin/login");
   }
-  if (!response.ok) throw new Error("저장된 템플릿을 불러오지 못했습니다.");
+  if (!response.ok) throw new Error("QR 안내물을 불러오지 못했어요. 다시 시도해 주세요.");
   return { blob: await response.blob(), publicOrigin: response.headers.get("X-Poster-Public-Origin") ?? "" } satisfies Poster;
 }
 
@@ -37,7 +37,7 @@ export default function QrPage() {
     mutationFn: () => api(`/admin/stores/${id}/poster/regenerate`, { method: "POST" }),
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["poster", id] });
-      setMessage("현재 접속 주소로 서버 안내물을 다시 만들었습니다.");
+      setMessage("현재 주소로 안내물을 다시 만들었어요.");
     },
   });
   const regenerateQr = useMutation({
@@ -70,14 +70,14 @@ export default function QrPage() {
     const file = new File([poster.data.blob], `매장_${id}_A6_QR.png`, { type: "image/png" });
     if (!navigator.share || !navigator.canShare?.({ files: [file] })) {
       download();
-      setMessage("이 기기는 파일 공유를 지원하지 않아 이미지로 저장했습니다.");
+      setMessage("공유할 수 없어 이미지로 저장했어요.");
       return;
     }
     try {
       await navigator.share({ title: "매장 QR 안내", files: [file] });
-      setMessage("공유 앱으로 전달했습니다.");
+      setMessage("공유 화면을 열었어요.");
     } catch (error) {
-      if ((error as DOMException).name !== "AbortError") setMessage("공유하지 못했습니다. 이미지 저장을 이용해 주세요.");
+      if ((error as DOMException).name !== "AbortError") setMessage("공유하지 못했어요. 이미지로 저장해 주세요.");
     }
   };
 
@@ -87,7 +87,7 @@ export default function QrPage() {
 
   return (
     <AdminFrame title="QR 안내물">
-      {(q.isError || poster.isError) && <p className="error">{q.isError ? errorMessage(q.error) : "저장된 템플릿을 불러오지 못했습니다."}</p>}
+      {(q.isError || poster.isError) && <p className="error">{q.isError ? errorMessage(q.error) : "QR 안내물을 불러오지 못했어요. 다시 시도해 주세요."}</p>}
       <section className="poster-workspace">
         <div className="poster-preview">
           {preview ? (
@@ -104,18 +104,18 @@ export default function QrPage() {
         <div className="stack poster-controls">
           <div>
             <h2>매장용 A6 안내물</h2>
-            <p className="lead">회원가입 때 서버에 자동 저장됩니다. 휴대폰에 내려받거나 공유 시트에서 카카오톡·메일을 선택하세요.</p>
+            <p className="lead">가입할 때 자동으로 만든 안내물입니다. 이미지로 저장하거나 공유하세요.</p>
           </div>
           <div className="poster-actions">
             <button className="btn" onClick={download} disabled={!preview}>이미지 저장</button>
-            <button className="btn secondary" onClick={share} disabled={!poster.data}>공유하기</button>
+            <button className="btn secondary" onClick={share} disabled={!poster.data}>공유</button>
           </div>
           {message && <p className="success" role="status">{message}</p>}
           {(regenerate.isError || regenerateQr.isError) && <p className="error" role="alert">{errorMessage(regenerate.error ?? regenerateQr.error)}</p>}
-          <p className="notice">서버에 저장된 안내물 QR 주소: <span className="wrap-anywhere">{url}</span></p>
-          {originChanged && <p className="error" role="alert">현재 접속 주소와 다릅니다. 아래 버튼으로 서버 안내물을 갱신해 주세요.</p>}
+          <p className="notice">안내물 QR 주소: <span className="wrap-anywhere">{url}</span></p>
+          {originChanged && <p className="error" role="alert">접속 주소가 바뀌었습니다. 안내물을 다시 만들어 주세요.</p>}
           <button className="btn ghost" disabled={regenerate.isPending} onClick={() => regenerate.mutate()}>
-            {regenerate.isPending ? "다시 만드는 중..." : "현재 주소로 안내물 다시 만들기"}
+            {regenerate.isPending ? "다시 만드는 중" : "안내물 다시 만들기"}
           </button>
           <button className="btn ghost" disabled={regenerateQr.isPending} onClick={() => setAskingRegenQr(true)}>
             QR 토큰 재발급
@@ -140,7 +140,7 @@ export default function QrPage() {
               disabled={regenerateQr.isPending}
               onClick={() => regenerateQr.mutate()}
             >
-              {regenerateQr.isPending ? "발급 중..." : "새 QR 발급"}
+              {regenerateQr.isPending ? "발급 중" : "새 QR 발급"}
             </button>
           </div>
         </div>

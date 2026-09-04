@@ -89,12 +89,11 @@ export function AiInsightCard({ storeId }: { storeId: string }) {
   return (
     <section className="panel stack">
       <div className="row">
-        <h2>아직 분석한 결과가 없어요</h2>
+        <h2>아직 AI 분석이 없어요</h2>
         <AiUsageBadge status={status.data} feature="AI_REPORT" />
       </div>
       <p className="lead">
-        최근 참여와 쿠폰 집계를 근거로 무엇이 변했는지 정리합니다. 매출 데이터는 수집하지 않아 매출
-        변화는 말하지 않습니다.
+        참여·쿠폰 집계만 분석합니다. 매출 변화는 분석하지 않습니다.
       </p>
       {run.isError && (
         <p className="error" role="alert">
@@ -102,7 +101,7 @@ export function AiInsightCard({ storeId }: { storeId: string }) {
         </p>
       )}
       <button className="btn" onClick={() => run.mutate()} disabled={run.isPending || why !== ""}>
-        {run.isPending ? "분석하는 중..." : "리포트 만들기"}
+        {run.isPending ? "분석하는 중" : "리포트 만들기"}
       </button>
       {why && <p className="hint">{why}</p>}
     </section>
@@ -165,7 +164,7 @@ export function AiReportCard({ storeId }: { storeId: string }) {
       {report.recommendations.length > 0 && (
         <>
           <hr className="hair" />
-          <h3>해볼 것</h3>
+          <h3>권장 작업</h3>
           <ol className="howto">
             {report.recommendations.map((r, i) => (
               <li key={r.action}>
@@ -195,7 +194,7 @@ export function AiReportCard({ storeId }: { storeId: string }) {
         </p>
       )}
       <button className="btn secondary" onClick={() => run.mutate()} disabled={run.isPending || why !== ""}>
-        {run.isPending ? "분석하는 중..." : "다시 분석하기"}
+        {run.isPending ? "분석하는 중" : "다시 분석"}
       </button>
       {why && <p className="hint">{why}</p>}
     </section>
@@ -215,10 +214,10 @@ export function AiImprovementCard({ storeId }: { storeId: string }) {
   return (
     <section className="panel stack">
       <div className="row">
-        <h2>바꿔볼 만한 것</h2>
+        <h2>개선 실험</h2>
         <AiUsageBadge status={status.data} feature="AI_IMPROVEMENT" />
       </div>
-      <p className="lead">한 실험에서 한 가지만 바꿉니다. 무엇이 효과였는지 알 수 있어야 하니까요.</p>
+      <p className="lead">한 번에 한 가지 조건만 바꿔 효과를 확인합니다.</p>
 
       {run.data?.experiments.map((e, i) => (
         <div className="experiment" key={e.name}>
@@ -251,7 +250,7 @@ export function AiImprovementCard({ storeId }: { storeId: string }) {
         </p>
       )}
       <button className="btn secondary" onClick={() => run.mutate()} disabled={run.isPending || why !== ""}>
-        {run.isPending ? "찾는 중..." : run.data ? "다시 제안받기" : "실험 제안받기"}
+        {run.isPending ? "찾는 중" : run.data ? "다시 만들기" : "개선안 만들기"}
       </button>
       {why && <p className="hint">{why}</p>}
     </section>
@@ -285,7 +284,7 @@ export function AiEventCopyDialog({ storeId }: { storeId: string }) {
         <AiUsageBadge status={status.data} feature="AI_EVENT_COPY" />
       </div>
       <p className="lead">
-        매장에 붙일 문구를 만듭니다. 별점이나 좋은 리뷰를 조건으로 요구하는 문구는 만들지 않습니다.
+        매장 안내물 문구를 만듭니다. 별점이나 긍정적인 리뷰를 참여 조건으로 넣지 않습니다.
       </p>
 
       {run.data && (
@@ -317,7 +316,7 @@ export function AiEventCopyDialog({ storeId }: { storeId: string }) {
             run.mutate(undefined, { onSuccess: () => setOpen(false) });
           }}
         >
-          <h2 id="copy-title">어떤 문구가 필요하세요?</h2>
+          <h2 id="copy-title">문구 조건 입력</h2>
           <div className="field">
             <label htmlFor="ai-tone">말투</label>
             <input
@@ -349,7 +348,7 @@ export function AiEventCopyDialog({ storeId }: { storeId: string }) {
               취소
             </button>
             <button className="btn" disabled={run.isPending}>
-              {run.isPending ? "만드는 중..." : "만들기"}
+              {run.isPending ? "만드는 중" : "만들기"}
             </button>
           </div>
         </form>
@@ -388,7 +387,7 @@ export function AiManagerChat({ storeId }: { storeId: string }) {
   return (
     <section className="panel stack">
       <div className="row">
-        <h2>물어보기</h2>
+        <h2>AI 매니저</h2>
         <AiUsageBadge status={status.data} feature="AI_CHAT" />
       </div>
       <p className="lead">이 매장의 운영 데이터만 보고 답합니다. 고객 개인정보는 묻거나 보여줄 수 없습니다.</p>
@@ -426,7 +425,7 @@ export function AiManagerChat({ storeId }: { storeId: string }) {
           </p>
         )}
         <button className="btn" disabled={ask.isPending || why !== "" || !message.trim()}>
-          {ask.isPending ? "생각하는 중..." : "물어보기"}
+          {ask.isPending ? "생각하는 중" : "질문 보내기"}
         </button>
         {why && <p className="hint">{why}</p>}
       </form>

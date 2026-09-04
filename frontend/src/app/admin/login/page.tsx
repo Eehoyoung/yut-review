@@ -23,8 +23,8 @@ export default function Login() {
 
   return (
     <main className="screen">
-      <p className="brand">매장 관리자</p>
-      <h1>매장 관리자 로그인</h1>
+      <p className="brand">윷리뷰</p>
+      <h1>관리자 로그인</h1>
       <form
         className="panel stack"
         onSubmit={(e: FormEvent) => {
@@ -61,10 +61,10 @@ export default function Login() {
           </p>
         )}
         <button className="btn" disabled={m.isPending}>
-          {m.isPending ? "로그인 중..." : "로그인"}
+          {m.isPending ? "로그인 중" : "로그인"}
         </button>
         <p className="lead">
-          매장이 처음이신가요? <Link href="/admin/signup">매장 회원가입</Link>
+          처음이신가요? <Link href="/admin/signup">매장 등록</Link>
         </p>
       </form>
     </main>

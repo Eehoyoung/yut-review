@@ -8,7 +8,7 @@ export default function Home() {
         <p className="result-mark" aria-hidden="true">
           윷
         </p>
-        <h1>매장 QR로 참여해주세요</h1>
+        <h1>매장 QR로 참여해 주세요</h1>
         <p className="lead">
           매장에 비치된 QR을 스캔하면 참여 화면이 열립니다. 이 주소로는 바로 참여할 수 없어요.
         </p>

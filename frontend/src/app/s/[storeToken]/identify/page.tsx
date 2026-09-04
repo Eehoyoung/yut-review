@@ -70,8 +70,8 @@ export default function Identify() {
       </nav>
 
       <header className="stack">
-        <h1>참여자 정보를 알려주세요</h1>
-        <p className="lead">쿠폰을 찾아드릴 때 쓰는 정보예요. 인증 문자는 보내지 않습니다.</p>
+        <h1>참여 정보 입력</h1>
+        <p className="lead">쿠폰 확인에 필요한 정보예요. 인증 문자는 보내지 않아요.</p>
       </header>
 
       {/*
@@ -120,7 +120,7 @@ export default function Identify() {
 
         {cooldown && (
           <p className="notice" role="status">
-            이미 최근에 참여하셨어요. <b>{cooldown.nextPlayableDate}</b>부터 다시 참여할 수 있습니다.
+            <b>{cooldown.nextPlayableDate}</b>부터 다시 참여할 수 있어요.
           </p>
         )}
         {tried && blocked && (
@@ -138,7 +138,7 @@ export default function Identify() {
           <div className="inner">
             {/* 조건이 안 맞아도 비활성화하지 않는다. disabled 버튼은 탭 순서에서 빠져
                 화면낭독기가 발견조차 못 하고, 무엇이 막고 있는지 알 길도 사라진다. */}
-            <button className="btn" disabled={mutation.isPending}>{mutation.isPending ? "준비 중..." : "윷 던지러 가기"}</button>
+            <button className="btn" disabled={mutation.isPending}>{mutation.isPending ? "준비 중" : "윷 던지기"}</button>
           </div>
         </div>
       </form>
