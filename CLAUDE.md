@@ -9,7 +9,7 @@
 
 - 백엔드: Java 17 + Spring Boot 3.4.4 + Spring Data JPA + Spring Security + java-jwt, Gradle
 - DB: PostgreSQL 17 (테스트는 H2 PostgreSQL 모드), 스키마는 `ddl-auto=update` (마이그레이션 도구 없음)
-- 프런트: Next.js 15 + React 19 + TypeScript + TanStack Query + Zustand + R3F/drei/rapier
+- 프런트: Next.js 15 + React 19 + TypeScript + TanStack Query + Zustand + R3F(+ `@dimforge/rapier3d-compat` 직접 사용)
 - 인프라: Docker Compose (postgres / backend / frontend / nginx, `field-test` 프로파일에 cloudflared)
 - **의도적으로 도입하지 않은 것**: QueryDSL, Flyway/Liquibase, Tailwind(`globals.css` 직접 작성), Redis.
   편의를 이유로 추가하지 말 것.
@@ -71,6 +71,17 @@ docker compose --env-file .env.field-test --profile field-test up -d   # Cloudfl
 - 물성 조정 시 반드시 `npm test`로 5개 결과(도개걸윷모)가 모두 재현되는지 확인한다
   (`src/features/game/yut-throw.test.ts`). 반발계수·접촉 감쇠를 키우면 착지 면이 뒤집힌다.
 - `@react-three/rapier`는 더 이상 쓰지 않는다(렌더 경로에 물리 없음). 시뮬레이션은 `@dimforge/rapier3d-compat` 직접 사용.
+
+## 화면 공통 규칙 (2026-09-04 감사 반영)
+
+- 모달은 `features/ui/Dialog.tsx` 하나뿐이다. 네이티브 `<dialog>` + `showModal()`이라 포커스 트랩·Esc·
+  배경 inert를 브라우저가 처리한다. div 모달이나 `window.confirm`으로 되돌리지 말 것.
+- `--line`(장식 구분선)과 `--line-control`(컨트롤 경계, 3:1)은 다른 토큰이다. 합치지 말 것.
+- 3D 던지기는 `prefers-reduced-motion`에서 정지 자세를 즉시 보여준다. 시뮬레이션 자체는 그대로 돈다.
+- 연출(3D) 실패가 결과 도달을 막지 않는다. `reveal()` 성공 후 시뮬레이션이 실패하면 결과 화면으로 보낸다.
+  seed가 결정론적이라 재시도해도 같은 실패가 반복되기 때문이다.
+- 손님 인트로(`/s/[storeToken]`)는 서버 컴포넌트가 매장 요약을 미리 받아 `initialData`로 넘긴다.
+  주소는 `INTERNAL_API_BASE`(compose에서 `http://backend:8080`)이며, 값이 없으면 예전처럼 클라이언트가 가져온다.
 
 ## Nginx CSP 주의
 
