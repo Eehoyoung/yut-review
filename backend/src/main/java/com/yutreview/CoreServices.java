@@ -201,13 +201,58 @@ final class Tokens {
     ParticipationService(CouponRepository coupons,GameRepository games,PhoneService phones,Clock clock){this.coupons=coupons;this.games=games;this.phones=phones;this.clock=clock;}
     State state(Long storeId,String phone){String hash=phones.hash(phone);Optional<Coupon> active=coupons.findFirstByStoreIdAndPhoneHashAndStatusOrderByIssuedAtDesc(storeId,hash,CouponStatus.ISSUED).filter(c->clock.instant().isBefore(c.expiresAt.plusNanos(1)));if(active.isPresent())return new State("HAS_ACTIVE_COUPON",null,active.get());Optional<GamePlay> last=games.findFirstByStoreIdAndPhoneHashOrderByPlayedDateDesc(storeId,hash);LocalDate today=LocalDate.now(clock);if(last.isPresent()){LocalDate next=last.get().playedDate.plusDays(2);if(today.isBefore(next))return new State("COOLDOWN",next,null);}return new State("CAN_PLAY",null,null);}
 }
+/**
+ * 매장별 이벤트 설정. 지금은 쿠폰 사용 기한 하나뿐이다.
+ *
+ * 설정은 이 시점 이후 새로 발급되는 쿠폰에만 적용된다. 이미 발급된 쿠폰의 expiresAt은 상품명·등급과
+ * 같은 이유로 발급 시점에 동결되며, 사장이 기한을 줄이든 늘리든 손님이 이미 받은 쿠폰은 그대로다.
+ * 이미 발급된 쿠폰을 일괄로 다시 계산하는 코드를 추가하지 말 것.
+ */
+@Service class StoreEventSettingsService {
+    private final StoreEventSettingsRepository settings;private final Clock clock;
+    StoreEventSettingsService(StoreEventSettingsRepository settings,Clock clock){this.settings=settings;this.clock=clock;}
+
+    /** 설정 행이 없는 매장은 기본값으로 동작한다. 조회 실패가 임의값으로 새는 경로를 만들지 않는다. */
+    int couponValidityDays(Long storeId){return settings.findByStoreId(storeId).map(s->s.couponValidityDays).orElse(StoreEventSettings.DEFAULT_COUPON_VALIDITY_DAYS);}
+
+    Optional<StoreEventSettings> find(Long storeId){return settings.findByStoreId(storeId);}
+
+    @Transactional StoreEventSettings save(Store store,Integer couponValidityDays){
+        if(couponValidityDays==null||couponValidityDays<StoreEventSettings.MIN_COUPON_VALIDITY_DAYS||couponValidityDays>StoreEventSettings.MAX_COUPON_VALIDITY_DAYS)
+            throw new AppException("INVALID_COUPON_VALIDITY_DAYS","쿠폰 사용 기한은 "+StoreEventSettings.MIN_COUPON_VALIDITY_DAYS+"일에서 "+StoreEventSettings.MAX_COUPON_VALIDITY_DAYS+"일 사이로 설정해 주세요.");
+        Instant now=clock.instant();
+        StoreEventSettings s=settings.findByStoreId(store.id).orElseGet(StoreEventSettings::new);
+        if(s.id==null){s.store=store;s.createdAt=now;}
+        s.couponValidityDays=couponValidityDays;s.updatedAt=now;
+        return settings.save(s);
+    }
+
+    /**
+     * 만료 시각을 정하는 유일한 자리.
+     *
+     * 기준은 발급일이 아니라 <b>쓸 수 있게 되는 날</b>(validFrom)이다. 사장이 "사용 기한 N일"로 읽는 것은
+     * 실제로 쓸 수 있는 날이 N일이라는 뜻이고, NEXT_DAY 상품에서 발급일을 기준으로 잡으면 하루를 손해 본다.
+     * 사용 기한 1일 + NEXT_DAY라면 발급일 23:59:59가 만료라 받자마자 죽은 쿠폰이 나온다.
+     *
+     * N일째의 23:59:59까지 쓸 수 있다. 1일이면 쓸 수 있게 된 그날 자정 직전까지다.
+     * (기존 구현은 발급일+N일이라 실제로는 N+1 달력일이었다. 2026-09-04에 정의를 맞췄다.)
+     */
+    static Instant expiresAt(Instant validFrom,int days,ZoneId zone){
+        ZonedDateTime from=validFrom.atZone(zone);
+        ZonedDateTime end=from.toLocalDate().plusDays(days-1L).atTime(23,59,59).atZone(zone);
+        // 자정 직전에 발급되고 기한이 1일이면 마지막 초를 넘겨 이미 지난 시각이 나온다. 그때는 하루를 더 준다.
+        return (end.isAfter(from)?end:end.plusDays(1)).toInstant();
+    }
+}
 interface NotificationService { void couponIssued(Coupon coupon); }
 @Service class NoopNotificationService implements NotificationService { public void couponIssued(Coupon coupon){} }
 @Service class GameService {
-    private final StoreAccessService access;private final StoreRepository stores;private final PhoneService phones;private final ParticipationService participation;private final GameResultGenerator generator;private final GameConfigService config;private final GameRepository games;private final PrizeRepository prizes;private final CouponRepository coupons;private final Clock clock;private final NotificationService notifications;
-    GameService(StoreAccessService access,StoreRepository stores,PhoneService phones,ParticipationService participation,GameResultGenerator generator,GameConfigService config,GameRepository games,PrizeRepository prizes,CouponRepository coupons,Clock clock,NotificationService notifications){this.access=access;this.stores=stores;this.phones=phones;this.participation=participation;this.generator=generator;this.config=config;this.games=games;this.prizes=prizes;this.coupons=coupons;this.clock=clock;this.notifications=notifications;}
+    private final StoreAccessService access;private final StoreRepository stores;private final PhoneService phones;private final ParticipationService participation;private final GameResultGenerator generator;private final GameConfigService config;private final StoreEventSettingsService eventSettings;private final GameRepository games;private final PrizeRepository prizes;private final CouponRepository coupons;private final Clock clock;private final NotificationService notifications;
+    GameService(StoreAccessService access,StoreRepository stores,PhoneService phones,ParticipationService participation,GameResultGenerator generator,GameConfigService config,StoreEventSettingsService eventSettings,GameRepository games,PrizeRepository prizes,CouponRepository coupons,Clock clock,NotificationService notifications){this.access=access;this.stores=stores;this.phones=phones;this.participation=participation;this.generator=generator;this.config=config;this.eventSettings=eventSettings;this.games=games;this.prizes=prizes;this.coupons=coupons;this.clock=clock;this.notifications=notifications;}
     @Transactional GamePlay create(String token,String name,String phone,String idem){if(idem==null||idem.isBlank())throw new AppException("INVALID_REQUEST","idempotencyKey가 필요합니다.");StoreQrCode qr=access.activeQr(token);stores.findForUpdate(qr.store.id).orElseThrow(); // ponytail: store-wide lock is enough for single-instance MVP; narrow to customer-key locks if throughput matters.
-        String normalized=phones.normalize(phone);Optional<GamePlay> existing=games.findByIdempotencyKey(idem);if(existing.isPresent()){GamePlay g=existing.get();if(!g.store.id.equals(qr.store.id)||!g.phoneHash.equals(phones.hash(normalized)))throw new AppException("GAME_ALREADY_CREATED","이미 다른 게임에 사용된 요청 키입니다.");return g;}ParticipationService.State state=participation.state(qr.store.id,phone);if(state.state().equals("HAS_ACTIVE_COUPON"))throw new AppException("ACTIVE_COUPON_EXISTS","사용 가능한 쿠폰이 있습니다.");if(state.state().equals("COOLDOWN"))throw new AppException("PARTICIPATION_COOLDOWN",state.nextPlayableDate()+"부터 다시 참여하실 수 있습니다.");List<StoreOutcome> outcomes=config.load(qr.store.id);YutResult result=generator.generate(outcomes);int rank=outcomes.stream().filter(o->o.yutResult==result).mapToInt(o->o.prizeRank).findFirst().orElseThrow();Prize prize=prizes.findByStoreIdAndRank(qr.store.id,rank).filter(p->p.active).orElseThrow(()->new AppException("PRIZE_NOT_CONFIGURED","활성 상품이 설정되지 않았습니다."));Instant now=clock.instant();GamePlay g=new GamePlay();g.publicId=UUID.randomUUID().toString();g.store=qr.store;g.qrCode=qr;g.customerNameEncrypted=phones.encrypt(name.trim());g.phoneHash=phones.hash(normalized);g.phoneEncrypted=phones.encrypt(normalized);g.phoneLast4=normalized.substring(7);g.yutResult=result;g.prizeRank=rank;g.status=GameStatus.CREATED;g.animationSeed="seed_"+Tokens.random();g.idempotencyKey=idem;g.playedDate=LocalDate.now(clock);g.playedAt=now;games.save(g);Coupon c=new Coupon();c.store=qr.store;c.gamePlay=g;c.prize=prize;c.couponToken="cp_"+Tokens.random();c.phoneHash=g.phoneHash;c.prizeNameSnapshot=prize.name;c.prizeDescriptionSnapshot=prize.description;c.prizeRankSnapshot=rank;c.redeemPolicySnapshot=prize.redeemPolicy;c.status=CouponStatus.ISSUED;c.issuedAt=now;ZoneId zone=clock.getZone();LocalDate issued=g.playedDate;c.validFrom=prize.redeemPolicy==RedeemPolicy.NEXT_DAY?issued.plusDays(1).atStartOfDay(zone).toInstant():now;c.expiresAt=issued.plusDays(90).atTime(23,59,59).atZone(zone).toInstant();coupons.save(c);notifications.couponIssued(c);return g;}
+        String normalized=phones.normalize(phone);Optional<GamePlay> existing=games.findByIdempotencyKey(idem);if(existing.isPresent()){GamePlay g=existing.get();if(!g.store.id.equals(qr.store.id)||!g.phoneHash.equals(phones.hash(normalized)))throw new AppException("GAME_ALREADY_CREATED","이미 다른 게임에 사용된 요청 키입니다.");return g;}ParticipationService.State state=participation.state(qr.store.id,phone);if(state.state().equals("HAS_ACTIVE_COUPON"))throw new AppException("ACTIVE_COUPON_EXISTS","사용 가능한 쿠폰이 있습니다.");if(state.state().equals("COOLDOWN"))throw new AppException("PARTICIPATION_COOLDOWN",state.nextPlayableDate()+"부터 다시 참여하실 수 있습니다.");List<StoreOutcome> outcomes=config.load(qr.store.id);YutResult result=generator.generate(outcomes);int rank=outcomes.stream().filter(o->o.yutResult==result).mapToInt(o->o.prizeRank).findFirst().orElseThrow();Prize prize=prizes.findByStoreIdAndRank(qr.store.id,rank).filter(p->p.active).orElseThrow(()->new AppException("PRIZE_NOT_CONFIGURED","활성 상품이 설정되지 않았습니다."));Instant now=clock.instant();GamePlay g=new GamePlay();g.publicId=UUID.randomUUID().toString();g.store=qr.store;g.qrCode=qr;g.customerNameEncrypted=phones.encrypt(name.trim());g.phoneHash=phones.hash(normalized);g.phoneEncrypted=phones.encrypt(normalized);g.phoneLast4=normalized.substring(7);g.yutResult=result;g.prizeRank=rank;g.status=GameStatus.CREATED;g.animationSeed="seed_"+Tokens.random();g.idempotencyKey=idem;g.playedDate=LocalDate.now(clock);g.playedAt=now;games.save(g);Coupon c=new Coupon();c.store=qr.store;c.gamePlay=g;c.prize=prize;c.couponToken="cp_"+Tokens.random();c.phoneHash=g.phoneHash;c.prizeNameSnapshot=prize.name;c.prizeDescriptionSnapshot=prize.description;c.prizeRankSnapshot=rank;c.redeemPolicySnapshot=prize.redeemPolicy;c.status=CouponStatus.ISSUED;c.issuedAt=now;ZoneId zone=clock.getZone();LocalDate issued=g.playedDate;c.validFrom=prize.redeemPolicy==RedeemPolicy.NEXT_DAY?issued.plusDays(1).atStartOfDay(zone).toInstant():now;
+        // 발급 시점의 매장 설정으로 한 번 계산하고 끝낸다. 나중에 사장이 기한을 바꿔도 이 쿠폰은 그대로다.
+        c.expiresAt=StoreEventSettingsService.expiresAt(c.validFrom,eventSettings.couponValidityDays(qr.store.id),zone);coupons.save(c);notifications.couponIssued(c);return g;}
     @Transactional Coupon reveal(String playId){GamePlay g=games.findByPublicId(playId).orElseThrow(()->new AppException("GAME_NOT_FOUND","게임을 찾을 수 없습니다.",org.springframework.http.HttpStatus.NOT_FOUND));if(g.status==GameStatus.CREATED){g.status=GameStatus.REVEALED;g.revealedAt=clock.instant();}return coupons.findByGamePlayId(g.id).orElseThrow();}
 }
 @Service class CouponService {

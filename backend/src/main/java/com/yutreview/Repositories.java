@@ -133,6 +133,9 @@ interface AnalyticsRepository extends org.springframework.data.repository.Reposi
     @Query("select min(g.playedDate) from GamePlay g where g.store.id=:storeId")
     LocalDate firstPlayedDate(@Param("storeId") Long storeId);
 }
+interface StoreEventSettingsRepository extends JpaRepository<StoreEventSettings,Long> {
+    Optional<StoreEventSettings> findByStoreId(Long storeId);
+}
 interface CouponRepository extends JpaRepository<Coupon,Long> {
     Optional<Coupon> findByCouponToken(String token); Optional<Coupon> findByGamePlayId(Long gamePlayId);
     Optional<Coupon> findFirstByStoreIdAndPhoneHashAndStatusOrderByIssuedAtDesc(Long storeId,String hash,CouponStatus status);

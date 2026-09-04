@@ -92,6 +92,22 @@ enum AiFeature { AI_EVENT_COPY, AI_REPORT, AI_IMPROVEMENT, AI_CHAT }
     @Column(name="prize_rank",nullable=false) int prizeRank;
     @Column(nullable=false) Instant updatedAt;
 }
+/**
+ * 매장별 이벤트 운영 설정. 지금은 쿠폰 사용 기한 하나뿐인데도 Store 컬럼이 아니라 별도 테이블인
+ * 이유는, 이 값이 "매장이 무엇인가"가 아니라 "매장이 이벤트를 어떻게 운영하는가"이기 때문이다.
+ * 앞으로 늘어날 이벤트 설정도 여기로 온다.
+ *
+ * 행이 없는 매장은 기본값으로 동작한다. 기존 매장을 일괄 백필하지 않아도 되고, 컬럼이 nullable로
+ * 남지도 않는다(StoreSubscription과 같은 전략).
+ */
+@Entity @Table(name="store_event_settings") class StoreEventSettings {
+    static final int DEFAULT_COUPON_VALIDITY_DAYS=90, MIN_COUPON_VALIDITY_DAYS=1, MAX_COUPON_VALIDITY_DAYS=365;
+    @Id @GeneratedValue(strategy=GenerationType.IDENTITY) Long id;
+    @OneToOne(optional=false) @JoinColumn(name="store_id",nullable=false,unique=true) Store store;
+    /** 신규 발급 쿠폰에만 적용된다. 이미 발급된 쿠폰의 expiresAt은 이 값을 바꿔도 움직이지 않는다. */
+    @Column(name="coupon_validity_days",nullable=false) int couponValidityDays;
+    @Column(nullable=false) Instant createdAt; @Column(nullable=false) Instant updatedAt;
+}
 @Entity @Table(name="store_subscriptions") class StoreSubscription {
     @Id @GeneratedValue(strategy=GenerationType.IDENTITY) Long id;
     @OneToOne(optional=false) @JoinColumn(name="store_id",unique=true) Store store;
