@@ -43,9 +43,37 @@ const FIELDS: Field[] = [
   },
 ];
 
+/**
+ * 조사는 앞 글자의 받침으로 갈린다('연락처를' vs '이메일을'). 라벨이 일곱 개라
+ * 문장을 손으로 적으면 어느 하나는 반드시 어긋난다.
+ */
+const hasFinalConsonant = (word: string) => {
+  const last = word.charCodeAt(word.length - 1);
+  return last >= 0xac00 && last <= 0xd7a3 && (last - 0xac00) % 28 !== 0;
+};
+
+/**
+ * 입력 검증. 첫 번째 문제와 그 칸의 id를 함께 돌려준다.
+ *
+ * id가 필요한 이유: 칸이 일곱 개라 안내 문구만 띄우면 정작 그 칸이 화면 밖에 있다.
+ * 무엇이 문제인지 말하는 것과 거기로 데려다주는 것은 다른 일이다.
+ */
+function problem(form: Record<string, string>): { id: string; message: string } | null {
+  for (const f of FIELDS) {
+    const value = (form[f.key] ?? "").trim();
+    if (!value) return { id: f.key, message: `${f.label}${hasFinalConsonant(f.label) ? "을" : "를"} 입력해 주세요.` };
+    if (f.digits && value.length !== f.digits)
+      return { id: f.key, message: `${f.label}${hasFinalConsonant(f.label) ? "은" : "는"} 숫자 ${f.digits}자리로 입력해 주세요.` };
+  }
+  return null;
+}
+
 export default function SignUp() {
   const [form, setForm] = useState<Record<string, string>>({});
   const [done, setDone] = useState<SignUpResult>();
+  // 제출을 눌러 본 뒤에만 이유를 말한다. 폼을 열자마자, 또는 두 번째 칸을 치는 중에
+  // 아직 오지도 않은 칸을 지적하면 잔소리가 된다.
+  const [tried, setTried] = useState(false);
   const signUp = useMutation({
     mutationFn: () => api<SignUpResult>("/admin/auth/signup", { method: "POST", body: JSON.stringify(form) }),
     onSuccess: setDone,
@@ -71,17 +99,28 @@ export default function SignUp() {
       </main>
     );
 
-  const incomplete = FIELDS.some((f) => !(form[f.key] ?? "").trim() || (f.digits ? (form[f.key] ?? "").length !== f.digits : false));
+  const blocked = problem(form);
 
   return (
     <main className="screen">
       <p className="brand">매장 관리자</p>
       <h1>매장 회원가입</h1>
+      {/*
+        noValidate: required 속성은 남겨 둔다(보조기술이 '필수'로 읽는다). 다만 브라우저 기본
+        검증 풍선이 뜨면 submit 이벤트 자체가 오지 않아, 아래에서 한국어로 준비한 안내가
+        영영 표시되지 않는다. 무엇이 막고 있는지는 한 목소리로만 말한다.
+      */}
       <form
+        noValidate
         className="panel stack"
         onSubmit={(e: FormEvent) => {
           e.preventDefault();
-          signUp.mutate();
+          setTried(true);
+          if (!blocked) {
+            signUp.mutate();
+            return;
+          }
+          document.getElementById(blocked.id)?.focus();
         }}
       >
         {FIELDS.map((f) => (
@@ -102,12 +141,19 @@ export default function SignUp() {
             {f.hint && <small className="hint">{f.hint}</small>}
           </div>
         ))}
+        {tried && blocked && (
+          <p className="notice" role="status">
+            {blocked.message}
+          </p>
+        )}
         {signUp.isError && (
           <p className="error" role="alert">
             {errorMessage(signUp.error)}
           </p>
         )}
-        <button className="btn" disabled={signUp.isPending || incomplete}>
+        {/* 조건이 안 맞아도 버튼을 비활성화하지 않는다. disabled 버튼은 탭 순서에서 빠져
+            화면낭독기가 발견조차 못 하고, 무엇이 막고 있는지 물어볼 방법도 사라진다. */}
+        <button className="btn" disabled={signUp.isPending}>
           {signUp.isPending ? "등록 중..." : "가입하고 매장 만들기"}
         </button>
         <p className="lead">

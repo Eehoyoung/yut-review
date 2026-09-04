@@ -13,6 +13,7 @@ export default function Stores() {
   const qc = useQueryClient();
   const [form, setForm] = useState(EMPTY_FORM);
   const [adding, setAdding] = useState(false);
+  const [tried, setTried] = useState(false);
   const [created, setCreated] = useState<CreatedStore>();
 
   const q = useQuery({ queryKey: ["admin-stores"], queryFn: () => api<StoreSummary[]>("/admin/stores") });
@@ -22,12 +23,20 @@ export default function Stores() {
       setCreated(d);
       setForm(EMPTY_FORM);
       setAdding(false);
+      setTried(false);
       qc.invalidateQueries({ queryKey: ["admin-stores"] });
     },
   });
 
-  const incomplete =
-    !form.name.trim() || form.businessNumber.length !== BUSINESS_NUMBER_LENGTH || form.phone.length !== PHONE_LENGTH;
+  // 무엇이 막고 있는지 한 문장으로. 버튼을 비활성화해 버리면 화면낭독기가 버튼을 찾지 못하고,
+  // 눈으로 보는 사장도 세 칸 중 어디가 문제인지 알 수 없다.
+  const blocked = !form.name.trim()
+    ? { id: "store-name", message: "매장 상호명을 입력해 주세요." }
+    : form.businessNumber.length !== BUSINESS_NUMBER_LENGTH
+      ? { id: "store-biz", message: `사업자등록번호는 숫자 ${BUSINESS_NUMBER_LENGTH}자리로 입력해 주세요.` }
+      : form.phone.length !== PHONE_LENGTH
+        ? { id: "store-phone", message: `매장 연락처는 숫자 ${PHONE_LENGTH}자리로 입력해 주세요.` }
+        : null;
 
   return (
     <main className="admin-shell">
@@ -88,10 +97,16 @@ export default function Stores() {
 
       {adding && (
         <form
+          noValidate
           className="panel stack"
           onSubmit={(e: FormEvent) => {
             e.preventDefault();
-            create.mutate();
+            setTried(true);
+            if (!blocked) {
+              create.mutate();
+              return;
+            }
+            document.getElementById(blocked.id)?.focus();
           }}
         >
           <h2>매장 추가</h2>
@@ -137,6 +152,11 @@ export default function Stores() {
               {errorMessage(create.error)}
             </p>
           )}
+          {tried && blocked && (
+            <p className="notice" role="status">
+              {blocked.message}
+            </p>
+          )}
           <div className="sheet-actions">
             <button
               type="button"
@@ -144,11 +164,12 @@ export default function Stores() {
               onClick={() => {
                 setAdding(false);
                 setForm(EMPTY_FORM);
+                setTried(false);
               }}
             >
               취소
             </button>
-            <button className="btn" disabled={create.isPending || incomplete}>
+            <button className="btn" disabled={create.isPending}>
               {create.isPending ? "등록 중..." : "매장 등록"}
             </button>
           </div>
