@@ -31,7 +31,7 @@ export function ActivityTable({ rows, kind }: { rows: ActivityRow[]; kind: "play
     );
 
   return (
-    <div className="panel table-wrap">
+    <div className="panel table-wrap" tabIndex={0} role="region" aria-label={kind === "play" ? "참여 내역 표" : "쿠폰 내역 표"}>
       <table className="table">
         <thead>
           <tr>
@@ -67,7 +67,7 @@ export function ActivityPager({ page, totalPages, onChange }: { page: number; to
   return (
     <nav className="actions" aria-label="목록 페이지">
       <button type="button" className="btn secondary" disabled={page === 0} onClick={() => onChange(page - 1)}>이전</button>
-      <span>{page + 1} / {totalPages}</span>
+      <span aria-label={`${page + 1}쪽 / 총 ${totalPages}쪽`}>{page + 1} / {totalPages}</span>
       <button type="button" className="btn secondary" disabled={page + 1 >= totalPages} onClick={() => onChange(page + 1)}>다음</button>
     </nav>
   );
