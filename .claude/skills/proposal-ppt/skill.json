@@ -1,0 +1,118 @@
+{
+  "name": "chuluu-proposal-ppt",
+  "display_name": "提案PPT助手",
+  "description": "面向提案、比稿、投标、路演和方案汇报的 PPT 策划、写作、设计、编辑与质检助手；新增终稿精修模式，保护人工修改、消化逐页反馈，并分层验收 PPTX/HTML/PDF 与逐字稿。",
+  "version": "0.5.1",
+  "author": {
+    "name": "Chuluu",
+    "url": "https://github.com/ChuluuMGL"
+  },
+  "output_formats": ["pptx", "html", "pdf"],
+  "license": "MIT",
+  "repository": "https://github.com/ChuluuMGL/proposal-ppt-skill",
+  "category": "business",
+  "keywords": [
+    "proposal-ppt",
+    "business proposal",
+    "proposal deck",
+    "pitch deck",
+    "commercial proposal",
+    "RFP",
+    "bid deck",
+    "tender presentation",
+    "style-rich deck",
+    "visual system card",
+    "style spec",
+    "AI visuals",
+    "presentation style system",
+    "three-page style sample gate",
+    "runtime compatibility",
+    "pptx backend",
+    "final polish",
+    "manual edit protection",
+    "revision ledger",
+    "three-layer acceptance",
+    "visual asset pipeline",
+    "提案PPT",
+    "商业提案",
+    "比稿PPT",
+    "竞标方案",
+    "方案PPT",
+    "风格模板",
+    "视觉资产",
+    "逐字稿"
+  ],
+  "related_skills": [
+    {
+      "name": "business-website-skill",
+      "repository": "https://github.com/ChuluuMGL/business-website-skill",
+      "description": "Sibling skill for long-lived marketing websites; its Phase 1 evidence map and visual system can be reused so the same client materials feed both a proposal deck and a website."
+    }
+  ],
+  "compatibility": {
+    "tested": [
+      {
+        "runtime": "Claude Code",
+        "status": "user-tested",
+        "date": "2026-06",
+        "notes": "User-tested with a local proposal-generation flow. PPTX output depends on the host runtime's file and presentation-generation tools."
+      },
+      {
+        "runtime": "Codex / OpenAI coding agent",
+        "status": "maintainer-validated",
+        "date": "2026-06",
+        "notes": "Repository editing, JSON/Markdown checks, GitHub publishing, and local PPTX style-demo generation were validated in Codex with available local presentation tooling."
+      }
+    ],
+    "expected": [
+      {
+        "runtime": "Generic SKILL.md readers",
+        "notes": "Expected when the agent can read local skill folders and referenced markdown files."
+      },
+      {
+        "runtime": "Cursor / Windsurf / Trae / Qoder / Antigravity / OpenClaw / Hermes",
+        "notes": "Expected as instruction packs when installed in a readable local skill folder, but not maintainer-verified. Validate file access, skill invocation, and PPTX backend before auto mode."
+      }
+    ],
+    "limitations": [
+      "This skill is not a standalone PPTX rendering engine.",
+      "Editable PPTX generation requires a host presentation backend.",
+      "Image generation requires a user-configured provider or runtime tool.",
+      "Strong visual styles require full-size visual review before client delivery."
+    ]
+  },
+  "runtime_requirements": {
+    "required": [
+      "Agent can read SKILL.md and references/*.md",
+      "Agent can access user-provided source files",
+      "Agent can write output files"
+    ],
+    "pptx_generation_requires_any_of": [
+      "native presentation/PPTX generation skill or tool",
+      "python-pptx",
+      "pptxgenjs",
+      "Office-compatible exporter",
+      "PowerPoint/Keynote/LibreOffice automation",
+      "runtime-specific presentation backend"
+    ],
+    "recommended_for_qa": [
+      "PPTX render/open validation",
+      "ZIP/XML integrity check",
+      "objective deck audit via scripts/audit_proposal_pptx.py (placeholder leakage, slide/notes alignment, blank frames)",
+      "slide preview or contact sheet generation",
+      "full-size visual review for style-critical pages"
+    ],
+    "optional": [
+      "image generation provider",
+      "HTML/SVG renderer",
+      "PDF/image extraction tools"
+    ]
+  },
+  "fallback_modes": [
+    "blueprint-only",
+    "copy-and-script",
+    "template-spec",
+    "html-demo",
+    "repair-needed"
+  ]
+}
