@@ -72,6 +72,19 @@ docker compose --env-file .env.field-test --profile field-test up -d   # Cloudfl
   (`src/features/game/yut-throw.test.ts`). 반발계수·접촉 감쇠를 키우면 착지 면이 뒤집힌다.
 - `@react-three/rapier`는 더 이상 쓰지 않는다(렌더 경로에 물리 없음). 시뮬레이션은 `@dimforge/rapier3d-compat` 직접 사용.
 
+## 쿠폰 사용 기한 (2026-09-04)
+
+- `store_event_settings` 매장당 1행 = `couponValidityDays`(기본 90, 범위 1~365). 행이 없으면 90으로 동작하므로
+  기존 매장 백필이 필요 없다. `StoreSubscription`과 같은 전략이라 컬럼이 nullable로 남지 않는다.
+- 만료 계산은 `StoreEventSettingsService.expiresAt` 한 곳뿐이다. 기준은 발급일이 아니라 **validFrom의 KST 날짜**이며,
+  `+ (days - 1)일의 23:59:59`다. NEXT_DAY 상품이 하루를 손해 보지 않게 하려는 것이고, 그 덕에
+  `expiresAt > validFrom`이 항상 성립한다.
+- **2026-09-04에 정의가 바뀌었다.** 이전 구현은 `발급일 + 90일`이라 실제로는 91 달력일이었다. 지금은 90 달력일이다.
+  ANYTIME/SAME_DAY 쿠폰이 하루 짧아졌고 NEXT_DAY는 동일하다. 이미 발급된 쿠폰은 건드리지 않았다.
+- 설정은 **그 이후 발급되는 쿠폰에만** 적용된다. 발급 시점에 계산해 `expiresAt`에 동결하며, 상품명·등급 스냅샷과
+  같은 이유다. 이미 발급된 쿠폰을 다시 계산하는 코드를 추가하지 말 것.
+- 요금제로 차등하지 않는다. 모든 등급에서 같이 쓴다(`Entitlement`에 넣지 말 것).
+
 ## 화면 공통 규칙 (2026-09-04 감사 반영)
 
 - 모달은 `features/ui/Dialog.tsx` 하나뿐이다. 네이티브 `<dialog>` + `showModal()`이라 포커스 트랩·Esc·

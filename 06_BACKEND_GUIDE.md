@@ -119,7 +119,11 @@ NEXT_DAY -> 다음날 00:00
 
 만료:
 ```text
-발급 LocalDate + 90일의 23:59:59
+validFrom의 KST 날짜 + (couponValidityDays - 1)일의 23:59:59
+
+couponValidityDays는 store_event_settings의 매장 설정이며 기본 90, 범위 1~365다.
+기준이 발급일이 아니라 validFrom인 이유는 NEXT_DAY 상품이 하루를 손해 보지 않게 하기 위해서다.
+2026-09-04 이전 구현은 "발급일 + 90일"이라 실제로는 91 달력일이었다.
 ```
 
 ## 쿠폰 이중 사용 방지
