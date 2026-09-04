@@ -44,6 +44,11 @@ function initRapier() {
   return ready;
 }
 
+/** Call on mount so WASM fetch+compile overlaps the customer reading the screen, not the throw tap. */
+export function warmUpPhysics() {
+  return initRapier();
+}
+
 function seeded(seed: string) {
   let value = 2166136261;
   for (const char of seed) value = Math.imul(value ^ char.charCodeAt(0), 16777619);
@@ -193,6 +198,9 @@ function throwUntilFace(seed: string, index: number, bellyUp: boolean) {
   throw new Error(`yut stick ${index} never settled belly ${bellyUp ? "up" : "down"}`);
 }
 
+// ponytail: 4 sticks x up to 24 attempts x 260 steps run synchronously on the main thread. Typical
+// runs settle in one or two attempts and finish in a few ms; the worst case can block a frame or two
+// on a weak phone. Move this into a Web Worker only if a real device shows the freeze.
 export async function simulateThrow(seed: string, bellies: readonly boolean[]): Promise<ThrowRecording> {
   await initRapier();
   const sticks = bellies.map((bellyUp, index) => throwUntilFace(seed, index, bellyUp));

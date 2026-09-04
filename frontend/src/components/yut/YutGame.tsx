@@ -7,7 +7,7 @@ import { BufferAttribute, Color, ExtrudeGeometry, Quaternion, Shape, type Mesh }
 import type { RevealResponse } from "@/types/api";
 import { frontFacesFor, type YutResult } from "@/features/game/yut-result";
 import { crossSection, STICK_LENGTH, STICK_RADIUS } from "@/features/game/yut-shape";
-import { LANE_SPACING, simulateThrow, spreadFaces, STEP_HZ, type ThrowRecording } from "@/features/game/yut-throw";
+import { LANE_SPACING, simulateThrow, spreadFaces, STEP_HZ, warmUpPhysics, type ThrowRecording } from "@/features/game/yut-throw";
 import { YUT_LABEL } from "@/features/labels";
 
 type Phase = "READY" | "THROW" | "AIR" | "IMPACT" | "ROLL" | "SETTLE" | "RESULT_LOCK" | "REVEAL";
@@ -52,12 +52,14 @@ function useStickGeometry() {
 function Sticks({
   recording,
   shadows,
+  reducedMotion,
   onImpact,
   onSettled,
   meshes,
 }: {
   recording?: ThrowRecording;
   shadows: boolean;
+  reducedMotion: boolean;
   onImpact: () => void;
   onSettled: () => void;
   meshes: { current: (Mesh | null)[] };
@@ -79,6 +81,23 @@ function Sticks({
   // make the replay smoother or choppier, never change where a stick stops or which face shows.
   useFrame(({ clock }) => {
     if (!recording) return;
+
+    // 감소 모션: 시뮬레이션은 그대로 돌리되(착지 면은 이미 검증됐다) 재생만 건너뛰고
+    // 마지막(정지) 프레임을 바로 적용한다. onImpact 소리·중간 페이즈는 생략하고 onSettled로 바로 간다.
+    if (reducedMotion) {
+      if (settled.current) return;
+      const last = recording.frames[recording.frames.length - 1];
+      last.forEach((frame, stick) => {
+        const mesh = meshes.current[stick];
+        if (!mesh) return;
+        mesh.position.set(frame.p[0], frame.p[1], frame.p[2]);
+        mesh.quaternion.set(frame.q[0], frame.q[1], frame.q[2], frame.q[3]);
+      });
+      settled.current = true;
+      onSettled();
+      return;
+    }
+
     started.current ??= clock.elapsedTime;
     const elapsed = (clock.elapsedTime - started.current) * STEP_HZ;
     const last = recording.frames.length - 1;
@@ -166,6 +185,17 @@ export default function YutGame({ playId, animationSeed, reveal, onRevealed, cla
 
   // Weak phones skip shadows; DPR stays capped for mobile Safari.
   const shadows = useMemo(() => typeof navigator === "undefined" || (navigator.hardwareConcurrency ?? 4) >= 6, []);
+  // PRODUCT.md: 감소 모션에서는 텀블링 대신 정지 자세를 즉시 보여준다. 결과는 어떤 경우에도 텍스트로 읽힌다.
+  const reducedMotion = useMemo(
+    () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+    [],
+  );
+
+  // 손님이 화면을 읽는 몇 초 동안 WASM fetch+compile을 미리 끝내 둔다. 던지기 탭 이후 시작하면
+  // 그 시간이 고스란히 첫 던지기 지연으로 붙는다. 실패해도 던질 때 simulateThrow가 다시 await 한다.
+  useEffect(() => {
+    void warmUpPhysics().catch(() => {});
+  }, []);
 
   const sound = useCallback((frequency: number, duration = 0.08) => {
     try {
@@ -196,21 +226,30 @@ export default function YutGame({ playId, animationSeed, reveal, onRevealed, cla
     if (phase !== "READY" || preparing) return;
     setError("");
     setPreparing(true);
+    let revealed: RevealResponse;
     try {
-      const revealed = await reveal();
+      revealed = await reveal();
+    } catch {
+      // reveal 자체가 실패하면 아직 쿠폰이 발급되지 않았을 수 있으니 재시도할 수 있게 둔다.
+      setError("결과를 불러오지 못했어요. 잠시 후 다시 던져주세요.");
+      setPreparing(false);
+      return;
+    }
+    try {
       const faces = spreadFaces(animationSeed, frontFacesFor(revealed.yutResult as YutResult));
       const throwRecording = await simulateThrow(`${animationSeed}:${revealed.playId}`, faces);
       setResult(revealed);
       setRecording(throwRecording);
       sound(180, 0.06);
       setPhase("THROW");
-      schedule("AIR", 160);
+      if (!reducedMotion) schedule("AIR", 160);
     } catch {
-      setError("결과를 불러오지 못했어요. 잠시 후 다시 던져주세요.");
+      // reveal은 이미 성공해 쿠폰이 발급됐다. 연출(3D)이 실패했다고 결과 도달까지 막으면 안 된다.
+      onRevealed?.(revealed);
     } finally {
       setPreparing(false);
     }
-  }, [animationSeed, phase, preparing, reveal, schedule, sound]);
+  }, [animationSeed, onRevealed, phase, preparing, reducedMotion, reveal, schedule, sound]);
 
   const onImpact = useCallback(() => {
     setPhase("IMPACT");
@@ -245,7 +284,8 @@ export default function YutGame({ playId, animationSeed, reveal, onRevealed, cla
           <i />
           <span>3 쿠폰</span>
         </nav>
-        <p className="stage-phase" aria-live="polite">{PHASE_LABEL[phase]}</p>
+        {/* 페이즈 문구는 8단계가 줄줄이 낭독되면 소음이 된다. 낭독은 실제 결과 하나로 충분하다. */}
+        <p className="stage-phase">{PHASE_LABEL[phase]}</p>
       </div>
 
       <div className="stage-canvas">
@@ -261,12 +301,27 @@ export default function YutGame({ playId, animationSeed, reveal, onRevealed, cla
             <ambientLight intensity={1.2} />
             <directionalLight position={[3, 7, 4]} intensity={2.3} castShadow={shadows} shadow-mapSize={[512, 512]} />
             <Mat shadows={shadows} />
-            <Sticks recording={recording} shadows={shadows} onImpact={onImpact} onSettled={onSettled} meshes={meshes} />
+            <Sticks
+              recording={recording}
+              shadows={shadows}
+              reducedMotion={reducedMotion}
+              onImpact={onImpact}
+              onSettled={onSettled}
+              meshes={meshes}
+            />
           </Suspense>
         </Canvas>
       </div>
 
       <div className="stage-bottom">
+        {/*
+          라이브 리전은 처음부터 자리를 잡고 있어야 한다. 결과 시점에 요소째 새로 넣으면
+          iOS VoiceOver가 삽입 자체를 놓쳐 결과를 읽지 않고 지나간다. 눈으로 읽는 결과는
+          아래 .stage-result가 맡고, 이 줄은 낭독만 맡는다.
+        */}
+        <p className="visually-hidden" role="status">
+          {phase === "REVEAL" && result ? `결과 ${YUT_LABEL[result.yutResult as YutResult] ?? result.yutResult}` : ""}
+        </p>
         {error && <p className="error" role="alert">{error}</p>}
         {phase === "REVEAL" && result ? (
           <div className="stage-result">
