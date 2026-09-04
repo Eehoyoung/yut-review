@@ -24,6 +24,20 @@
   --line: oklch(0.89 0.008 165);
   --line-soft: oklch(0.93 0.006 165);
 
+  /*
+    컨트롤 경계 전용. --line은 장식 구분선이라 1.4:1로 충분하지만, 입력칸과 보조 버튼은
+    배경이 패널과 같은 흰색이라 테두리가 그 컨트롤의 유일한 식별 수단이다. WCAG 2.2 AA
+    1.4.11이 요구하는 3:1을 넘겨야 밝은 야외 테라스에서도 입력칸이 어디인지 보인다.
+    흰 패널 위 3.34:1, --bg 위 3.12:1. 더 밝게 하면 그 선 아래로 떨어진다.
+    이 두 용도를 한 토큰이 겸하던 것이 대비 미달의 원인이었으니 다시 합치지 말 것.
+  */
+  --line-control: oklch(0.64 0.012 165);
+
+  /* 그림자와 스크림도 --ink에서 나온다. 손으로 적어 두면 --ink를 바꿀 때만 따라오지 않는다. */
+  --shadow-ink: oklch(0.26 0.02 165 / 0.05);
+  --shadow-lift: oklch(0.26 0.02 165 / 0.16);
+  --scrim: oklch(0.26 0.02 165 / 0.45);
+
   /* 글자 */
   --ink: oklch(0.26 0.02 165);
   --ink-2: oklch(0.38 0.02 165);
@@ -82,7 +96,7 @@
   /* z 스케일 (임의값 금지) */
   --z-sticky: 10;
   --z-bar: 20;
-  --z-backdrop: 30;
+  /* 스크림은 네이티브 ::backdrop이 최상위 레이어에서 그리므로 z 단계가 필요 없다. */
   --z-sheet: 40;
   --z-toast: 50;
 
@@ -101,6 +115,10 @@
     --panel-2: #f7faf8;
     --line: #dde5e1;
     --line-soft: #e8eeeb;
+    --line-control: #868f8a;
+    --shadow-ink: rgba(22, 36, 31, 0.05);
+    --shadow-lift: rgba(22, 36, 31, 0.16);
+    --scrim: rgba(22, 36, 31, 0.45);
     --ink: #16241f;
     --ink-2: #3a4a44;
     --ink-muted: #4f5f58;
@@ -241,12 +259,6 @@ a {
   justify-content: space-between;
 }
 
-.grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: var(--s4);
-}
-
 /* 제목과 부제는 한 덩어리로 읽혀야 해서 기본 stack보다 좁게 붙인다. */
 .screen > header.stack,
 .admin-shell > header.stack {
@@ -264,6 +276,17 @@ form > .success {
 .table-wrap {
   overflow-x: auto;
   padding: var(--s2) var(--s3);
+}
+
+/*
+  스크롤 영역 안에 포커스 갈 자식이 없으면 키보드만 쓰는 사람은 가로로 밀 방법이 아예 없다.
+  그래서 컨테이너 자체가 tabIndex=0을 받고, 여기가 그 포커스 표시다.
+  패널 안쪽이라 링을 밖으로 빼면 잘려서 -2px로 안쪽에 그린다.
+*/
+.table-wrap:focus-visible,
+.chat-log:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: -2px;
 }
 
 /* ---------- 타이포 ---------- */
@@ -320,17 +343,7 @@ form > .success {
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
   padding: var(--s4);
-  box-shadow: 0 1px 2px oklch(0.26 0.02 165 / 0.05);
-}
-
-.card {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--r-lg);
-  padding: var(--s4);
-  display: flex;
-  flex-direction: column;
-  gap: var(--s3);
+  box-shadow: 0 1px 2px var(--shadow-ink);
 }
 
 .hair {
@@ -394,7 +407,7 @@ form > .success {
 .btn.secondary {
   background: var(--panel-2);
   color: var(--ink);
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-control);
 }
 
 .btn.secondary:active {
@@ -404,7 +417,7 @@ form > .success {
 .btn.ghost {
   background: transparent;
   color: var(--ink);
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-control);
 }
 
 .btn.ghost:active {
@@ -431,6 +444,23 @@ form > .success {
   width: auto;
   padding-inline: var(--s4);
   font-size: var(--t-base);
+}
+
+/* 페이저처럼 버튼이 한 줄에 나란히 서는 자리. .btn의 width:100%를 여기서만 되돌린다. */
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  font-size: var(--t-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+}
+
+.actions .btn {
+  width: auto;
+  min-height: 44px;
+  padding-inline: var(--s4);
 }
 
 /* 한 손 조작: 주요 행동은 항상 엄지 근처에 고정 */
@@ -471,7 +501,7 @@ form > .success {
   width: 100%;
   min-height: 52px;
   padding: var(--s3) var(--s4);
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-control);
   border-radius: var(--r-md);
   background: var(--panel);
   color: var(--ink);
@@ -617,8 +647,10 @@ form > .success {
   color: var(--ink-2);
   background: var(--panel);
   border: 1px solid var(--line-soft);
-  /* 위와 같은 이유의 시각 보정값. */
-  padding: 10px 14px;
+  /* 13px 글자 + 세로 12px씩이면 44.2px. 자체 기준인 44×44를 넘기는 최소값이라 더 줄이지 말 것.
+     테두리는 --line-soft 그대로다. 이 탭을 식별하는 것은 글자이고 알약 모양은 장식이라
+     컨트롤 경계 3:1 규칙(--line-control)의 대상이 아니다. */
+  padding: 12px 14px;
   border-radius: var(--r-full);
   font-size: var(--t-sm);
   font-weight: 600;
@@ -666,30 +698,48 @@ form > .success {
 
 /* ---------- 다이얼로그 (모바일에서는 바텀시트) ---------- */
 
-.dialog-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: var(--z-backdrop);
-  background: oklch(0.26 0.02 165 / 0.45);
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  padding: 0;
-}
-
+/*
+  네이티브 <dialog> + showModal()이다. 포커스 트랩, Esc 닫기, 뒤 콘텐츠 inert를 브라우저가
+  해 주기 때문에 직접 구현한 트랩보다 항상 정확하다. 직접 만든 div 모달로 되돌리지 말 것
+  (그 형태가 "시트를 열어도 커서가 PIN 칸에 가지 않는다"의 원인이었다).
+*/
 .dialog {
-  position: relative;
+  position: fixed;
+  inset: auto 0 0;
   z-index: var(--z-sheet);
   width: min(460px, 100%);
+  max-width: 100%;
+  max-height: 90dvh;
+  margin: 0 auto;
+  overflow-y: auto;
   background: var(--panel);
+  color: var(--ink);
   border: 1px solid var(--line);
   border-bottom: 0;
   border-radius: var(--r-lg) var(--r-lg) 0 0;
   padding: var(--s5) var(--s4) calc(var(--s5) + var(--safe-b));
+  animation: sheet-up 220ms var(--ease);
+}
+
+/* UA 스타일시트가 열린 dialog를 display:block으로 두기 때문에 여기서 다시 세운다. */
+.dialog[open] {
   display: flex;
   flex-direction: column;
   gap: var(--s3);
-  animation: sheet-up 220ms var(--ease);
+}
+
+/*
+  ::backdrop이 원본 요소의 커스텀 속성을 상속하는 것은 비교적 최근 동작이라,
+  구형 엔진을 위해 var()의 폴백에 값을 직접 넣어 둔다.
+*/
+.dialog::backdrop {
+  background: var(--scrim, oklch(0.26 0.02 165 / 0.45));
+}
+
+@supports not (color: oklch(0.5 0.1 100)) {
+  .dialog::backdrop {
+    background: rgba(22, 36, 31, 0.45);
+  }
 }
 
 .dialog::before {
@@ -709,15 +759,18 @@ form > .success {
 }
 
 @media (min-width: 700px) {
-  .dialog-backdrop {
-    align-items: center;
-    padding: var(--s4);
-  }
-
   .dialog {
+    inset: 0;
+    margin: auto;
+    height: fit-content;
     border-radius: var(--r-lg);
     border-bottom: 1px solid var(--line);
     padding-bottom: var(--s5);
+  }
+
+  /* 손잡이는 끌어내릴 수 있다는 신호다. 화면 가운데 뜨는 창에서는 거짓말이 된다. */
+  .dialog::before {
+    display: none;
   }
 }
 
@@ -778,7 +831,7 @@ form > .success {
   position: relative;
   background: var(--panel);
   border: 1px solid var(--line);
-  box-shadow: 0 1px 2px oklch(0.26 0.02 165 / 0.05);
+  box-shadow: 0 1px 2px var(--shadow-ink);
   border-radius: var(--r-lg);
   padding: var(--s4);
   display: flex;
@@ -959,21 +1012,6 @@ form > .success {
   font-variant-numeric: tabular-nums;
 }
 
-/* QR은 스캐너를 위해 항상 흰 바탕 위에 */
-.qr-plate {
-  align-self: center;
-  background: #fff;
-  border-radius: var(--r-md);
-  padding: var(--s3);
-  line-height: 0;
-}
-
-.qr-plate canvas {
-  display: block;
-  width: min(260px, 60vw);
-  height: auto;
-}
-
 .poster-workspace {
   display: grid;
   grid-template-columns: minmax(260px, 360px) minmax(280px, 1fr);
@@ -996,7 +1034,7 @@ form > .success {
   height: auto;
   aspect-ratio: 105 / 148;
   object-fit: contain;
-  box-shadow: 0 12px 32px oklch(0.26 0.02 165 / 0.16);
+  box-shadow: 0 12px 32px var(--shadow-lift);
 }
 
 .poster-controls { padding-block: var(--s3); }
@@ -1203,10 +1241,6 @@ form > .success {
   color: var(--ink-2);
 }
 
-.section-head {
-  margin-top: var(--s5);
-}
-
 
 /* ---------- 인트로 (QR을 찍고 처음 만나는 화면) ---------- */
 
@@ -1321,15 +1355,6 @@ form > .success {
 /* ---------- AI 도우미 (관리자 전용) ---------- */
 
 /* 생성된 문구는 그대로 옮겨 붙일 값이라 본문보다 크게 둔다. */
-.result-copy {
-  margin: 0;
-  font-size: var(--t-lg);
-  font-weight: 800;
-  line-height: 1.3;
-  color: var(--ink);
-  text-wrap: balance;
-}
-
 .chat-log {
   display: grid;
   gap: var(--s2);
