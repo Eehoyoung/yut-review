@@ -4,6 +4,7 @@ import { useParams } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
 import { AdminFrame } from "@/features/admin/AdminFrame";
 import { api, errorMessage } from "@/lib/api";
+import { Dialog } from "@/features/ui/Dialog";
 
 export default function StaffPin() {
   const id = String(useParams().storeId);
@@ -42,29 +43,27 @@ export default function StaffPin() {
         </button>
       </div>
 
-      {asking && (
-        <div className="dialog-backdrop" role="presentation">
-          <div className="dialog" role="dialog" aria-modal="true" aria-labelledby="regen-title">
-            <h2 id="regen-title">PIN을 다시 발급할까요?</h2>
-            <p className="lead">
-              기존 직원 PIN은 즉시 사용할 수 없게 됩니다. 매장 직원 모두에게 새 번호를 다시 전달해야 합니다.
+      <Dialog open={asking} onClose={() => setAsking(false)} labelledBy="regen-title">
+        <div className="stack">
+          <h2 id="regen-title">PIN을 다시 발급할까요?</h2>
+          <p className="lead">
+            기존 직원 PIN은 즉시 사용할 수 없게 됩니다. 매장 직원 모두에게 새 번호를 다시 전달해야 합니다.
+          </p>
+          {m.isError && (
+            <p className="error" role="alert">
+              {errorMessage(m.error)}
             </p>
-            {m.isError && (
-              <p className="error" role="alert">
-                {errorMessage(m.error)}
-              </p>
-            )}
-            <div className="sheet-actions">
-              <button type="button" className="btn ghost" onClick={() => setAsking(false)}>
-                취소
-              </button>
-              <button type="button" className="btn" disabled={m.isPending} onClick={() => m.mutate()}>
-                {m.isPending ? "발급 중..." : "새 PIN 발급"}
-              </button>
-            </div>
+          )}
+          <div className="sheet-actions">
+            <button type="button" className="btn ghost" onClick={() => setAsking(false)}>
+              취소
+            </button>
+            <button type="button" className="btn" disabled={m.isPending} onClick={() => m.mutate()}>
+              {m.isPending ? "발급 중..." : "새 PIN 발급"}
+            </button>
           </div>
         </div>
-      )}
+      </Dialog>
     </AdminFrame>
   );
 }

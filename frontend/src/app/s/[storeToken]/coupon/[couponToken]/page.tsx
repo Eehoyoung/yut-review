@@ -5,11 +5,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, errorMessage } from "@/lib/api";
 import type { Coupon } from "@/types/api";
 import { rankLabel } from "@/features/labels";
+import { Dialog } from "@/features/ui/Dialog";
 
 export default function CouponPage(){
   const token=String(useParams().couponToken),qc=useQueryClient(),[open,setOpen]=useState(false),[pin,setPin]=useState("");
   const q=useQuery({queryKey:["coupon",token],queryFn:()=>api<Coupon>(`/public/coupons/${encodeURIComponent(token)}`)});
   const redeem=useMutation({mutationFn:()=>api<Coupon>(`/public/coupons/${encodeURIComponent(token)}/redeem`,{method:"POST",body:JSON.stringify({pin})}),onSuccess:()=>{setOpen(false);setPin("");qc.invalidateQueries({queryKey:["coupon",token]})}});
+  const closeSheet=()=>{setOpen(false);setPin("");redeem.reset();};
   if(q.isPending)return (
     <main className="screen">
       <div className="stack" aria-live="polite" aria-busy="true">
@@ -68,23 +70,22 @@ export default function CouponPage(){
         </div>
       )}
 
-      {open&&(
-        <div className="dialog-backdrop" role="presentation">
-          <form className="dialog" role="dialog" aria-modal="true" aria-labelledby="redeem-title" onSubmit={(e:FormEvent)=>{e.preventDefault();redeem.mutate()}}>
-            <h2 id="redeem-title">사용 처리할까요?</h2>
-            <p className="lead">직원이 직접 6자리 PIN을 입력해주세요. 완료 후에는 되돌릴 수 없습니다.</p>
-            <div className="field">
-              <label htmlFor="redeem-pin">직원 PIN</label>
-              <input id="redeem-pin" type="password" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} autoComplete="off" value={pin} onChange={e=>setPin(e.target.value.replace(/\D/g,""))}/>
-            </div>
-            {redeem.isError&&<p className="error" role="alert">{errorMessage(redeem.error)}</p>}
-            <div className="sheet-actions">
-              <button type="button" className="btn ghost" onClick={()=>setOpen(false)}>취소</button>
-              <button className="btn" disabled={redeem.isPending||pin.length!==6}>사용 완료</button>
-            </div>
-          </form>
-        </div>
-      )}
+      <Dialog open={open} onClose={closeSheet} labelledBy="redeem-title">
+        <form className="stack" onSubmit={(e:FormEvent)=>{e.preventDefault();redeem.mutate()}}>
+          <h2 id="redeem-title">사용 처리할까요?</h2>
+          <p className="lead">직원이 직접 6자리 PIN을 입력해주세요. 완료 후에는 되돌릴 수 없습니다.</p>
+          <div className="field">
+            <label htmlFor="redeem-pin">직원 PIN</label>
+            <input id="redeem-pin" type="password" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} autoComplete="off" autoFocus value={pin} onChange={e=>setPin(e.target.value.replace(/\D/g,""))}/>
+          </div>
+          {redeem.isError&&<p className="error" role="alert">{errorMessage(redeem.error)}</p>}
+          <div className="sheet-actions">
+            <button type="button" className="btn ghost" onClick={()=>setOpen(false)}>취소</button>
+            {/* 버튼은 누르면 무슨 일이 일어나는지를 말한다. "사용 완료"는 아직 오지 않은 상태를 가리킨다. */}
+            <button className="btn" disabled={redeem.isPending||pin.length!==6}>{redeem.isPending?"처리 중...":"사용 처리"}</button>
+          </div>
+        </form>
+      </Dialog>
     </main>
   );
 }

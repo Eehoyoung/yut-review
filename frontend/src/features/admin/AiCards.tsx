@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiClientError, api, errorMessage } from "@/lib/api";
 import { ADMIN_ERROR_HINT, PLAN_LABEL } from "@/features/admin/labels";
 import type { AiChatAnswer, AiEventCopy, AiFeature, AiImprovement, AiReportContent, AiStatus } from "@/types/api";
+import { Dialog } from "@/features/ui/Dialog";
 
 /**
  * 관리자 전용 AI 화면.
@@ -308,55 +309,51 @@ export function AiEventCopyDialog({ storeId }: { storeId: string }) {
       </button>
       {why && <p className="hint">{why}</p>}
 
-      {open && (
-        <div className="dialog-backdrop" role="presentation">
-          <form
-            className="dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="copy-title"
-            onSubmit={(e: FormEvent) => {
-              e.preventDefault();
-              run.mutate(undefined, { onSuccess: () => setOpen(false) });
-            }}
-          >
-            <h2 id="copy-title">어떤 문구가 필요하세요?</h2>
-            <div className="field">
-              <label htmlFor="ai-tone">말투</label>
-              <input
-                id="ai-tone"
-                value={tone}
-                maxLength={40}
-                placeholder="담백하게"
-                onChange={(e) => setTone(e.target.value)}
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="ai-extra">덧붙일 요청</label>
-              <textarea
-                id="ai-extra"
-                value={extra}
-                maxLength={300}
-                placeholder="가족 손님이 많아요"
-                onChange={(e) => setExtra(e.target.value)}
-              />
-            </div>
-            {run.isError && (
-              <p className="error" role="alert">
-                {adminError(run.error)}
-              </p>
-            )}
-            <div className="sheet-actions">
-              <button type="button" className="btn ghost" onClick={() => setOpen(false)}>
-                취소
-              </button>
-              <button className="btn" disabled={run.isPending}>
-                {run.isPending ? "만드는 중..." : "만들기"}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
+      <Dialog open={open} onClose={() => setOpen(false)} labelledBy="copy-title">
+        <form
+          className="stack"
+          onSubmit={(e: FormEvent) => {
+            e.preventDefault();
+            run.mutate(undefined, { onSuccess: () => setOpen(false) });
+          }}
+        >
+          <h2 id="copy-title">어떤 문구가 필요하세요?</h2>
+          <div className="field">
+            <label htmlFor="ai-tone">말투</label>
+            <input
+              id="ai-tone"
+              autoFocus
+              value={tone}
+              maxLength={40}
+              placeholder="담백하게"
+              onChange={(e) => setTone(e.target.value)}
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="ai-extra">덧붙일 요청</label>
+            <textarea
+              id="ai-extra"
+              value={extra}
+              maxLength={300}
+              placeholder="가족 손님이 많아요"
+              onChange={(e) => setExtra(e.target.value)}
+            />
+          </div>
+          {run.isError && (
+            <p className="error" role="alert">
+              {adminError(run.error)}
+            </p>
+          )}
+          <div className="sheet-actions">
+            <button type="button" className="btn ghost" onClick={() => setOpen(false)}>
+              취소
+            </button>
+            <button className="btn" disabled={run.isPending}>
+              {run.isPending ? "만드는 중..." : "만들기"}
+            </button>
+          </div>
+        </form>
+      </Dialog>
     </section>
   );
 }
@@ -397,7 +394,7 @@ export function AiManagerChat({ storeId }: { storeId: string }) {
       <p className="lead">이 매장의 운영 데이터만 보고 답합니다. 고객 개인정보는 묻거나 보여줄 수 없습니다.</p>
 
       {turns.length > 0 && (
-        <div className="chat-log" ref={logRef} aria-live="polite">
+        <div className="chat-log" ref={logRef} tabIndex={0} role="log" aria-label="AI 대화 기록" aria-live="polite">
           {turns.map((t, i) => (
             <p key={i} className={t.role === "user" ? "chat-turn is-me" : "chat-turn"}>
               {t.content}
