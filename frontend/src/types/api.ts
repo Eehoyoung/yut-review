@@ -129,6 +129,14 @@ export interface GameConfig {
   outcomes: GameConfigOutcome[];
 }
 
+/** 매장별 이벤트 설정. 범위는 서버가 함께 내려주므로 화면이 상수를 따로 들고 있지 않는다. */
+export interface EventSettings {
+  couponValidityDays: number;
+  minDays: number;
+  maxDays: number;
+  defaultDays: number;
+}
+
 export interface StoreSummary {
   id: number | string;
   name: string;

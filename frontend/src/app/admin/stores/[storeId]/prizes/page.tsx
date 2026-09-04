@@ -4,9 +4,9 @@ import { useParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AdminFrame } from "@/features/admin/AdminFrame";
 import { ApiClientError, api, errorMessage } from "@/lib/api";
-import type { GameConfig, Prize, RedeemPolicy, YutResult } from "@/types/api";
+import type { EventSettings, GameConfig, Prize, RedeemPolicy, YutResult } from "@/types/api";
 import { YUT_LABEL, rankLabel } from "@/features/labels";
-import { onlyDecimal } from "@/features/normalize";
+import { onlyDecimal, onlyDigits } from "@/features/normalize";
 
 const YUT_ORDER: YutResult[] = ["DO", "GAE", "GEOL", "YUT", "MO"];
 const LADDERS = [3, 4, 5];
@@ -106,6 +106,124 @@ function PolicyHelp() {
         </dl>
       )}
     </>
+  );
+}
+
+/**
+ * 쿠폰 사용 기한.
+ *
+ * 상품의 '사용 시점'(언제부터 쓸 수 있나)과 같은 화면에 둔다. 사장은 이 둘을 같이 놓고 판단하고,
+ * 화면을 나누면 한쪽만 바꿔 놓고 잊는다.
+ *
+ * 저장은 확률·상품 저장과 완전히 분리된 요청이다. 한 폼에 묶으면 확률표가 반쯤 적용된 상태를
+ * 다시 만들게 된다.
+ */
+function CouponValidityForm({ storeId }: { storeId: string }) {
+  const qc = useQueryClient();
+  const settings = useQuery({
+    queryKey: ["event-settings", storeId],
+    queryFn: () => api<EventSettings>(`/admin/stores/${storeId}/event-settings`),
+  });
+  const [days, setDays] = useState("");
+  const [tried, setTried] = useState(false);
+
+  useEffect(() => {
+    if (settings.data) setDays(String(settings.data.couponValidityDays));
+  }, [settings.data]);
+
+  const save = useMutation({
+    mutationFn: () =>
+      api<EventSettings>(`/admin/stores/${storeId}/event-settings`, {
+        method: "PUT",
+        body: JSON.stringify({ couponValidityDays: Number(days) }),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["event-settings", storeId] }),
+  });
+
+  if (settings.isPending)
+    return (
+      <div aria-live="polite" aria-busy="true">
+        <span className="visually-hidden">쿠폰 사용 기한을 불러오는 중</span>
+        <div className="skeleton" style={{ height: 220 }} />
+      </div>
+    );
+  if (settings.isError)
+    return (
+      <p className="error" role="alert">
+        {errorMessage(settings.error)}
+      </p>
+    );
+
+  const { minDays, maxDays, defaultDays, couponValidityDays } = settings.data;
+  const entered = Number(days);
+  // 화면은 눌러 보기 전에 알려주고, 서버는 어떤 경우에도 다시 검증한다.
+  const blocked = !days
+    ? "쿠폰 사용 기한을 입력해 주세요."
+    : entered < minDays || entered > maxDays
+      ? `쿠폰 사용 기한은 ${minDays}일에서 ${maxDays}일 사이로 입력해 주세요.`
+      : "";
+
+  return (
+    <form
+      className="panel stack"
+      noValidate
+      onSubmit={(e: FormEvent) => {
+        e.preventDefault();
+        setTried(true);
+        if (blocked) {
+          document.getElementById("validity-days")?.focus();
+          return;
+        }
+        save.mutate();
+      }}
+    >
+      <h2>쿠폰 사용 기한</h2>
+      <p className="lead">손님이 받은 쿠폰을 며칠 동안 쓸 수 있는지 정합니다. 기본값은 {defaultDays}일입니다.</p>
+
+      <div className="field">
+        <label htmlFor="validity-days">사용 기한 (일)</label>
+        <input
+          id="validity-days"
+          inputMode="numeric"
+          autoComplete="off"
+          value={days}
+          onChange={(e) => setDays(onlyDigits(e.target.value, 3))}
+        />
+        {/* 안내는 문제가 있는 칸 옆에 둔다. 폼 아래에만 두면 정작 그 칸이 화면 밖에 있다. */}
+        {tried && blocked ? (
+          <small className="hint" role="status" style={{ color: "var(--danger)" }}>
+            {blocked}
+          </small>
+        ) : (
+          <small className="hint">
+            {minDays}일에서 {maxDays}일 사이의 숫자
+          </small>
+        )}
+      </div>
+
+      {!blocked && (
+        <p className="lead">
+          {entered}일로 저장하면 지금부터 발급되는 쿠폰이 쓸 수 있게 된 날부터 {entered}일째 밤 12시까지 유효합니다.
+        </p>
+      )}
+      <p className="notice">
+        이미 발급된 쿠폰의 만료일은 바뀌지 않습니다. 손님이 이미 받은 쿠폰은 그대로 남습니다.
+      </p>
+
+      {save.isError && (
+        <p className="error" role="alert">
+          {errorMessage(save.error)}
+        </p>
+      )}
+      {save.isSuccess && (
+        <p className="success" role="status">
+          사용 기한을 {couponValidityDays}일로 저장했습니다.
+        </p>
+      )}
+      <button className="btn secondary" disabled={save.isPending}>
+        {save.isPending ? "저장 중..." : "사용 기한 저장"}
+      </button>
+    </form>
   );
 }
 
@@ -375,6 +493,8 @@ export default function Prizes() {
           {save.isPending ? "저장 중" : "저장"}
         </button>
       </form>
+
+      <CouponValidityForm storeId={id} />
     </AdminFrame>
   );
 }
