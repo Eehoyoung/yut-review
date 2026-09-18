@@ -151,6 +151,13 @@ export default function SignUp() {
         ))}
         <hr className="hair" />
         <div className="stack">
+          <p className="lead"><strong>회원가입 개인정보 수집·이용 안내</strong></p>
+          <ul className="lead">
+            <li>수집항목: 대표자명, 대표 연락처, 이메일, 비밀번호, 매장 상호명, 사업자등록번호</li>
+            <li>이용목적: 회원 식별·인증, 매장 등록·관리, 서비스 제공, 보안 및 고객지원</li>
+            <li>보유기간: 회원·서비스 계약 종료 시까지. 법령상 보존의무가 있는 기록은 해당 기간까지 별도 보관할 수 있습니다.</li>
+            <li>필수정보 수집에 동의하지 않으면 매장 관리자 회원가입을 진행할 수 없습니다.</li>
+          </ul>
           <label className="check">
             <input
               id="terms-agree"
