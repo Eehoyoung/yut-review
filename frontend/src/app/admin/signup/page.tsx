@@ -58,13 +58,19 @@ const hasFinalConsonant = (word: string) => {
  * id가 필요한 이유: 칸이 일곱 개라 안내 문구만 띄우면 정작 그 칸이 화면 밖에 있다.
  * 무엇이 문제인지 말하는 것과 거기로 데려다주는 것은 다른 일이다.
  */
-function problem(form: Record<string, string>): { id: string; message: string } | null {
+function problem(
+  form: Record<string, string>,
+  termsAgreed: boolean,
+  privacyAgreed: boolean,
+): { id: string; message: string } | null {
   for (const f of FIELDS) {
     const value = (form[f.key] ?? "").trim();
     if (!value) return { id: f.key, message: `${f.label}${hasFinalConsonant(f.label) ? "을" : "를"} 입력해 주세요.` };
     if (f.digits && value.length !== f.digits)
       return { id: f.key, message: `${f.label}${hasFinalConsonant(f.label) ? "은" : "는"} 숫자 ${f.digits}자리로 입력해 주세요.` };
   }
+  if (!termsAgreed) return { id: "terms-agree", message: "서비스 이용약관에 동의해 주세요." };
+  if (!privacyAgreed) return { id: "privacy-agree", message: "개인정보 처리방침에 동의해 주세요." };
   return null;
 }
 
@@ -74,6 +80,8 @@ export default function SignUp() {
   // 제출을 눌러 본 뒤에만 이유를 말한다. 폼을 열자마자, 또는 두 번째 칸을 치는 중에
   // 아직 오지도 않은 칸을 지적하면 잔소리가 된다.
   const [tried, setTried] = useState(false);
+  const [termsAgreed, setTermsAgreed] = useState(false);
+  const [privacyAgreed, setPrivacyAgreed] = useState(false);
   const signUp = useMutation({
     mutationFn: () => api<SignUpResult>("/admin/auth/signup", { method: "POST", body: JSON.stringify(form) }),
     onSuccess: setDone,
@@ -99,7 +107,7 @@ export default function SignUp() {
       </main>
     );
 
-  const blocked = problem(form);
+  const blocked = problem(form, termsAgreed, privacyAgreed);
 
   return (
     <main className="screen">
@@ -141,6 +149,40 @@ export default function SignUp() {
             {f.hint && <small className="hint">{f.hint}</small>}
           </div>
         ))}
+        <hr className="hair" />
+        <div className="stack">
+          <p className="lead"><strong>회원가입 개인정보 수집·이용 안내</strong></p>
+          <ul className="lead">
+            <li>수집항목: 대표자명, 대표 연락처, 이메일, 비밀번호, 매장 상호명, 사업자등록번호</li>
+            <li>이용목적: 회원 식별·인증, 매장 등록·관리, 서비스 제공, 보안 및 고객지원</li>
+            <li>보유기간: 회원·서비스 계약 종료 시까지. 법령상 보존의무가 있는 기록은 해당 기간까지 별도 보관할 수 있습니다.</li>
+            <li>필수정보 수집에 동의하지 않으면 매장 관리자 회원가입을 진행할 수 없습니다.</li>
+          </ul>
+          <label className="check">
+            <input
+              id="terms-agree"
+              type="checkbox"
+              checked={termsAgreed}
+              onChange={(e) => setTermsAgreed(e.target.checked)}
+              required
+            />
+            <span>
+              [필수] <Link href="/legal/terms" target="_blank">서비스 이용약관</Link>에 동의합니다.
+            </span>
+          </label>
+          <label className="check">
+            <input
+              id="privacy-agree"
+              type="checkbox"
+              checked={privacyAgreed}
+              onChange={(e) => setPrivacyAgreed(e.target.checked)}
+              required
+            />
+            <span>
+              [필수] <Link href="/legal/privacy" target="_blank">개인정보 처리방침</Link>을 확인하고 동의합니다.
+            </span>
+          </label>
+        </div>
         {tried && blocked && (
           <p className="notice" role="status">
             {blocked.message}
