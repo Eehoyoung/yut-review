@@ -93,7 +93,11 @@ export default function StoreIntro({ initialData }: { initialData?: StoreSummary
       </section>
 
       <p className="lead">
-        네이버 리뷰를 작성한 뒤 직원에게 보여 주세요.
+        네이버 리뷰를 작성한 뒤 직원에게 보여 주세요. 별점이나 리뷰 내용은 참여 조건이 아니에요.
+      </p>
+      <p className="hint">
+        참여 전 <Link href="/legal/terms" target="_blank">이용약관</Link>과{" "}
+        <Link href="/legal/privacy" target="_blank">개인정보 처리방침</Link>을 확인할 수 있어요.
       </p>
 
       <div className="actionbar">
