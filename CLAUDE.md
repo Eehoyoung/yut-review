@@ -149,26 +149,42 @@ docker compose --env-file .env.field-test --profile field-test up -d   # Cloudfl
 플랫폼 전체를 보는 화면. 매장 관리자 화면(`/admin`)과 링크로도 토큰으로도 이어지지 않는다.
 상세 규칙은 `09_SECURITY_AND_ABUSE.md`, API는 `05_API_SPEC.md`의 System Console API에 있다.
 
-- 화면 `/admin/system`(개요·매장·접근 기록), 로그인 `/admin/system/login`. API는 `/api/system/**`.
-- 들어가려면 SYSTEM_ADMIN 계정 + 비밀번호 + 인증 앱 TOTP 코드가 모두 필요하다. 첫 로그인은
-  등록(QR·키 노출) → 코드 확인 → 재로그인 순서다.
-- 계정은 `SYSTEM_ADMIN_EMAIL`/`SYSTEM_ADMIN_PASSWORD`(12자 이상)가 있고 그 이메일의 계정이 없을 때
-  `OperatorBootstrap`이 한 번 만든다. 현장테스트 매장 시드(`Bootstrap.java`)와는 별개다.
-- 테스트: `SystemConsoleTest.java` (TOTP 표준 벡터, 비밀번호만으로는 안 열림, 코드 재사용 거부,
-  매장 토큰 차단, 역할 회수 즉시 차단, 실패 응답 동일성, 시도 제한, IP 규칙, 요금제·상태 변경 기록)
+- 화면 `/admin/system`(개요·매장·운영자·접근 기록·보안), 로그인 `/admin/system/login`. API는 `/api/system/**`.
+- 백엔드 `SystemConsole.java`(설정·게이트 필터·TOTP·시도 제한·감사 해시 사슬·계정 보안·세션·복구 코드·
+  가드·인증·운영자 관리·부트스트랩), `SystemConsoleController.java`(엔드포인트).
+- 프런트 `frontend/src/app/admin/system/...` + `features/system/`(api·labels·SystemFrame·StepUpDialog·
+  PasswordForm·stepUp 스토어).
+- 들어가려면 SYSTEM_ADMIN 계정 + 비밀번호 + 인증 앱 TOTP(또는 복구 코드)가 모두 필요하다. 첫 로그인은
+  등록(QR·키·복구 코드 노출) → 코드 확인 → 재로그인 순서다.
+- 콘솔 안 권한은 `ConsoleRole` VIEWER < OPERATOR < OWNER. 위험한 조작은 최근 5분 내 재인증(step-up)을
+  요구한다. 화면에서 `stepUpIfNeeded`가 그 거절을 받아 코드를 묻고 하던 동작을 이어서 실행한다.
+- 첫 계정은 `SYSTEM_ADMIN_EMAIL`/`SYSTEM_ADMIN_PASSWORD`(12자 이상)로 `OperatorBootstrap`이 한 번 만든다
+  (OWNER). 그다음부터는 콘솔의 운영자 화면에서 만든다. 현장테스트 매장 시드(`Bootstrap.java`)와는 별개다.
+- 테스트: `SystemConsoleTest.java` 30개 (TOTP 표준 벡터, 복구 코드, 코드 재사용 거부, 로그아웃·유휴·기기
+  불일치·세션 수 초과, 매장 토큰 차단, 역할 회수/계정 중지 즉시 차단, 실패 응답 동일성, 시도 제한, 계정
+  잠금, 계정별 IP, 재인증, 등급별 허용/거부, 임시 비밀번호 강제 변경, 마지막 OWNER 보호, 세션 강제 종료,
+  비밀번호 변경과 타 세션 종료, 사유 필수, 해시 사슬 변조 탐지, CSV 수식 무력화)
 
 되돌리면 안 되는 지점:
 
 - 매장 콘솔 토큰(`scope=STORE`)에 운영자 권한을 주지 말 것. 같은 계정이어도 문이 다르다.
+- 콘솔 토큰을 세션 행 없는 순수 JWT로 되돌리지 말 것. 로그아웃·강제 종료·유휴 만료가 전부 무력해진다.
 - 차단을 404에서 403으로 바꾸지 말 것. 403은 "여기 뭔가 있다"는 대답이다.
 - `JwtFilter`의 principal은 `Long`(adminId) 그대로 둘 것. 매장 API 전부가 그 타입에 기대고 있다.
-- DB 역할 재확인(`SystemConsoleGuard`)을 토큰 claim 신뢰로 바꾸지 말 것. 권한을 회수해도 토큰
-  만료까지 콘솔이 열려 있게 된다.
-- TOTP 비밀값을 평문으로 저장하지 말 것. `PhoneService`의 AES-GCM을 그대로 쓴다.
+  세션 식별자(jti)는 credentials에 실린 `JwtService.Claims`로 전달한다.
+- **로그인(`OperatorAuthService.login`)과 세션 검사(`OperatorSessionService.validate`)를 `@Transactional`로
+  묶지 말 것.** 실패 횟수·계정 잠금·세션 폐기가 거절 예외와 함께 롤백된다(실제로 그래서 아무리 두드려도
+  잠기지 않았다). 각 단계가 스스로 커밋하고, 감사 기록은 `SystemAuditWriter`가 별도 트랜잭션으로 쓴다.
+- 감사 해시에 들어가는 `createdAt`을 자르지 말고 두지 말 것. 나노초를 DB가 못 담아 저장 직후부터
+  사슬이 깨진 것처럼 보인다(`truncatedTo(MILLIS)`).
+- `SystemAuditService.payload`의 필드 순서·표현을 바꾸지 말 것. 과거 행의 검증이 통째로 깨진다.
+- 감사 로그를 고치거나 지우는 엔드포인트를 만들지 말 것.
+- DB 역할 재확인(`SystemConsoleGuard`)을 토큰 claim 신뢰로 바꾸지 말 것.
+- TOTP 비밀값과 복구 코드를 평문으로 저장하지 말 것(AES-GCM / BCrypt).
 - 운영자가 매장의 상품·확률·직원 PIN·참여자 명단을 만지는 엔드포인트를 만들지 말 것.
-  운영자가 보는 것은 매장 단위 집계까지다.
-- 요금제 변경은 콘솔 토큰에서만. `PUT /api/admin/stores/{id}/subscription`도 같은 조건을 요구한다
-  (403 `OPERATOR_CONSOLE_REQUIRED`). 매장 요금제 화면의 변경 버튼은 사장에게는 여전히 막혀 있다.
+- 요금제 변경은 콘솔 토큰 + 재인증 + 사유에서만. `PUT /api/admin/stores/{id}/subscription`도 콘솔 토큰을
+  요구한다(403 `OPERATOR_CONSOLE_REQUIRED`).
+- 마지막 OWNER 보호와 자기 권한 강등 금지를 풀지 말 것. 아무도 못 들어가는 콘솔이 된다.
 - 운영자 콘솔 문자열을 `features/labels.ts`나 `features/admin/labels.ts`에 두지 말 것.
   `features/system/labels.ts`에 둔다.
 

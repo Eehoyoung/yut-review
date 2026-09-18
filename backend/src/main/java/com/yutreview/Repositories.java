@@ -149,6 +149,47 @@ interface AdminTotpRepository extends JpaRepository<AdminTotpCredential,Long> {
 }
 interface SystemAuditLogRepository extends JpaRepository<SystemAuditLog,Long> {
     Page<SystemAuditLog> findAllByOrderByCreatedAtDesc(Pageable pageable);
+    /** 해시 사슬의 마지막 고리. 새 행은 이 행의 해시 위에 얹힌다. */
+    Optional<SystemAuditLog> findTopByOrderByIdDesc();
+    List<SystemAuditLog> findAllByOrderByIdAsc();
+    long countBySucceededFalseAndCreatedAtAfter(java.time.Instant since);
+    /**
+     * 조회 필터. null을 "조건 없음"으로 쓰는 형태라 조건 조합마다 메서드를 늘리지 않는다.
+     * 기간은 항상 넣는다(무한정 거슬러 훑는 조회를 만들지 않기 위해서다).
+     */
+    @Query("select l from SystemAuditLog l where l.createdAt between :from and :to "
+        + "and (:action is null or l.action=:action) "
+        + "and (:actor is null or lower(l.actorEmail) like :actor) "
+        + "and (:failuresOnly=false or l.succeeded=false) order by l.createdAt desc")
+    Page<SystemAuditLog> search(@Param("from") java.time.Instant from,@Param("to") java.time.Instant to,
+        @Param("action") String action,@Param("actor") String actor,@Param("failuresOnly") boolean failuresOnly,
+        Pageable pageable);
+    @Query("select l from SystemAuditLog l where l.createdAt between :from and :to "
+        + "and (:action is null or l.action=:action) "
+        + "and (:actor is null or lower(l.actorEmail) like :actor) "
+        + "and (:failuresOnly=false or l.succeeded=false) order by l.createdAt desc")
+    List<SystemAuditLog> searchForExport(@Param("from") java.time.Instant from,@Param("to") java.time.Instant to,
+        @Param("action") String action,@Param("actor") String actor,@Param("failuresOnly") boolean failuresOnly,
+        Pageable pageable);
+}
+interface OperatorSecurityRepository extends JpaRepository<OperatorSecurity,Long> {
+    Optional<OperatorSecurity> findByAdminId(Long adminId);
+    List<OperatorSecurity> findAllByOrderByIdAsc();
+    long countByConsoleRoleAndDisabledFalse(ConsoleRole role);
+}
+interface OperatorSessionRepository extends JpaRepository<OperatorSession,Long> {
+    Optional<OperatorSession> findByTokenId(String tokenId);
+    List<OperatorSession> findByAdminIdOrderByCreatedAtDesc(Long adminId);
+    List<OperatorSession> findByAdminIdAndRevokedAtIsNullOrderByCreatedAtAsc(Long adminId);
+    List<OperatorSession> findByRevokedAtIsNullAndAbsoluteExpiresAtAfterOrderByLastSeenAtDesc(java.time.Instant now);
+    long countByRevokedAtIsNullAndAbsoluteExpiresAtAfter(java.time.Instant now);
+    /** 끝난 세션 행을 오래 쌓아 두지 않는다. 감사 기록은 audit 로그가 따로 남긴다. */
+    long deleteByAbsoluteExpiresAtBefore(java.time.Instant cutoff);
+}
+interface OperatorBackupCodeRepository extends JpaRepository<OperatorBackupCode,Long> {
+    List<OperatorBackupCode> findByAdminIdAndUsedAtIsNull(Long adminId);
+    long countByAdminIdAndUsedAtIsNull(Long adminId);
+    long deleteByAdminId(Long adminId);
 }
 /**
  * 운영자 콘솔이 쓰는 플랫폼 전체 집계. 목록 한 줄마다 매장별 카운트를 다시 묻지 않으려고

@@ -44,23 +44,31 @@ import org.springframework.web.filter.OncePerRequestFilter;
     /** 2단계 인증까지 통과한 운영자 토큰에만 붙는 권한. 매장 콘솔 토큰에는 절대 붙이지 않는다. */
     static final String CONSOLE_AUTHORITY="OPERATOR_CONSOLE";
     static final String SCOPE_STORE="STORE",SCOPE_OPERATOR="OPERATOR",SCOPE_ENROLL="OPERATOR_ENROLL";
-    /** 토큰이 실어 나르는 것: 누구인지, 어떤 등급인지, 어느 문으로 들어왔는지. */
-    record Claims(Long adminId,AdminRole role,String scope){}
+    /** 토큰이 실어 나르는 것: 누구인지, 어떤 등급인지, 어느 문으로 들어왔는지, 어느 세션인지. */
+    record Claims(Long adminId,AdminRole role,String scope,String tokenId){}
     private final Algorithm algorithm; private final int operatorTtlSeconds;
     JwtService(@Value("${app.jwt-key}") String key,@Value("${app.system-console.session-minutes:60}") int operatorMinutes){if(key.length()<32)throw new IllegalArgumentException("JWT_SECRET must contain at least 32 characters");algorithm=Algorithm.HMAC256(key);operatorTtlSeconds=Math.max(5,operatorMinutes)*60;}
     int operatorTtlSeconds(){return operatorTtlSeconds;}
-    String issue(AdminUser u){return sign(u,JwtService.SCOPE_STORE,28800);}
-    /** 운영자 콘솔 토큰은 짧게 준다. 플랫폼 전체를 여는 토큰이 하루 종일 살아 있을 이유가 없다. */
-    String issueOperator(AdminUser u){return sign(u,JwtService.SCOPE_OPERATOR,operatorTtlSeconds);}
+    String issue(AdminUser u){return sign(u,JwtService.SCOPE_STORE,28800,null);}
+    /**
+     * 운영자 콘솔 토큰은 짧게 주고, 세션 행을 가리키는 식별자(jti)를 함께 싣는다.
+     * 그 식별자 덕분에 로그아웃·강제 종료·유휴 만료가 토큰 만료를 기다리지 않고 바로 듣는다.
+     */
+    String issueOperator(AdminUser u,String tokenId){return sign(u,JwtService.SCOPE_OPERATOR,operatorTtlSeconds,tokenId);}
     /** 2단계 인증 등록 중에만 쓰는 임시 토큰. 콘솔 API는 이 토큰으로 열리지 않는다. */
-    String issueEnrollment(AdminUser u){return sign(u,JwtService.SCOPE_ENROLL,300);}
-    private String sign(AdminUser u,String scope,int ttlSeconds){return JWT.create().withSubject(u.id.toString()).withClaim("role",u.role.name()).withClaim("scope",scope).withExpiresAt(Instant.now().plusSeconds(ttlSeconds)).sign(algorithm);}
+    String issueEnrollment(AdminUser u){return sign(u,JwtService.SCOPE_ENROLL,300,null);}
+    private String sign(AdminUser u,String scope,int ttlSeconds,String tokenId){
+        var builder=JWT.create().withSubject(u.id.toString()).withClaim("role",u.role.name()).withClaim("scope",scope)
+            .withExpiresAt(Instant.now().plusSeconds(ttlSeconds));
+        if(tokenId!=null)builder=builder.withJWTId(tokenId);
+        return builder.sign(algorithm);
+    }
     Claims verify(String token){
         try{
             DecodedJWT decoded=JWT.require(algorithm).build().verify(token);
             String scope=decoded.getClaim("scope").asString(),role=decoded.getClaim("role").asString();
             // scope가 없는 토큰은 이 기능 이전에 발급된 매장 콘솔 토큰이다. 운영자 권한은 주지 않는다.
-            return new Claims(Long.valueOf(decoded.getSubject()),role==null?null:AdminRole.valueOf(role),scope==null?SCOPE_STORE:scope);
+            return new Claims(Long.valueOf(decoded.getSubject()),role==null?null:AdminRole.valueOf(role),scope==null?SCOPE_STORE:scope,decoded.getId());
         }catch(Exception e){return null;}
     }
 }
@@ -72,7 +80,9 @@ import org.springframework.web.filter.OncePerRequestFilter;
             JwtService.Claims c=jwt.verify(h.substring(7));
             // 운영자 권한은 토큰의 역할과 발급 경로가 둘 다 맞을 때만 붙는다. DB의 현재 역할은
             // 컨트롤러가 요청마다 다시 확인한다(토큰을 발급한 뒤 역할을 회수할 수 있어야 한다).
-            if(c!=null)SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(c.adminId(),null,
+            // credentials에 claims를 실어 둔다. 컨트롤러는 principal(adminId)만 쓰지만, 콘솔 가드는
+            // 세션 식별자(jti)까지 필요하다.
+            if(c!=null)SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(c.adminId(),c,
                 c.role()==AdminRole.SYSTEM_ADMIN&&JwtService.SCOPE_OPERATOR.equals(c.scope())?List.of(new SimpleGrantedAuthority(JwtService.CONSOLE_AUTHORITY)):List.of()));
         }
         chain.doFilter(req,res);

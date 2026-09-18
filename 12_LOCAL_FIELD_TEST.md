@@ -233,12 +233,16 @@ SYSTEM_ADMIN_EMAIL=
 SYSTEM_ADMIN_PASSWORD=
 SYSTEM_CONSOLE_ALLOWED_IPS=
 SYSTEM_CONSOLE_SESSION_MINUTES=60
+SYSTEM_CONSOLE_IDLE_MINUTES=15
+SYSTEM_CONSOLE_STEP_UP_MINUTES=5
 SYSTEM_CONSOLE_ENABLED=true
 TZ=Asia/Seoul
 ```
 
 `SYSTEM_ADMIN_*`는 운영자 콘솔(`/admin/system`) 계정이다. 두 값이 모두 있고 그 이메일의 계정이
-없을 때만 만들어지며, 첫 로그인에서 인증 앱(TOTP) 등록을 마쳐야 콘솔이 열린다. 터널을 거치면
+없을 때만 만들어지며(총괄 권한), 첫 로그인에서 인증 앱(TOTP) 등록을 마쳐야 콘솔이 열린다.
+등록을 마치면 복구 코드 10개가 한 번만 나온다. 그 화면을 닫으면 다시 볼 수 없으니 그 자리에서
+저장한다. 비밀번호는 영문·숫자·기호를 포함해 12자 이상이어야 한다. 터널을 거치면
 `SYSTEM_CONSOLE_ALLOWED_IPS`는 모든 요청이 터널 IP로 보여 사실상 동작하지 않는다.
 
 실제 secret 값은 Git에 commit하지 않는다.

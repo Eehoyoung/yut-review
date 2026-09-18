@@ -177,11 +177,20 @@ export type RevealResponse = GameResult;
 
 /* ---------- 운영자 콘솔 (관리자 전용, 손님 화면은 이 타입들을 쓰지 않는다) ---------- */
 
+export type ConsoleRole = "VIEWER" | "OPERATOR" | "OWNER";
+
 export interface OperatorMe {
   email: string;
   name: string;
+  consoleRole: ConsoleRole;
+  mustChangePassword: boolean;
   sessionMinutes: number;
+  idleMinutes: number;
+  stepUpMinutes: number;
+  stepUpFresh: boolean;
   ipRestricted: boolean;
+  backupCodesRemaining: number;
+  sessionExpiresAt: string;
 }
 
 export interface OperatorSession {
@@ -191,6 +200,9 @@ export interface OperatorSession {
   expiresInSeconds: number;
   email: string;
   name: string;
+  consoleRole: ConsoleRole;
+  mustChangePassword: boolean;
+  backupCodesRemaining: number;
 }
 
 /** 2단계 인증이 아직 없는 운영자는 토큰 대신 등록 안내를 받는다. */
@@ -204,6 +216,36 @@ export interface OperatorEnrollment {
 
 export type OperatorLoginResult = OperatorSession | OperatorEnrollment;
 
+export interface ConsoleSession {
+  id: number;
+  email: string;
+  current: boolean;
+  device: string;
+  ip: string;
+  createdAt: string;
+  lastSeenAt: string;
+  expiresAt: string;
+  revokedAt: string | null;
+  revokedReason: string;
+}
+
+export interface ConsoleOperator {
+  id: number;
+  email: string;
+  name: string;
+  consoleRole: ConsoleRole;
+  disabled: boolean;
+  self: boolean;
+  totpEnrolled: boolean;
+  locked: boolean;
+  lockedUntil: string | null;
+  mustChangePassword: boolean;
+  allowedIps: string;
+  lastLoginAt: string | null;
+  lastLoginIp: string;
+  createdAt: string;
+}
+
 export interface PlatformOverview {
   stores: { total: number; active: number; inactive: number };
   admins: { total: number; operators: number };
@@ -211,7 +253,16 @@ export interface PlatformOverview {
   coupons: { issued: number; redeemed: number };
   plans: Record<string, number>;
   ai: { monthCalls: number; monthFailures: number };
-  security: { ipRestricted: boolean; sessionMinutes: number };
+  security: {
+    ipRestricted: boolean;
+    sessionMinutes: number;
+    idleMinutes: number;
+    activeSessions: number;
+    failedLogins24h: number;
+    operators: number;
+    lockedOperators: number;
+    operatorsWithoutTotp: number;
+  };
 }
 
 export type StoreStatus = "ACTIVE" | "INACTIVE";
@@ -250,4 +301,11 @@ export interface AuditEntry {
   ip: string;
   succeeded: boolean;
   createdAt: string;
+}
+
+export interface AuditIntegrity {
+  intact: boolean;
+  checked: number;
+  firstBrokenId: number | null;
+  firstBrokenAt: string | null;
 }

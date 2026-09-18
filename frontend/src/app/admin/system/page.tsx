@@ -93,6 +93,17 @@ export default function Overview() {
 
       <section className="panel stack">
         <h2>접근 보호</h2>
+        {/* 지금 당장 손봐야 하는 것부터 위에 둔다. 숫자가 0이 아닌 줄이 곧 할 일이다. */}
+        {d.security.operatorsWithoutTotp > 0 && (
+          <p className="notice" role="status">
+            2단계 인증을 아직 등록하지 않은 운영자가 {count(d.security.operatorsWithoutTotp)}명 있습니다.
+          </p>
+        )}
+        {d.security.failedLogins24h > 0 && (
+          <p className="notice" role="status">
+            최근 24시간 실패한 시도 {count(d.security.failedLogins24h)}건. 접근 기록에서 확인하세요.
+          </p>
+        )}
         <div className="list">
           <div className="list-item">
             <span className="lead">2단계 인증</span>
@@ -105,12 +116,27 @@ export default function Overview() {
             </span>
           </div>
           <div className="list-item">
-            <span className="lead">세션</span>
-            <span className="name">{d.security.sessionMinutes}분</span>
+            <span className="lead">세션 / 자리 비움</span>
+            <span className="name">
+              {d.security.sessionMinutes}분 / {d.security.idleMinutes}분
+            </span>
+          </div>
+          <div className="list-item">
+            <span className="lead">지금 열려 있는 세션</span>
+            <span className="name">{count(d.security.activeSessions)}개</span>
+          </div>
+          <div className="list-item">
+            <span className="lead">운영자 계정</span>
+            <span className="name">
+              {count(d.security.operators)}개{d.security.lockedOperators > 0 && ` · 잠김 ${count(d.security.lockedOperators)}`}
+            </span>
           </div>
         </div>
         <Link className="btn secondary" href="/admin/system/audit">
           접근 기록 보기
+        </Link>
+        <Link className="btn secondary" href="/admin/system/security">
+          내 계정 보안
         </Link>
       </section>
     </SystemFrame>

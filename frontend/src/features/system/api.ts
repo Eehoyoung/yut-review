@@ -47,3 +47,31 @@ export async function opsApi<T>(path: string, init?: RequestInit): Promise<T> {
   }
   return body.data;
 }
+
+/**
+ * 인증이 필요한 파일 내려받기(감사 기록 CSV).
+ *
+ * `<a href>`로는 토큰이 실리지 않아 401이 난다. 매장 콘솔의 같은 기능과 분리해 두는 이유는
+ * 토큰 보관함이 다르기 때문이다.
+ */
+export async function downloadWithOperatorToken(path: string, fallbackName: string) {
+  const token = operatorToken();
+  const response = await fetch(`/api/system${path}`, {
+    credentials: "include",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!response.ok) {
+    const body = (await response.json().catch(() => null)) as Envelope<unknown> | null;
+    throw new ApiClientError(body?.error?.code ?? "NETWORK_ERROR", body?.error?.message ?? "내려받지 못했습니다.");
+  }
+  const disposition = response.headers.get("Content-Disposition") ?? "";
+  const named = /filename\*=UTF-8''([^;]+)/i.exec(disposition);
+  const url = URL.createObjectURL(await response.blob());
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = named ? decodeURIComponent(named[1]) : fallbackName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}

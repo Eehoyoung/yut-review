@@ -235,20 +235,33 @@ that induces positive or 5-star reviews as a condition for a benefit.
 ### Operator console (2026-09-18)
 
 The platform operator gets a console of their own at `/admin/system` (`/api/system/**`), separate from
-the store admin console.
+the store admin console. Details live in `09_SECURITY_AND_ABUSE.md`; these are the rules that must not
+be softened for convenience.
 
-- Only `SYSTEM_ADMIN` reaches it, and only through password **plus** TOTP two-factor. A store console
-  token (`scope=STORE`) never opens `/api/system/**`, even for an operator account.
-- Plan changes moved here. `PUT /api/admin/stores/{id}/subscription` now also requires the operator
-  console token, so the password-only path to a paid plan is closed.
-- Login attempts, plan changes and store status changes are written to an audit log. The log holds no
-  customer personal data.
-- The operator sees store-level aggregates only. There is no operator endpoint for customer names,
-  phone numbers, staff PINs or a store's own settings.
+- Only `SYSTEM_ADMIN` reaches it, and only through password **plus** TOTP (or a one-time backup code).
+  A store console token (`scope=STORE`) never opens `/api/system/**`, even for an operator account.
+- A console token points at a server-side session row. Logout, forced revocation, idle timeout (15 min),
+  device change and role removal all take effect on the next request, not at token expiry. Do not go
+  back to a stateless-only token.
+- The console has its own role ladder: `VIEWER` < `OPERATOR` < `OWNER`. Check it server-side on every
+  endpoint; the UI hiding a menu is not enforcement.
+- Dangerous actions (plan change, store suspension, operator management, backup-code reissue, revoking
+  someone else's session) require a fresh second factor (step-up, 5 min) and a written reason where the
+  API asks for one.
+- Plan changes moved here. `PUT /api/admin/stores/{id}/subscription` also requires the operator console
+  token, so the password-only path to a paid plan is closed.
+- Every login, every change and every denied attempt is written to an append-only audit log whose rows
+  are hash-chained. The log holds no customer personal data. Never add an endpoint that edits or deletes
+  audit rows.
+- Failure bookkeeping (failed-attempt counts, lockouts, consumed backup codes, revoked sessions) must
+  survive the rejection it belongs to. Do not wrap login or session validation in one transaction that
+  rolls it all back.
 - Blocked access (console disabled, IP not allowed) answers `404`, never `403`. The path should not
   confirm that it exists.
-- Do not add an operator endpoint that edits a store's prizes, weights or PIN. Those belong to the
-  store, and an operator door into them is a door an attacker can use too.
+- The operator sees store-level aggregates only. There is no operator endpoint for customer names,
+  phone numbers, staff PINs or a store's own settings (prizes, weights, PIN). An operator back door is
+  an attacker's back door.
+- The last `OWNER` cannot be demoted or disabled, and nobody can demote themselves.
 
 ## 3. Critical Game Integrity Rules
 

@@ -4,8 +4,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { SystemFrame } from "@/features/system/SystemFrame";
 import { Dialog } from "@/features/ui/Dialog";
 import { opsApi } from "@/features/system/api";
-import { PLAN_NAME, consoleError, count, dateTime } from "@/features/system/labels";
-import type { ConsoleStoreDetail, ConsoleStoreRow, PageData, Plan } from "@/types/api";
+import { PLAN_NAME, atLeast, consoleError, count, dateTime } from "@/features/system/labels";
+import { isStepUp, stepUpIfNeeded } from "@/features/system/stepUp";
+import type { ConsoleStoreDetail, ConsoleStoreRow, OperatorMe, PageData, Plan } from "@/types/api";
 
 const SIZE = 20;
 const PLANS: Plan[] = ["BASIC", "STANDARD", "PRO"];
@@ -15,6 +16,8 @@ const PLANS: Plan[] = ["BASIC", "STANDARD", "PRO"];
  *
  * 여기서 할 수 있는 일은 둘뿐이다: 요금제 변경과 매장 중지/재개. 매장 안의 설정(상품, 확률, PIN,
  * 참여 내역)은 그 매장 관리자의 것이고, 운영자가 대신 만지는 문을 여기에 만들지 않는다.
+ *
+ * 두 조치 모두 사유를 받는다. 기록에 "무엇을"만 남고 "왜"가 없으면 몇 달 뒤에 아무 도움이 안 된다.
  */
 export default function ConsoleStores() {
   const qc = useQueryClient();
@@ -22,6 +25,10 @@ export default function ConsoleStores() {
   const [query, setQuery] = useState("");
   const [keyword, setKeyword] = useState("");
   const [openId, setOpenId] = useState<number>();
+  const [note, setNote] = useState("");
+
+  const me = useQuery({ queryKey: ["ops-me"], queryFn: () => opsApi<OperatorMe>("/me"), retry: false });
+  const canChange = atLeast(me.data?.consoleRole, "OPERATOR");
 
   const list = useQuery({
     queryKey: ["ops-stores", page, keyword],
@@ -47,15 +54,26 @@ export default function ConsoleStores() {
 
   const changePlan = useMutation({
     mutationFn: (plan: Plan) =>
-      opsApi<{ plan: Plan }>(`/stores/${openId}/plan`, { method: "PUT", body: JSON.stringify({ plan }) }),
-    onSuccess: refresh,
+      opsApi<{ plan: Plan }>(`/stores/${openId}/plan`, { method: "PUT", body: JSON.stringify({ plan, note }) }),
+    onSuccess: () => {
+      setNote("");
+      refresh();
+    },
+    onError: (error, plan) => stepUpIfNeeded(error, () => changePlan.mutate(plan)),
   });
 
   const changeStatus = useMutation({
     mutationFn: (status: "ACTIVE" | "INACTIVE") =>
-      opsApi<{ status: string }>(`/stores/${openId}/status`, { method: "PUT", body: JSON.stringify({ status }) }),
-    onSuccess: refresh,
+      opsApi<{ status: string }>(`/stores/${openId}/status`, { method: "PUT", body: JSON.stringify({ status, note }) }),
+    onSuccess: () => {
+      setNote("");
+      refresh();
+    },
+    onError: (error, status) => stepUpIfNeeded(error, () => changeStatus.mutate(status)),
   });
+
+  const failed = [changePlan, changeStatus].find((m) => m.isError && !isStepUp(m.error));
+  const blocked = note.trim().length === 0;
 
   return (
     <SystemFrame title="매장">
@@ -91,7 +109,14 @@ export default function ConsoleStores() {
       {list.data && list.data.content.length > 0 && (
         <div className="list">
           {list.data.content.map((store) => (
-            <button className="list-item store-link" key={store.id} onClick={() => setOpenId(store.id)}>
+            <button
+              className="list-item store-link"
+              key={store.id}
+              onClick={() => {
+                setOpenId(store.id);
+                setNote("");
+              }}
+            >
               <span className="stack" style={{ gap: 2 }}>
                 <span className="name">{store.name}</span>
                 <small className="hint wrap-anywhere">
@@ -156,41 +181,59 @@ export default function ConsoleStores() {
                     {count(detail.data.plays)} / {count(detail.data.couponsIssued + detail.data.couponsRedeemed)}
                   </span>
                 </div>
+                <div className="list-item">
+                  <span className="lead">요금제</span>
+                  <span className="name">{PLAN_NAME[detail.data.subscription.plan]}</span>
+                </div>
               </div>
 
-              <h3>요금제</h3>
-              <div className="preset-row">
-                {PLANS.map((plan) => (
+              {canChange ? (
+                <>
+                  <div className="field">
+                    <label htmlFor="change-note">변경 사유</label>
+                    <input
+                      id="change-note"
+                      value={note}
+                      onChange={(e) => setNote(e.target.value)}
+                      maxLength={200}
+                      placeholder="예: 프로모션 적용, 폐업 확인"
+                    />
+                    <small className="hint">기록에 함께 남습니다. 사유 없이는 바꿀 수 없습니다.</small>
+                  </div>
+
+                  <h3>요금제</h3>
+                  <div className="preset-row">
+                    {PLANS.map((plan) => (
+                      <button
+                        key={plan}
+                        className={`btn secondary${detail.data.subscription.plan === plan ? " is-on" : ""}`}
+                        disabled={changePlan.isPending || detail.data.subscription.plan === plan || blocked}
+                        onClick={() => changePlan.mutate(plan)}
+                      >
+                        {PLAN_NAME[plan]}
+                      </button>
+                    ))}
+                  </div>
+
+                  <h3>운영 상태</h3>
+                  <p className="lead">
+                    중지하면 손님이 QR로 들어오지 못합니다. 이미 발급된 쿠폰은 그대로 사용할 수 있습니다.
+                  </p>
                   <button
-                    key={plan}
-                    className={`btn secondary${detail.data.subscription.plan === plan ? " is-on" : ""}`}
-                    disabled={changePlan.isPending || detail.data.subscription.plan === plan}
-                    onClick={() => changePlan.mutate(plan)}
+                    className="btn secondary"
+                    disabled={changeStatus.isPending || blocked}
+                    onClick={() => changeStatus.mutate(detail.data.status === "ACTIVE" ? "INACTIVE" : "ACTIVE")}
                   >
-                    {PLAN_NAME[plan]}
+                    {detail.data.status === "ACTIVE" ? "매장 중지" : "매장 재개"}
                   </button>
-                ))}
-              </div>
-              {changePlan.isError && (
-                <p className="error" role="alert">
-                  {consoleError(changePlan.error)}
-                </p>
+                </>
+              ) : (
+                <p className="hint">변경은 운영 권한이 있는 계정만 할 수 있습니다.</p>
               )}
 
-              <h3>운영 상태</h3>
-              <p className="lead">
-                중지하면 손님이 QR로 들어오지 못합니다. 이미 발급된 쿠폰은 그대로 사용할 수 있습니다.
-              </p>
-              <button
-                className="btn secondary"
-                disabled={changeStatus.isPending}
-                onClick={() => changeStatus.mutate(detail.data.status === "ACTIVE" ? "INACTIVE" : "ACTIVE")}
-              >
-                {detail.data.status === "ACTIVE" ? "매장 중지" : "매장 재개"}
-              </button>
-              {changeStatus.isError && (
+              {failed && (
                 <p className="error" role="alert">
-                  {consoleError(changeStatus.error)}
+                  {consoleError(failed.error)}
                 </p>
               )}
             </>
