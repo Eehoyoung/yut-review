@@ -139,8 +139,8 @@ docker compose --env-file .env.field-test --profile field-test up -d   # Cloudfl
 - 되돌릴 수 있는 실패는 공급자에 닿기 전 것뿐이다. 타임아웃과 응답 형식 오류는 이미 과금됐다.
 - 관리자 자유 입력(`tone`/`additionalRequest`/채팅)은 `Inputs`가 아니라
   `AiContextService.withoutPersonalData`를 지난다. 여기가 유일한 PII 유입 경로였다.
-- 등급 변경은 `SYSTEM_ADMIN`만. 멤버십 검사를 운영자 검사보다 먼저 두지 말 것(운영자는 어느 매장의
-  멤버도 아니라서 자기가 해야 할 변경을 스스로 막게 된다).
+- 등급 변경 권한 판단은 운영자 콘솔 가드(`SystemConsoleGuard`) 한 곳에만 둔다. 매장 API에 같은 판단을
+  다시 만들지 말 것. `SubscriptionService.requireOperator`는 그래서 없앴다.
 
 기본 공급자는 fake다. 실제 호출은 `AI_PROVIDER=openai`와 `OPENAI_API_KEY`가 있을 때만 일어난다.
 
@@ -182,8 +182,10 @@ docker compose --env-file .env.field-test --profile field-test up -d   # Cloudfl
 - DB 역할 재확인(`SystemConsoleGuard`)을 토큰 claim 신뢰로 바꾸지 말 것.
 - TOTP 비밀값과 복구 코드를 평문으로 저장하지 말 것(AES-GCM / BCrypt).
 - 운영자가 매장의 상품·확률·직원 PIN·참여자 명단을 만지는 엔드포인트를 만들지 말 것.
-- 요금제 변경은 콘솔 토큰 + 재인증 + 사유에서만. `PUT /api/admin/stores/{id}/subscription`도 콘솔 토큰을
-  요구한다(403 `OPERATOR_CONSOLE_REQUIRED`).
+- 요금제 변경은 콘솔 경로(`PUT /api/system/stores/{id}/plan`) 하나뿐이다. 매장 API의 옛 경로
+  (`PUT /api/admin/stores/{id}/subscription`)는 누가 부르든 403 `OPERATOR_CONSOLE_REQUIRED`로 닫아 뒀다.
+  거기에 "콘솔 토큰인지"만 확인하는 검사를 되살리지 말 것. 그 검사는 콘솔 권한 등급·재인증·세션 상태·
+  계정 중지·임시 비밀번호·감사 기록을 전부 건너뛴다(조회 권한 계정과 이미 끊긴 세션으로도 통과했다).
 - 마지막 OWNER 보호와 자기 권한 강등 금지를 풀지 말 것. 아무도 못 들어가는 콘솔이 된다.
 - 운영자 콘솔 문자열을 `features/labels.ts`나 `features/admin/labels.ts`에 두지 말 것.
   `features/system/labels.ts`에 둔다.

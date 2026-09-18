@@ -2,6 +2,7 @@ package com.yutreview;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -46,6 +47,12 @@ class SubscriptionAiTest {
     @Autowired WeeklyReportScheduler weekly;
     @Autowired AiUsageService quotaUsage;
     @Autowired com.fasterxml.jackson.databind.ObjectMapper json;
+    /**
+     * 날짜는 반드시 매장 시간(Asia/Seoul)으로 센다. `LocalDate.now(clock)`는 JVM 기본 시간대(배포 환경에서는
+     * UTC)를 쓰기 때문에, 한국 시간 자정부터 오전 9시 사이에는 서비스가 보는 "오늘"과 하루가 어긋나
+     * 보관기간 경계 테스트가 통째로 실패했다.
+     */
+    @Autowired Clock clock;
     private static final String QUOTE = String.valueOf('"');
 
     Store store;
@@ -114,7 +121,7 @@ class SubscriptionAiTest {
         assertTrue(copy.containsKey("headline"));
         assertTrue(copy.containsKey("policyNotice"));
 
-        Map<String, Object> report = ai.report(store, LocalDate.now().minusDays(7), LocalDate.now());
+        Map<String, Object> report = ai.report(store, LocalDate.now(clock).minusDays(7), LocalDate.now(clock));
         assertTrue(report.containsKey("recommendations"));
         assertTrue(report.containsKey("dataLimitations"));
 
@@ -192,7 +199,7 @@ class SubscriptionAiTest {
         games.create(qr, "홍길동", "01012345678", "pii-1");
         games.create(qr, "김손님", "01099998888", "pii-2");
 
-        ai.report(store, LocalDate.now().minusDays(7), LocalDate.now());
+        ai.report(store, LocalDate.now(clock).minusDays(7), LocalDate.now(clock));
         String sent = fake.lastRequest.messages().stream().map(LlmMessage::content).reduce("", String::concat)
                 + fake.lastRequest.systemPrompt();
 
@@ -258,7 +265,7 @@ class SubscriptionAiTest {
 
     @Test
     void analyticsWindowIsClampedByPlanRetention() {
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(clock);
         // BASIC 90일, STANDARD 365일, PRO 상한 없음.
         assertEquals(today.minusDays(90), entitlements.analyticsFloor(Plan.BASIC, today).orElseThrow());
         assertEquals(today.minusDays(365), entitlements.analyticsFloor(Plan.STANDARD, today).orElseThrow());
@@ -287,36 +294,20 @@ class SubscriptionAiTest {
     }
 
     @Test
-    void ownersCannotUpgradeThemselves() {
-        // 결제가 없는 동안 등급 변경은 운영자만 한다. 매장주가 스스로 올릴 수 있으면 요금제가
-        // 통째로 우회된다.
-        AdminUser owner = new AdminUser();
-        owner.email = "owner-self@test.com";
-        owner.passwordHash = "x";
-        owner.name = "매장주";
-        owner.role = AdminRole.STORE_ADMIN;
-        owner.createdAt = Instant.now();
-        admins.save(owner);
-        assertEquals("FORBIDDEN",
-                assertThrows(AppException.class, () -> subscriptions.requireOperator(owner)).code);
-        assertEquals("FORBIDDEN",
-                assertThrows(AppException.class, () -> subscriptions.requireOperator(null)).code);
-
-        AdminUser operator = new AdminUser();
-        operator.email = "operator@test.com";
-        operator.passwordHash = "x";
-        operator.name = "운영자";
-        operator.role = AdminRole.SYSTEM_ADMIN;
-        operator.createdAt = Instant.now();
-        admins.save(operator);
-        subscriptions.requireOperator(operator);
+    void thereIsNoStoreFacingPathToChangeAPlan() {
+        // 등급 변경 권한은 매장 API에 남아 있지 않다. 판단하는 자리가 둘이면 약한 쪽이 곧 그
+        // 기능의 보안 수준이 된다. 실제 통제(운영자 여부·콘솔 권한 등급·재인증·기록)는
+        // SystemConsoleTest가 콘솔 경로에서 확인한다.
+        assertTrue(java.util.Arrays.stream(SubscriptionService.class.getDeclaredMethods())
+                .noneMatch(m -> m.getName().equals("requireOperator")),
+                "권한 판단은 운영자 콘솔 가드 한 곳에만 있어야 한다");
     }
 
     @Test
     void aPeriodEntirelyOutsideRetentionIsRefusedNotZeroed() {
         // 잘라서 from > to가 되면 어떤 행도 안 걸려 "참여 0건"으로 보이고, 모델은 이벤트가 죽었다고
         // 분석한다. 조용히 거짓을 만드는 대신 왜 못 보는지 말한다.
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(clock);
         assertEquals("ANALYTICS_OUT_OF_RETENTION",
                 assertThrows(AppException.class,
                         () -> context.window(Plan.BASIC, today.minusDays(300), today.minusDays(200))).code);
@@ -440,7 +431,7 @@ class SubscriptionAiTest {
         assertEquals("PLAN_UPGRADE_REQUIRED",
                 assertThrows(AppException.class, () -> analytics.detailed(store.id, null, null)).code);
         assertEquals("PLAN_UPGRADE_REQUIRED",
-                assertThrows(AppException.class, () -> analytics.dailyCsv(store.id, LocalDate.now().minusDays(3), LocalDate.now())).code);
+                assertThrows(AppException.class, () -> analytics.dailyCsv(store.id, LocalDate.now(clock).minusDays(3), LocalDate.now(clock))).code);
         assertEquals(List.of(), analytics.availableExports(store.id));
         assertEquals(false, analytics.summary(store.id).get("advancedAvailable"));
 
@@ -449,14 +440,14 @@ class SubscriptionAiTest {
         assertTrue(analytics.detailed(store.id, null, null).containsKey("hourly"));
         assertEquals(List.of("daily", "prize"), analytics.availableExports(store.id));
 
-        String csv = analytics.dailyCsv(store.id, LocalDate.now().minusDays(1), LocalDate.now());
+        String csv = analytics.dailyCsv(store.id, LocalDate.now(clock).minusDays(1), LocalDate.now(clock));
         assertTrue(csv.contains("날짜,참여수,쿠폰발급,쿠폰사용"));
-        assertTrue(csv.contains(LocalDate.now().toString()));
+        assertTrue(csv.contains(LocalDate.now(clock).toString()));
         // 집계만 나간다. 참여자 명단을 내려주는 기능이 아니다.
         for (String forbidden : List.of("홍길동", "손님", "01011112222", "1122"))
             assertFalse(csv.contains(forbidden), "CSV에 " + forbidden + "이 들어갔다");
 
-        String prizeCsv = analytics.prizeCsv(store.id, LocalDate.now().minusDays(1), LocalDate.now());
+        String prizeCsv = analytics.prizeCsv(store.id, LocalDate.now(clock).minusDays(1), LocalDate.now(clock));
         assertTrue(prizeCsv.contains("등급,상품명,쿠폰발급,쿠폰사용,사용률(%)"));
         assertFalse(prizeCsv.contains("01011112222"));
     }

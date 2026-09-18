@@ -321,9 +321,12 @@ Request(PUT):
 ```
 
 구독 행이 없는 매장은 `BASIC`으로 응답한다. 결제(PG) 연동은 범위 밖이라 등급 변경은 운영자
-조작으로만 일어난다. `PUT`은 SYSTEM_ADMIN이면서 **운영자 콘솔 토큰**일 때만 통과하며, 매장 콘솔
-토큰으로 호출하면 403 `OPERATOR_CONSOLE_REQUIRED`다(운영자 계정이어도 마찬가지다).
-평상시 변경 경로는 `PUT /api/system/stores/{storeId}/plan`이고 그쪽은 기록이 남는다.
+조작으로만 일어난다.
+
+**`PUT /api/admin/stores/{storeId}/subscription`은 닫혀 있다.** 누가 호출하든 403
+`OPERATOR_CONSOLE_REQUIRED`이며, 유일한 변경 경로는 `PUT /api/system/stores/{storeId}/plan`이다.
+콘솔 경로만 콘솔 권한 등급·재인증·세션 상태·감사 기록을 전부 지나기 때문이다. 같은 일을 하는 문이
+둘이면 약한 쪽이 곧 그 기능의 보안 수준이 된다.
 
 `analyticsRetentionDays`는 **비식별 집계**에만 적용된다. 고객 개인정보 보존은 요금제와 무관하게
 120일 기준을 유지한다.

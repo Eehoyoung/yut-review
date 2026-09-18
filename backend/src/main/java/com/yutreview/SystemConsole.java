@@ -697,11 +697,15 @@ class OperatorSessionService {
      * 트랜잭션을 걸지 않는다. 여기서 하는 일은 "닫고 거절하기"인데, 한 트랜잭션에 묶이면 거절
      * 예외가 방금 한 폐기까지 되돌린다. 그러면 같은 토큰으로 계속 두드릴 수 있다.
      */
-    OperatorSession validate(String tokenId, String ip, String userAgent) {
+    OperatorSession validate(String tokenId, Long adminId, String ip, String userAgent) {
         if (tokenId == null || tokenId.isBlank()) throw expired("세션이 종료되었습니다. 다시 로그인해 주세요.");
         OperatorSession session = sessions.findByTokenId(tokenId)
                 .orElseThrow(() -> expired("세션이 종료되었습니다. 다시 로그인해 주세요."));
         Instant now = clock.instant();
+        // 토큰이 가리키는 사람과 세션의 주인은 같아야 한다. 지금은 발급 시점에 둘이 함께 묶이지만,
+        // 나중에 토큰 발급 경로가 하나 늘어날 때 이 한 줄이 없으면 남의 세션에 올라탈 수 있다.
+        if (adminId == null || !session.admin.id.equals(adminId))
+            throw expired("세션이 종료되었습니다. 다시 로그인해 주세요.");
         if (session.revokedAt != null) throw expired("종료된 세션입니다. 다시 로그인해 주세요.");
         if (!session.absoluteExpiresAt.isAfter(now)) {
             revoke(session, "EXPIRED");
@@ -912,7 +916,7 @@ class SystemConsoleGuard {
         String ip = ClientIps.of(req);
         if (!SystemConsoleSettings.ipAllowedBy(security.allowedIps, ip))
             throw new AppException("IP_NOT_ALLOWED", "허용되지 않은 접속 위치입니다.", HttpStatus.FORBIDDEN);
-        OperatorSession session = sessions.validate(claims == null ? null : claims.tokenId(), ip,
+        OperatorSession session = sessions.validate(claims == null ? null : claims.tokenId(), admin.id, ip,
                 ClientIps.userAgent(req));
         return new OperatorContext(admin, security, session);
     }

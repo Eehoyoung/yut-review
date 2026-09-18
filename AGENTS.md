@@ -248,8 +248,10 @@ be softened for convenience.
 - Dangerous actions (plan change, store suspension, operator management, backup-code reissue, revoking
   someone else's session) require a fresh second factor (step-up, 5 min) and a written reason where the
   API asks for one.
-- Plan changes moved here. `PUT /api/admin/stores/{id}/subscription` also requires the operator console
-  token, so the password-only path to a paid plan is closed.
+- Plan changes moved here, and the old store-API path (`PUT /api/admin/stores/{id}/subscription`) is
+  closed to everyone. Never reopen it with a "does this token carry the console authority" check: that
+  test only says the token came through the console door, and skips the console role, step-up, live
+  session, account state and audit trail. A read-only account and a revoked session both passed it.
 - Every login, every change and every denied attempt is written to an append-only audit log whose rows
   are hash-chained. The log holds no customer personal data. Never add an endpoint that edits or deletes
   audit rows.

@@ -464,11 +464,50 @@ class SystemConsoleTest {
         assertTrue(auditLogs.findAll().stream().anyMatch(row -> SystemAuditService.PLAN_CHANGED.equals(row.action)
                 && store.id.equals(row.targetId) && row.detail.contains("BASIC -> PRO")
                 && row.detail.contains("프로모션 적용")));
-        // 매장 콘솔 토큰으로는 같은 변경을 할 수 없다. 운영자 계정이어도 마찬가지다.
-        mvc.perform(console(put("/api/admin/stores/" + store.id + "/subscription"), jwt.issue(operator))
-                .contentType(MediaType.APPLICATION_JSON).content("{\"plan\":\"BASIC\"}"))
-                .andExpect(status().isForbidden());
+        // 매장 API의 옛 변경 경로는 닫혀 있다. 콘솔 토큰으로도 열리지 않는다.
+        // 같은 일을 하는 문이 둘이면 약한 쪽이 곧 그 기능의 보안 수준이 된다.
+        for (String anyToken : List.of(jwt.issue(operator), token))
+            mvc.perform(console(put("/api/admin/stores/" + store.id + "/subscription"), anyToken)
+                    .contentType(MediaType.APPLICATION_JSON).content("{\"plan\":\"BASIC\"}"))
+                    .andExpect(status().isForbidden());
         assertEquals(Plan.PRO, subscriptions.planOf(store.id));
+    }
+
+    /**
+     * 콘솔이 요구하는 것을 우회할 수 있는 다른 문이 없어야 한다.
+     *
+     * 조회 권한만 있는 계정으로 매장 API의 옛 경로를 두드려 본다. 예전에는 "콘솔 문으로 들어온
+     * 토큰인가"만 보느라 이 요청이 통과했다.
+     */
+    @Test
+    void aViewerCannotChangePlansThroughTheOldStoreApi() throws Exception {
+        Store store = newStore("우회테스트");
+        setRole(operator, ConsoleRole.VIEWER);
+        String token = enroll("10.20.5.4");
+
+        mvc.perform(console(put("/api/admin/stores/" + store.id + "/subscription"), token)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"plan\":\"PRO\",\"note\":\"우회\"}"))
+                .andExpect(status().isForbidden());
+        mvc.perform(console(put("/api/system/stores/" + store.id + "/plan"), token)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"plan\":\"PRO\",\"note\":\"우회\"}"))
+                .andExpect(status().isForbidden());
+        assertEquals(Plan.BASIC, subscriptions.planOf(store.id));
+    }
+
+    /** 끊긴 세션의 토큰으로는 어떤 경로로도 바꾸지 못한다. */
+    @Test
+    void aRevokedSessionCannotChangeAnythingAnywhere() throws Exception {
+        Store store = newStore("폐기세션테스트");
+        String token = enroll("10.20.5.5");
+        mvc.perform(console(post("/api/system/session/logout"), token)).andExpect(status().isOk());
+
+        mvc.perform(console(put("/api/system/stores/" + store.id + "/plan"), token)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"plan\":\"PRO\",\"note\":\"폐기\"}"))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(console(put("/api/admin/stores/" + store.id + "/subscription"), token)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"plan\":\"PRO\"}"))
+                .andExpect(status().isForbidden());
+        assertEquals(Plan.BASIC, subscriptions.planOf(store.id));
     }
 
     /** 사슬이 이어져 있어야 하고, 중간을 고치면 어디서 끊겼는지 나와야 한다. */
