@@ -174,3 +174,80 @@ export interface GameResult {
   expiresAt: string;
 }
 export type RevealResponse = GameResult;
+
+/* ---------- 운영자 콘솔 (관리자 전용, 손님 화면은 이 타입들을 쓰지 않는다) ---------- */
+
+export interface OperatorMe {
+  email: string;
+  name: string;
+  sessionMinutes: number;
+  ipRestricted: boolean;
+}
+
+export interface OperatorSession {
+  status: "AUTHENTICATED";
+  accessToken: string;
+  tokenType: string;
+  expiresInSeconds: number;
+  email: string;
+  name: string;
+}
+
+/** 2단계 인증이 아직 없는 운영자는 토큰 대신 등록 안내를 받는다. */
+export interface OperatorEnrollment {
+  status: "TOTP_ENROLLMENT_REQUIRED";
+  enrollmentToken: string;
+  secret: string;
+  otpauthUrl: string;
+  qrImage: string;
+}
+
+export type OperatorLoginResult = OperatorSession | OperatorEnrollment;
+
+export interface PlatformOverview {
+  stores: { total: number; active: number; inactive: number };
+  admins: { total: number; operators: number };
+  plays: { total: number; today: number };
+  coupons: { issued: number; redeemed: number };
+  plans: Record<string, number>;
+  ai: { monthCalls: number; monthFailures: number };
+  security: { ipRestricted: boolean; sessionMinutes: number };
+}
+
+export type StoreStatus = "ACTIVE" | "INACTIVE";
+
+export interface ConsoleStoreRow {
+  id: number;
+  name: string;
+  businessNumber: string;
+  status: StoreStatus;
+  plan: Plan;
+  ownerEmail: string;
+  plays: number;
+  couponsIssued: number;
+  couponsRedeemed: number;
+  createdAt: string;
+}
+
+export interface ConsoleStoreDetail extends ConsoleStoreRow {
+  phone: string;
+  address: string;
+  naverPlaceUrl: string;
+  updatedAt: string;
+  qrToken: string;
+  prizeCount: number;
+  rankCount: number;
+  subscription: { plan: Plan; status?: string; startedAt?: string; note?: string };
+}
+
+export interface AuditEntry {
+  id: number;
+  actorEmail: string;
+  action: string;
+  targetType: string;
+  targetId: number | null;
+  detail: string;
+  ip: string;
+  succeeded: boolean;
+  createdAt: string;
+}

@@ -320,8 +320,10 @@ Request(PUT):
 { "plan": "STANDARD", "note": "" }
 ```
 
-구독 행이 없는 매장은 `BASIC`으로 응답한다. 결제(PG) 연동은 범위 밖이라 등급 변경은 관리자
-조작으로만 일어난다.
+구독 행이 없는 매장은 `BASIC`으로 응답한다. 결제(PG) 연동은 범위 밖이라 등급 변경은 운영자
+조작으로만 일어난다. `PUT`은 SYSTEM_ADMIN이면서 **운영자 콘솔 토큰**일 때만 통과하며, 매장 콘솔
+토큰으로 호출하면 403 `OPERATOR_CONSOLE_REQUIRED`다(운영자 계정이어도 마찬가지다).
+평상시 변경 경로는 `PUT /api/system/stores/{storeId}/plan`이고 그쪽은 기록이 남는다.
 
 `analyticsRetentionDays`는 **비식별 집계**에만 적용된다. 고객 개인정보 보존은 요금제와 무관하게
 120일 기준을 유지한다.
@@ -372,6 +374,75 @@ phoneLast4·쿠폰 토큰·직원 PIN은 어떤 기능에서도 전달되지 않
 GET /api/admin/stores/{storeId}/analytics/summary
 ```
 
+# System Console API
+
+운영자(SYSTEM_ADMIN) 전용이다. 주소부터 `/api/system`으로 나눠 두어 앞단(Nginx, 프록시)에서 이
+경로만 따로 다룰 수 있다. 응답에는 고객 개인정보가 없고 매장 단위 집계까지만 담긴다.
+
+네 겹으로 막는다.
+
+1. 꺼짐 스위치와 IP 허용 목록. 막히면 401/403이 아니라 **404**로 답한다(존재 자체를 알리지 않는다).
+2. 비밀번호 + TOTP 2단계 인증. 실패는 IP당 5분에 5회, 계정당 5분에 10회로 제한한다.
+3. 전용 스코프(`scope=OPERATOR`)를 가진 짧은 토큰. 기본 60분이며 매장 콘솔 토큰과 섞이지 않는다.
+4. 요청마다 DB의 현재 역할 재확인. 운영자 자격을 회수하면 이미 발급된 토큰도 즉시 막힌다.
+
+## 운영자 로그인
+```http
+POST /api/system/auth/login
+POST /api/system/auth/totp/confirm
+```
+Request(login):
+```json
+{ "email": "ops@example.com", "password": "", "code": "123456" }
+```
+Response(2단계 인증이 아직 없는 계정):
+```json
+{
+  "status": "TOTP_ENROLLMENT_REQUIRED",
+  "enrollmentToken": "",
+  "secret": "BASE32",
+  "otpauthUrl": "otpauth://totp/...",
+  "qrImage": "data:image/png;base64,..."
+}
+```
+Response(등록을 마친 계정):
+```json
+{ "status": "AUTHENTICATED", "accessToken": "", "tokenType": "Bearer", "expiresInSeconds": 3600, "email": "", "name": "" }
+```
+`POST /api/system/auth/totp/confirm`은 `{ "enrollmentToken": "", "code": "123456" }`를 받아 등록을
+확정한다. 등록에 쓴 코드는 이미 쓴 코드라 그대로 로그인되지 않는다(같은 30초 코드 재사용 차단).
+
+없는 계정·틀린 비밀번호·운영자가 아닌 계정은 모두 같은 `AUTH_INVALID`를 받는다.
+
+## 운영자 조회
+```http
+GET /api/system/me
+GET /api/system/overview
+GET /api/system/stores?page=&size=&query=
+GET /api/system/stores/{storeId}
+GET /api/system/audit?page=&size=
+```
+
+## 운영자 변경
+```http
+PUT /api/system/stores/{storeId}/plan     { "plan": "PRO", "note": "" }
+PUT /api/system/stores/{storeId}/status   { "status": "INACTIVE", "note": "" }
+```
+
+두 변경 모두 감사 로그(`GET /api/system/audit`)에 남는다. 매장 중지는 손님의 QR 진입을 막을 뿐,
+이미 발급된 쿠폰을 회수하지 않는다.
+
+운영자가 매장 안의 설정(상품, 확률, 직원 PIN, 참여자 명단)을 대신 바꾸는 엔드포인트는 없다.
+
+| code | 상황 |
+|---|---|
+| `TOTP_REQUIRED` | 401. 2단계 인증 코드가 비어 있음 |
+| `TOTP_INVALID` | 401. 코드 불일치·이미 사용한 코드 |
+| `TOTP_ALREADY_ENROLLED` | 400. 이미 등록된 계정의 확정 요청 |
+| `ENROLLMENT_EXPIRED` | 401. 등록용 임시 토큰 만료(5분) |
+| `OPERATOR_CONSOLE_REQUIRED` | 403. 운영자 콘솔 토큰이 아님 |
+| `NOT_FOUND` | 404. 콘솔이 꺼져 있거나 허용되지 않은 IP |
+
 # Error Code
 ```text
 STORE_NOT_FOUND
@@ -402,4 +473,9 @@ INVALID_BUSINESS_NUMBER
 DUPLICATE_LOGIN_ID
 DUPLICATE_EMAIL
 DUPLICATE_BUSINESS_NUMBER
+OPERATOR_CONSOLE_REQUIRED
+TOTP_REQUIRED
+TOTP_INVALID
+TOTP_ALREADY_ENROLLED
+ENROLLMENT_EXPIRED
 ```

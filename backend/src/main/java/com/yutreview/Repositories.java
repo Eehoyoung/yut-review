@@ -11,9 +11,13 @@ import org.springframework.data.repository.query.Param;
 interface AdminUserRepository extends JpaRepository<AdminUser,Long> {
     Optional<AdminUser> findByEmail(String email);
     boolean existsByEmail(String email);
+    long countByRole(AdminRole role);
 }
 interface StoreRepository extends JpaRepository<Store,Long> {
     boolean existsByBusinessNumber(String businessNumber);
+    Page<Store> findByNameContainingIgnoreCaseOrderByIdDesc(String name,Pageable pageable);
+    Page<Store> findAllByOrderByIdDesc(Pageable pageable);
+    long countByStatus(StoreStatus status);
     @Lock(LockModeType.PESSIMISTIC_WRITE) @Query("select s from Store s where s.id=:id") Optional<Store> findForUpdate(@Param("id") Long id);
 }
 interface MembershipRepository extends JpaRepository<AdminStoreMembership,Long> {
@@ -72,7 +76,7 @@ interface AiReportRepository extends JpaRepository<AiReport,Long> {
 interface GameRepository extends JpaRepository<GamePlay,Long> {
     Optional<GamePlay> findByPublicId(String id); Optional<GamePlay> findByIdempotencyKey(String key);
     Optional<GamePlay> findFirstByStoreIdAndPhoneHashOrderByPlayedDateDesc(Long storeId,String phoneHash);
-    Page<GamePlay> findByStoreIdOrderByPlayedAtDesc(Long storeId,Pageable pageable); long countByStoreId(Long storeId); long countByStoreIdAndPlayedDate(Long storeId,LocalDate date); long countByStoreIdAndYutResult(Long storeId,YutResult result);
+    Page<GamePlay> findByStoreIdOrderByPlayedAtDesc(Long storeId,Pageable pageable); long countByStoreId(Long storeId); long countByPlayedDate(LocalDate date); long countByStoreIdAndPlayedDate(Long storeId,LocalDate date); long countByStoreIdAndYutResult(Long storeId,YutResult result);
 }
 /**
  * AI와 고급 분석이 쓰는 집계 전용 조회. 반환값은 모두 숫자와 공개 라벨뿐이며 이름·전화번호·해시·
@@ -136,7 +140,33 @@ interface AnalyticsRepository extends org.springframework.data.repository.Reposi
 interface CouponRepository extends JpaRepository<Coupon,Long> {
     Optional<Coupon> findByCouponToken(String token); Optional<Coupon> findByGamePlayId(Long gamePlayId);
     Optional<Coupon> findFirstByStoreIdAndPhoneHashAndStatusOrderByIssuedAtDesc(Long storeId,String hash,CouponStatus status);
-    Page<Coupon> findByStoreIdOrderByIssuedAtDesc(Long storeId,Pageable pageable); long countByStoreIdAndStatus(Long storeId,CouponStatus status);
+    Page<Coupon> findByStoreIdOrderByIssuedAtDesc(Long storeId,Pageable pageable); long countByStoreIdAndStatus(Long storeId,CouponStatus status); long countByStatus(CouponStatus status);
     @Lock(LockModeType.PESSIMISTIC_WRITE) @Query("select c from Coupon c join fetch c.store where c.couponToken=:token")
     Optional<Coupon> findForUpdate(@Param("token") String token);
+}
+interface AdminTotpRepository extends JpaRepository<AdminTotpCredential,Long> {
+    Optional<AdminTotpCredential> findByAdminId(Long adminId);
+}
+interface SystemAuditLogRepository extends JpaRepository<SystemAuditLog,Long> {
+    Page<SystemAuditLog> findAllByOrderByCreatedAtDesc(Pageable pageable);
+}
+/**
+ * 운영자 콘솔이 쓰는 플랫폼 전체 집계. 목록 한 줄마다 매장별 카운트를 다시 묻지 않으려고
+ * 한 번에 묶어서 센다(매장이 늘면 그게 그대로 N+1이 된다).
+ */
+interface PlatformStatsRepository extends org.springframework.data.repository.Repository<Store,Long> {
+    @Query("select g.store.id, count(g) from GamePlay g where g.store.id in :ids group by g.store.id")
+    List<Object[]> playCounts(@Param("ids") Collection<Long> storeIds);
+
+    @Query("select c.store.id, c.status, count(c) from Coupon c where c.store.id in :ids group by c.store.id, c.status")
+    List<Object[]> couponCounts(@Param("ids") Collection<Long> storeIds);
+
+    @Query("select m.store.id, m.admin.email from AdminStoreMembership m where m.store.id in :ids and m.role='OWNER'")
+    List<Object[]> owners(@Param("ids") Collection<Long> storeIds);
+
+    @Query("select s.plan, count(s) from StoreSubscription s where s.status='ACTIVE' group by s.plan")
+    List<Object[]> planCounts();
+
+    @Query("select e.succeeded, count(e) from AiUsageEvent e where e.createdAt >= :from group by e.succeeded")
+    List<Object[]> aiCallCounts(@Param("from") java.time.Instant from);
 }

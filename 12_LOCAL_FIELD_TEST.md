@@ -229,8 +229,17 @@ DB_PASSWORD=
 JWT_SECRET=
 PHONE_HMAC_SECRET=
 PHONE_ENCRYPTION_KEY=
+SYSTEM_ADMIN_EMAIL=
+SYSTEM_ADMIN_PASSWORD=
+SYSTEM_CONSOLE_ALLOWED_IPS=
+SYSTEM_CONSOLE_SESSION_MINUTES=60
+SYSTEM_CONSOLE_ENABLED=true
 TZ=Asia/Seoul
 ```
+
+`SYSTEM_ADMIN_*`는 운영자 콘솔(`/admin/system`) 계정이다. 두 값이 모두 있고 그 이메일의 계정이
+없을 때만 만들어지며, 첫 로그인에서 인증 앱(TOTP) 등록을 마쳐야 콘솔이 열린다. 터널을 거치면
+`SYSTEM_CONSOLE_ALLOWED_IPS`는 모든 요청이 터널 IP로 보여 사실상 동작하지 않는다.
 
 실제 secret 값은 Git에 commit하지 않는다.
 
@@ -338,6 +347,7 @@ Router Port Forwarding은 필요하지 않다.
 현장 테스트라 하더라도:
 
 - 기본 admin password 금지
+- 운영자 콘솔(`/admin/system`) 주소를 손님·직원에게 공유 금지. 인증 앱은 사장 본인 폰에만 등록
 - 실제 secret 사용
 - 직원 PIN 로그 금지
 - 전화번호 평문 로그 금지

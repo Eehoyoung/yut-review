@@ -159,3 +159,33 @@ enum AiFeature { AI_EVENT_COPY, AI_REPORT, AI_IMPROVEMENT, AI_CHAT }
     @Enumerated(EnumType.STRING) @Column(nullable=false) CouponStatus status;
     @Column(nullable=false) Instant validFrom; @Column(nullable=false) Instant expiresAt; @Column(nullable=false) Instant issuedAt; Instant redeemedAt;
 }
+/**
+ * 운영자(SYSTEM_ADMIN) 콘솔의 2단계 인증 자격. 비밀번호 하나로 플랫폼 전체를 여는 문을 만들지
+ * 않으려고 둔다. 비밀값은 {@link PhoneService}의 AES-256-GCM으로 암호화해 저장한다. DB 덤프만으로
+ * 두 번째 인증 수단이 복제되면 2단계가 아니라 비밀번호 두 개일 뿐이다.
+ */
+@Entity @Table(name="admin_totp_credentials") class AdminTotpCredential {
+    @Id @GeneratedValue(strategy=GenerationType.IDENTITY) Long id;
+    @OneToOne(optional=false) @JoinColumn(name="admin_user_id",nullable=false,unique=true) AdminUser admin;
+    @Column(nullable=false,columnDefinition="text") String secretEncrypted;
+    @Column(nullable=false) boolean confirmed;
+    /** 이미 쓴 코드의 시간 슬롯. 같은 30초 코드를 두 번 받지 않는다(어깨너머로 본 코드 재사용 차단). */
+    @Column(nullable=false) long lastUsedStep;
+    @Column(nullable=false) Instant createdAt; Instant confirmedAt;
+}
+/**
+ * 운영자 콘솔에서 일어난 일. 로그인 성공/실패와 모든 변경을 남긴다.
+ *
+ * 개인정보는 넣지 않는다. 남는 것은 운영자 계정 식별자와 무엇을 어느 매장에 했는지뿐이다.
+ */
+@Entity @Table(name="system_audit_logs",indexes=@Index(columnList="created_at")) class SystemAuditLog {
+    @Id @GeneratedValue(strategy=GenerationType.IDENTITY) Long id;
+    Long actorAdminId;
+    @Column(nullable=false,length=255) String actorEmail;
+    @Column(nullable=false,length=60) String action;
+    @Column(length=40) String targetType; Long targetId;
+    @Column(length=500) String detail;
+    @Column(length=64) String ip;
+    @Column(nullable=false) boolean succeeded;
+    @Column(nullable=false) Instant createdAt;
+}

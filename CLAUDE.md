@@ -21,12 +21,15 @@
 - `Domain.java` 엔티티/enum, `Repositories.java` 리포지토리
 - `CoreServices.java` PhoneService(정규화·HMAC·AES-256-GCM), StoreAccessService, GameConfigService,
   GameResultGenerator, PinAttemptLimiter/LoginAttemptLimiter, ParticipationService, GameService, CouponService
-- `PublicController.java` 고객 API, `AdminController.java` 관리자 API, `SecurityConfig.java` JWT 필터,
+- `PublicController.java` 고객 API, `AdminController.java` 관리자 API, `SecurityConfig.java` JWT 필터(스코프별 토큰),
+- `SystemConsole.java` 운영자 콘솔 접근 통제(TOTP·IP 게이트·시도 제한·감사 로그·운영자 계정 시드),
+  `SystemConsoleController.java` 운영자 전용 API
   `ApiSupport.java` 에러 응답 규격, `Bootstrap.java` 현장테스트용 초기 계정/매장 시드
 - 테스트: `backend/src/test/java/com/yutreview/CoreRulesTest.java` (가중치 경계, 설정 검증 4종,
   3·4·5등급 발급, 발급 쿠폰 동결, 멱등 발급, 쿨타임/쿠폰, NEXT_DAY/만료/PIN, 개인정보 암복호화)
 
 프런트는 `frontend/src/app/s/[storeToken]/...` 고객 플로우, `frontend/src/app/admin/...` 관리자 화면,
+`frontend/src/app/admin/system/...` 운영자 콘솔(+`features/system/`),
 3D 윷은 `frontend/src/components/yut/YutGame.tsx` 한 파일이다.
 
 ## 검증 명령 (실제로 존재하는 것만)
@@ -140,6 +143,34 @@ docker compose --env-file .env.field-test --profile field-test up -d   # Cloudfl
   멤버도 아니라서 자기가 해야 할 변경을 스스로 막게 된다).
 
 기본 공급자는 fake다. 실제 호출은 `AI_PROVIDER=openai`와 `OPENAI_API_KEY`가 있을 때만 일어난다.
+
+## 운영자 콘솔 (2026-09-18)
+
+플랫폼 전체를 보는 화면. 매장 관리자 화면(`/admin`)과 링크로도 토큰으로도 이어지지 않는다.
+상세 규칙은 `09_SECURITY_AND_ABUSE.md`, API는 `05_API_SPEC.md`의 System Console API에 있다.
+
+- 화면 `/admin/system`(개요·매장·접근 기록), 로그인 `/admin/system/login`. API는 `/api/system/**`.
+- 들어가려면 SYSTEM_ADMIN 계정 + 비밀번호 + 인증 앱 TOTP 코드가 모두 필요하다. 첫 로그인은
+  등록(QR·키 노출) → 코드 확인 → 재로그인 순서다.
+- 계정은 `SYSTEM_ADMIN_EMAIL`/`SYSTEM_ADMIN_PASSWORD`(12자 이상)가 있고 그 이메일의 계정이 없을 때
+  `OperatorBootstrap`이 한 번 만든다. 현장테스트 매장 시드(`Bootstrap.java`)와는 별개다.
+- 테스트: `SystemConsoleTest.java` (TOTP 표준 벡터, 비밀번호만으로는 안 열림, 코드 재사용 거부,
+  매장 토큰 차단, 역할 회수 즉시 차단, 실패 응답 동일성, 시도 제한, IP 규칙, 요금제·상태 변경 기록)
+
+되돌리면 안 되는 지점:
+
+- 매장 콘솔 토큰(`scope=STORE`)에 운영자 권한을 주지 말 것. 같은 계정이어도 문이 다르다.
+- 차단을 404에서 403으로 바꾸지 말 것. 403은 "여기 뭔가 있다"는 대답이다.
+- `JwtFilter`의 principal은 `Long`(adminId) 그대로 둘 것. 매장 API 전부가 그 타입에 기대고 있다.
+- DB 역할 재확인(`SystemConsoleGuard`)을 토큰 claim 신뢰로 바꾸지 말 것. 권한을 회수해도 토큰
+  만료까지 콘솔이 열려 있게 된다.
+- TOTP 비밀값을 평문으로 저장하지 말 것. `PhoneService`의 AES-GCM을 그대로 쓴다.
+- 운영자가 매장의 상품·확률·직원 PIN·참여자 명단을 만지는 엔드포인트를 만들지 말 것.
+  운영자가 보는 것은 매장 단위 집계까지다.
+- 요금제 변경은 콘솔 토큰에서만. `PUT /api/admin/stores/{id}/subscription`도 같은 조건을 요구한다
+  (403 `OPERATOR_CONSOLE_REQUIRED`). 매장 요금제 화면의 변경 버튼은 사장에게는 여전히 막혀 있다.
+- 운영자 콘솔 문자열을 `features/labels.ts`나 `features/admin/labels.ts`에 두지 말 것.
+  `features/system/labels.ts`에 둔다.
 
 ## 스키마 변경
 

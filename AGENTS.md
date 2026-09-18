@@ -232,6 +232,24 @@ Four features: `AI_EVENT_COPY`, `AI_REPORT` (STANDARD+), `AI_IMPROVEMENT`, `AI_C
 Forbidden: PG payment integration, a customer-facing chatbot, automatic review writing, and anything
 that induces positive or 5-star reviews as a condition for a benefit.
 
+### Operator console (2026-09-18)
+
+The platform operator gets a console of their own at `/admin/system` (`/api/system/**`), separate from
+the store admin console.
+
+- Only `SYSTEM_ADMIN` reaches it, and only through password **plus** TOTP two-factor. A store console
+  token (`scope=STORE`) never opens `/api/system/**`, even for an operator account.
+- Plan changes moved here. `PUT /api/admin/stores/{id}/subscription` now also requires the operator
+  console token, so the password-only path to a paid plan is closed.
+- Login attempts, plan changes and store status changes are written to an audit log. The log holds no
+  customer personal data.
+- The operator sees store-level aggregates only. There is no operator endpoint for customer names,
+  phone numbers, staff PINs or a store's own settings.
+- Blocked access (console disabled, IP not allowed) answers `404`, never `403`. The path should not
+  confirm that it exists.
+- Do not add an operator endpoint that edits a store's prizes, weights or PIN. Those belong to the
+  store, and an operator door into them is a door an attacker can use too.
+
 ## 3. Critical Game Integrity Rules
 
 These rules are non-negotiable unless explicitly changed by the user.

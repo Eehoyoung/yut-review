@@ -148,6 +148,12 @@ class SubscriptionController {
         // 운영자 확인이 먼저다. 멤버십을 먼저 보면 운영자는 어느 매장의 멤버도 아니라서 자기가
         // 만들어야 할 변경을 스스로 막게 된다. 실제로 그렇게 되어 아무도 등급을 못 바꿨다.
         subscriptions.requireOperator(admins.findById(adminId).orElse(null));
+        // 운영자 계정이라도 매장 콘솔 토큰으로는 바꾸지 못한다. 요금제는 돈이 걸린 설정이라
+        // 2단계 인증을 거친 운영자 콘솔에서만, 기록을 남기며 바뀐다.
+        if (auth.getAuthorities().stream()
+                .noneMatch(g -> JwtService.CONSOLE_AUTHORITY.equals(g.getAuthority())))
+            throw new AppException("OPERATOR_CONSOLE_REQUIRED",
+                    "요금제 변경은 운영자 콘솔에서만 할 수 있습니다.", org.springframework.http.HttpStatus.FORBIDDEN);
         Store store = stores.findById(storeId)
                 .orElseThrow(() -> new AppException("STORE_NOT_FOUND", "매장을 찾을 수 없습니다."));
         StoreSubscription saved = subscriptions.changePlan(store, body.plan(), body.note());

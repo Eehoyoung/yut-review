@@ -33,6 +33,18 @@ app:
     pricing:
       input-per-million: ${AI_PRICE_INPUT_PER_MILLION:0}
       output-per-million: ${AI_PRICE_OUTPUT_PER_MILLION:0}
+  # 운영자 콘솔(/api/system/**, 화면은 /admin/system). 기본값은 "켜져 있고 IP 제한 없음"이지만,
+  # 비밀번호 + TOTP 2단계 인증은 어떤 설정에서도 빠지지 않는다.
+  system-console:
+    enabled: ${SYSTEM_CONSOLE_ENABLED:true}
+    # 비어 있으면 IP로 막지 않는다. 쉼표로 구분한 IP 또는 CIDR(예: 203.0.113.4,10.0.0.0/8).
+    # Cloudflare 터널 뒤에서는 모든 요청이 터널 IP로 보여 이 값이 사실상 무의미하다.
+    allowed-ips: ${SYSTEM_CONSOLE_ALLOWED_IPS:}
+    session-minutes: ${SYSTEM_CONSOLE_SESSION_MINUTES:60}
+    issuer: ${SYSTEM_CONSOLE_ISSUER:윷리뷰 운영자}
+    # 두 값이 모두 있고 그 이메일의 계정이 없을 때만 운영자 계정을 만든다. 기존 계정은 건드리지 않는다.
+    operator-email: ${SYSTEM_ADMIN_EMAIL:}
+    operator-password: ${SYSTEM_ADMIN_PASSWORD:}
   bootstrap:
     enabled: ${FIELD_TEST_BOOTSTRAP_ENABLED:false}
     email: ${FIELD_TEST_ADMIN_EMAIL:}
