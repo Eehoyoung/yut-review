@@ -57,7 +57,8 @@ Request:
 {
   "name": "홍길동",
   "phone": "01012345678",
-  "privacyAgreed": true
+  "privacyAgreed": true,
+  "ageConfirmed": true
 }
 ```
 
@@ -86,7 +87,9 @@ Request:
   "storeToken": "qR7...",
   "name": "홍길동",
   "phone": "01012345678",
-  "idempotencyKey": "uuid"
+  "idempotencyKey": "uuid",
+  "privacyAgreed": true,
+  "ageConfirmed": true
 }
 ```
 Response:
@@ -380,6 +383,7 @@ QR_TOKEN_INVALID
 QR_TOKEN_REVOKED
 INVALID_PHONE
 PRIVACY_CONSENT_REQUIRED
+AGE_CONFIRMATION_REQUIRED
 ACTIVE_COUPON_EXISTS
 PARTICIPATION_COOLDOWN
 STAFF_PIN_INVALID
