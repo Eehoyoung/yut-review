@@ -26,7 +26,7 @@ export function YutFan() {
       className="yut-fan"
       viewBox="0 0 320 224"
       role="img"
-      aria-label="윷 네 짝이 던져져 걸이 나온 모습"
+      aria-label="윷 네 짝으로 걸이 나온 모습"
     >
       <defs>
         <filter id="yut-shadow" x="-20%" y="-60%" width="140%" height="220%">

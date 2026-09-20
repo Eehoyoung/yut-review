@@ -44,6 +44,7 @@ services:
     environment:
       HOSTNAME: 0.0.0.0
       PORT: 3000
+      INTERNAL_API_BASE: http://backend:8080
     depends_on:
       backend:
         condition: service_healthy

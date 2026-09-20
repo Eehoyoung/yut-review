@@ -75,7 +75,7 @@ def make_pdf(output: Path, url: str, store_name: str) -> None:
     c.drawString(9.5 * mm, height - 48 * mm, "윷 한 판!")
     c.setFillColor(HexColor("#C7D2CD"))
     c.setFont("Malgun", 8.5)
-    c.drawString(10 * mm, height - 56 * mm, "솔직한 리뷰를 남기고 행운을 던져보세요")
+    c.drawString(10 * mm, height - 56 * mm, "리뷰를 작성하고 윷을 던져 보세요")
 
     # QR은 장식보다 앞으로 나온 단일 행동 면이다.
     qr_size = 47 * mm
@@ -85,7 +85,7 @@ def make_pdf(output: Path, url: str, store_name: str) -> None:
     c.setFillColor(PAPER)
     c.roundRect(plate_x, plate_y, plate_w, plate_h, 5 * mm, fill=1, stroke=0)
 
-    text(c, "카메라를 켜고", width / 2, plate_y + plate_h - 9 * mm, "Malgun", 7.5, MUTED)
+    text(c, "참여하려면", width / 2, plate_y + plate_h - 9 * mm, "Malgun", 7.5, MUTED)
     text(c, "QR을 스캔하세요", width / 2, plate_y + plate_h - 16 * mm, "MalgunBold", 12.5)
 
     widget = qr.QrCodeWidget(url, barLevel="H")

@@ -18,6 +18,21 @@ app:
   phone-hmac-key: ${PHONE_HMAC_SECRET}
   phone-encryption-key: ${PHONE_ENCRYPTION_KEY}
   jwt-key: ${JWT_SECRET}
+  ai:
+    # 기본은 fake다. 키 없이도 서비스가 뜨고 CI가 네트워크를 타지 않는다.
+    provider: ${AI_PROVIDER:fake}
+    timeout-seconds: ${AI_TIMEOUT_SECONDS:45}
+    openai:
+      api-key: ${OPENAI_API_KEY:}
+      base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
+    model:
+      fast: ${AI_MODEL_FAST:gpt-4.1-mini}
+      analysis: ${AI_MODEL_ANALYSIS:gpt-4.1}
+      chat: ${AI_MODEL_CHAT:gpt-4.1-mini}
+    # 토큰 단가(1M 토큰 기준 USD). 공급자 가격이 바뀌면 코드가 아니라 이 값을 고친다.
+    pricing:
+      input-per-million: ${AI_PRICE_INPUT_PER_MILLION:0}
+      output-per-million: ${AI_PRICE_OUTPUT_PER_MILLION:0}
   bootstrap:
     enabled: ${FIELD_TEST_BOOTSTRAP_ENABLED:false}
     email: ${FIELD_TEST_ADMIN_EMAIL:}

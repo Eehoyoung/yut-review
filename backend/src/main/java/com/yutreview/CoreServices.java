@@ -19,7 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
     String normalize(String phone){return Inputs.phone(phone);}
     String hash(String phone){try{Mac m=Mac.getInstance("HmacSHA256");m.init(new SecretKeySpec(hmacKey,"HmacSHA256"));return HexFormat.of().formatHex(m.doFinal(normalize(phone).getBytes(StandardCharsets.UTF_8)));}catch(GeneralSecurityException e){throw new IllegalStateException(e);}}
     String encrypt(String value){try{byte[] iv=new byte[12];SecureRandom.getInstanceStrong().nextBytes(iv);Cipher cipher=Cipher.getInstance("AES/GCM/NoPadding");cipher.init(Cipher.ENCRYPT_MODE,new SecretKeySpec(encryptionKey,"AES"),new GCMParameterSpec(128,iv));byte[] encrypted=cipher.doFinal(value.getBytes(StandardCharsets.UTF_8));byte[] packed=new byte[iv.length+encrypted.length];System.arraycopy(iv,0,packed,0,iv.length);System.arraycopy(encrypted,0,packed,iv.length,encrypted.length);return Base64.getEncoder().encodeToString(packed);}catch(GeneralSecurityException e){throw new IllegalStateException("Personal data encryption failed",e);}}
-    String decrypt(String value){try{byte[] packed=Base64.getDecoder().decode(value),iv=Arrays.copyOfRange(packed,0,12);Cipher cipher=Cipher.getInstance("AES/GCM/NoPadding");cipher.init(Cipher.DECRYPT_MODE,new SecretKeySpec(encryptionKey,"AES"),new GCMParameterSpec(128,iv));return new String(cipher.doFinal(Arrays.copyOfRange(packed,12,packed.length)),StandardCharsets.UTF_8);}catch(GeneralSecurityException|IllegalArgumentException e){throw new IllegalStateException("Personal data decryption failed",e);}}
+    String decrypt(String value){if(PrivacyCleanupService.ANONYMIZED.equals(value))return "파기됨";try{byte[] packed=Base64.getDecoder().decode(value),iv=Arrays.copyOfRange(packed,0,12);Cipher cipher=Cipher.getInstance("AES/GCM/NoPadding");cipher.init(Cipher.DECRYPT_MODE,new SecretKeySpec(encryptionKey,"AES"),new GCMParameterSpec(128,iv));return new String(cipher.doFinal(Arrays.copyOfRange(packed,12,packed.length)),StandardCharsets.UTF_8);}catch(GeneralSecurityException|IllegalArgumentException e){throw new IllegalStateException("Personal data decryption failed",e);}}
 }
 /**
  * 사용자가 손으로 넣는 값을 한 곳에서 정규화한다. 회원가입과 매장 추가가 같은 규칙을 쓰도록
@@ -59,8 +59,8 @@ final class Inputs {
 }
 @Service class StoreProvisioningService {
     record Provisioned(Store store,String staffPin,String storeToken){}
-    private final StoreRepository stores;private final MembershipRepository memberships;private final QrRepository qrs;private final GameConfigService config;private final StorePosterService posters;private final PasswordEncoder encoder;private final SecureRandom random;private final Clock clock;
-    StoreProvisioningService(StoreRepository stores,MembershipRepository memberships,QrRepository qrs,GameConfigService config,StorePosterService posters,PasswordEncoder encoder,SecureRandom random,Clock clock){this.stores=stores;this.memberships=memberships;this.qrs=qrs;this.config=config;this.posters=posters;this.encoder=encoder;this.random=random;this.clock=clock;}
+    private final StoreRepository stores;private final MembershipRepository memberships;private final QrRepository qrs;private final GameConfigService config;private final StorePosterService posters;private final SubscriptionService subscriptions;private final PasswordEncoder encoder;private final SecureRandom random;private final Clock clock;
+    StoreProvisioningService(StoreRepository stores,MembershipRepository memberships,QrRepository qrs,GameConfigService config,StorePosterService posters,SubscriptionService subscriptions,PasswordEncoder encoder,SecureRandom random,Clock clock){this.stores=stores;this.memberships=memberships;this.qrs=qrs;this.config=config;this.posters=posters;this.subscriptions=subscriptions;this.encoder=encoder;this.random=random;this.clock=clock;}
     @Transactional Provisioned provision(AdminUser owner,String name,String phone,String address,String businessNumber,String naverPlaceUrl,String staffPin){
         return provision(owner,name,phone,address,businessNumber,naverPlaceUrl,staffPin,"http://localhost:8088");
     }
@@ -70,6 +70,8 @@ final class Inputs {
         AdminStoreMembership m=new AdminStoreMembership();m.admin=owner;m.store=s;m.role=MembershipRole.OWNER;m.createdAt=now;memberships.save(m);
         StoreQrCode q=new StoreQrCode();q.store=s;q.publicToken=Tokens.random();q.status=QrStatus.ACTIVE;q.createdAt=now;qrs.save(q);
         config.save(s,GameConfigService.defaults());
+        // 신규 매장은 BASIC으로 시작한다. 게임과 쿠폰은 어떤 등급에서도 다 열려 있으므로 이걸로 막히는 건 없다.
+        subscriptions.start(s,Plan.BASIC);
         posters.save(s,q.publicToken,publicOrigin);
         return new Provisioned(s,pin,q.publicToken);
     }

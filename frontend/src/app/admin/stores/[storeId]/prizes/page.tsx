@@ -1,9 +1,9 @@
 "use client";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useId, useState } from "react";
 import { useParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AdminFrame } from "@/features/admin/AdminFrame";
-import { api, errorMessage } from "@/lib/api";
+import { ApiClientError, api, errorMessage } from "@/lib/api";
 import type { GameConfig, Prize, RedeemPolicy, YutResult } from "@/types/api";
 import { YUT_LABEL, rankLabel } from "@/features/labels";
 import { onlyDecimal } from "@/features/normalize";
@@ -26,9 +26,9 @@ const toTenths = (percent: string) => Math.round(Number(percent) * 10);
 const toPercent = (weight: number) => String(weight / 10);
 
 const POLICY_HELP: { value: RedeemPolicy; label: string; help: string }[] = [
-  { value: "ANYTIME", label: "즉시", help: "받은 자리에서 바로 씁니다. 이번 방문의 주문을 늘리고 싶을 때." },
-  { value: "SAME_DAY", label: "당일", help: "지금 동작은 ‘즉시’와 같습니다. 발급 당일부터 쓸 수 있습니다." },
-  { value: "NEXT_DAY", label: "다음 날", help: "발급 다음 날 0시부터 쓸 수 있습니다. 재방문을 유도할 때." },
+  { value: "ANYTIME", label: "기간 내", help: "발급 즉시 사용할 수 있습니다." },
+  { value: "SAME_DAY", label: "당일", help: "발급 당일부터 사용할 수 있습니다." },
+  { value: "NEXT_DAY", label: "다음 날", help: "발급 다음 날 0시부터 사용할 수 있습니다." },
 ];
 
 type OutcomeDraft = { percent: string; prizeRank: number };
@@ -82,20 +82,21 @@ function problem(draft: Draft) {
 
 function PolicyHelp() {
   const [open, setOpen] = useState(false);
+  const helpId = useId();
   return (
     <>
       <button
         type="button"
         className="hint-toggle"
         aria-expanded={open}
-        aria-controls="policy-help"
+        aria-controls={helpId}
         onClick={() => setOpen(!open)}
       >
         <span aria-hidden="true">?</span>
         <span className="visually-hidden">사용 시점 설명 {open ? "닫기" : "보기"}</span>
       </button>
       {open && (
-        <dl className="hint-popover" id="policy-help">
+        <dl className="hint-popover" id={helpId}>
           {POLICY_HELP.map((p) => (
             <div key={p.value}>
               <dt>{p.label}</dt>
@@ -136,11 +137,25 @@ export default function Prizes() {
           })),
         }),
       });
-      for (let rank = 1; rank <= d.ladder; rank++)
-        await api<Prize>(`/admin/stores/${id}/prizes/${rank}`, {
-          method: "PUT",
-          body: JSON.stringify({ ...d.prizes[rank], active: true }),
-        });
+      let successRank = 0;
+      for (let rank = 1; rank <= d.ladder; rank++) {
+        try {
+          await api<Prize>(`/admin/stores/${id}/prizes/${rank}`, {
+            method: "PUT",
+            body: JSON.stringify({ ...d.prizes[rank], active: true }),
+          });
+          successRank = rank;
+        } catch {
+          // errorMessage()는 ApiClientError가 아니면 문구를 버리고 "잠시 후 다시 시도해주세요."로 덮는다.
+          // 어디까지 저장됐는지가 이 화면에서 사장이 알아야 할 전부라, 그 문구가 살아남는 형태로 던진다.
+          throw new ApiClientError(
+            "PRIZE_PARTIAL_SAVE",
+            successRank > 0
+              ? `확률 설정은 저장됐지만 ${rankLabel(successRank + 1)}부터는 저장하지 못했습니다. 다시 저장해 주세요.`
+              : "확률 설정은 저장됐지만 상품은 저장하지 못했습니다. 다시 저장해 주세요.",
+          );
+        }
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["game-config", id] });
@@ -185,14 +200,13 @@ export default function Prizes() {
         className="stack"
         onSubmit={(e: FormEvent) => {
           e.preventDefault();
-          save.mutate();
+          if (!blocked) save.mutate();
         }}
       >
         <section className="panel stack">
           <h2>등급 수와 확률</h2>
           <p className="lead">
-            확률은 등급이 아니라 윷 결과에 붙습니다. 화면에 실제로 떨어지는 것이 도·개·걸·윷·모 다섯 가지라서,
-            결과별로 확률을 두어야 던진 모양과 드리는 상품이 어긋나지 않습니다.
+            확률은 도·개·걸·윷·모 결과별로 설정합니다. 각 결과에 상품 등급을 연결하세요.
           </p>
 
           <div className="preset-row" role="group" aria-label="등급 수">
@@ -209,7 +223,7 @@ export default function Prizes() {
             ))}
           </div>
 
-          <div className="config-table">
+          <div>
             {YUT_ORDER.map((y) => (
               <div className="config-row" key={y}>
                 <span className="config-yut">{YUT_LABEL[y]}</span>
@@ -341,7 +355,7 @@ export default function Prizes() {
         </section>
 
         {blocked && (
-          <p className="error" role="alert">
+          <p className="error" role="status">
             {blocked}
           </p>
         )}
@@ -352,11 +366,13 @@ export default function Prizes() {
         )}
         {save.isSuccess && !save.isPending && (
           <p className="success" role="status">
-            저장했습니다.
+            저장했어요.
           </p>
         )}
-        <button className="btn" disabled={save.isPending || blocked !== ""}>
-          {save.isPending ? "저장 중..." : "설정과 상품 저장"}
+        {/* 막혀 있어도 버튼은 살려 둔다. 이유는 바로 위에 늘 떠 있고, disabled 버튼은
+            탭 순서에서 빠져 화면낭독기가 그 존재조차 못 찾는다. */}
+        <button className="btn" disabled={save.isPending}>
+          {save.isPending ? "저장 중" : "저장"}
         </button>
       </form>
     </AdminFrame>

@@ -36,7 +36,7 @@ export default function Result(){
       </nav>
 
       <header className="stack">
-        <p className="eyebrow">던진 결과</p>
+        <p className="eyebrow">윷 결과</p>
         <p className="result-mark">{YUT_LABEL[q.data.yutResult]}</p>
         <p className="pill" data-tone="wood">{rankLabel(q.data.prizeRank)} 상품</p>
         <h1>{q.data.prize.name}</h1>
@@ -46,21 +46,21 @@ export default function Result(){
       <section className="panel">
         <div className="list">
           <div className="list-item">
-            <span className="lead">사용 가능</span>
+            <span className="lead">사용 가능일</span>
             <span className="name">{new Date(q.data.validFrom).toLocaleString("ko-KR")}</span>
           </div>
           <div className="list-item">
-            <span className="lead">사용 기한</span>
+            <span className="lead">만료일</span>
             <span className="name">{new Date(q.data.expiresAt).toLocaleString("ko-KR")}</span>
           </div>
         </div>
       </section>
 
-      <p className="lead">쿠폰은 사용할 때 직원이 확인합니다. 화면을 닫아도 QR로 다시 열 수 있어요.</p>
+      <p className="lead">사용할 때 직원에게 보여 주세요. QR을 다시 스캔해도 쿠폰을 확인할 수 있어요.</p>
 
       <div className="actionbar">
         <div className="inner">
-          <Link className="btn" href={`/s/${token}/coupon/${q.data.couponToken}`}>쿠폰 확인하기</Link>
+          <Link className="btn" href={`/s/${token}/coupon/${q.data.couponToken}`}>쿠폰 보기</Link>
         </div>
       </div>
     </main>

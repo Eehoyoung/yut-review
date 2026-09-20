@@ -180,6 +180,7 @@ INDEX(store_id, played_at)
 INDEX(store_id, phone_hash, status)
 INDEX(store_id, status)
 INDEX(store_id, expires_at)
+INDEX(store_id, issued_at)
 ```
 
 ## 전화번호 저장 규칙

@@ -9,7 +9,7 @@
 
 - 백엔드: Java 17 + Spring Boot 3.4.4 + Spring Data JPA + Spring Security + java-jwt, Gradle
 - DB: PostgreSQL 17 (테스트는 H2 PostgreSQL 모드), 스키마는 `ddl-auto=update` (마이그레이션 도구 없음)
-- 프런트: Next.js 15 + React 19 + TypeScript + TanStack Query + Zustand + R3F/drei/rapier
+- 프런트: Next.js 15 + React 19 + TypeScript + TanStack Query + Zustand + R3F(+ `@dimforge/rapier3d-compat` 직접 사용)
 - 인프라: Docker Compose (postgres / backend / frontend / nginx, `field-test` 프로파일에 cloudflared)
 - **의도적으로 도입하지 않은 것**: QueryDSL, Flyway/Liquibase, Tailwind(`globals.css` 직접 작성), Redis.
   편의를 이유로 추가하지 말 것.
@@ -72,6 +72,17 @@ docker compose --env-file .env.field-test --profile field-test up -d   # Cloudfl
   (`src/features/game/yut-throw.test.ts`). 반발계수·접촉 감쇠를 키우면 착지 면이 뒤집힌다.
 - `@react-three/rapier`는 더 이상 쓰지 않는다(렌더 경로에 물리 없음). 시뮬레이션은 `@dimforge/rapier3d-compat` 직접 사용.
 
+## 화면 공통 규칙 (2026-09-04 감사 반영)
+
+- 모달은 `features/ui/Dialog.tsx` 하나뿐이다. 네이티브 `<dialog>` + `showModal()`이라 포커스 트랩·Esc·
+  배경 inert를 브라우저가 처리한다. div 모달이나 `window.confirm`으로 되돌리지 말 것.
+- `--line`(장식 구분선)과 `--line-control`(컨트롤 경계, 3:1)은 다른 토큰이다. 합치지 말 것.
+- 3D 던지기는 `prefers-reduced-motion`에서 정지 자세를 즉시 보여준다. 시뮬레이션 자체는 그대로 돈다.
+- 연출(3D) 실패가 결과 도달을 막지 않는다. `reveal()` 성공 후 시뮬레이션이 실패하면 결과 화면으로 보낸다.
+  seed가 결정론적이라 재시도해도 같은 실패가 반복되기 때문이다.
+- 손님 인트로(`/s/[storeToken]`)는 서버 컴포넌트가 매장 요약을 미리 받아 `initialData`로 넘긴다.
+  주소는 `INTERNAL_API_BASE`(compose에서 `http://backend:8080`)이며, 값이 없으면 예전처럼 클라이언트가 가져온다.
+
 ## Nginx CSP 주의
 
 `script-src`에 `'unsafe-inline'`(Next.js 하이드레이션 인라인 스크립트)과 `'wasm-unsafe-eval'`(Rapier WASM)이
@@ -95,6 +106,40 @@ docker compose --env-file .env.field-test --profile field-test up -d   # Cloudfl
 - 고객 화면에도 확률을 표시한다. weight 0이라 도달할 수 없는 등급은 공개 목록에서 제외한다
   (`PublicController.publicPrizes`). 받을 수 없는 상품을 확률과 함께 광고하지 않기 위한 규칙이다.
 - 3D는 이 변경과 무관하다. `yut-throw.ts`는 서버가 준 `yutResult` 다섯 값만 본다.
+
+## 요금제와 AI (2026-09-04)
+
+3단계 요금제(BASIC/STANDARD/PRO)와 소담 AI 기능을 넣었다. 상세 규칙은 AGENTS.md에 있고
+여기에는 구현 위치만 적는다.
+
+- `Subscription.java` PlanEntitlementService(무엇이 열리는지), SubscriptionService(현재 등급)
+- `LlmProvider.java` 공급자 경계 + OpenAiLlmProvider + FakeLlmProvider
+- `AiContextService.java` **LLM 입력을 만드는 유일한 자리.** 집계와 공개 라벨만 통과한다.
+- `AiQuotaService.java` 월 한도(조건부 UPDATE)와 사용 기록, `AiPromptService.java` 프롬프트·스키마
+- `AiService.java` 도구 레지스트리 + 네 기능의 공통 경로, `AiController.java` 관리자 전용 엔드포인트
+- `AnalyticsService.java` 요금제로 갈리는 상세 분석과 집계 CSV
+- `WeeklyReportScheduler.java` PRO 주간 리포트 자동 생성(월요일 새벽)
+- 테스트: `SubscriptionAiTest.java` (등급별 허용/거부, 한도 경계와 동시성, PII 배제, 타 매장 차단,
+  AI 장애 시 고객 흐름 정상)
+
+되돌리면 안 되는 지점:
+
+- `Entitlement` enum에 게임 관련 항목을 넣지 말 것. 목록에 없다는 것이 "등급으로 팔지 않는다"는 뜻이다.
+- 한도 차감을 읽고-쓰기로 바꾸지 말 것. 동시 요청이 한도를 넘긴다.
+- 쿼터 행 생성 실패를 같은 트랜잭션에서 잡지 말 것. 영속성 컨텍스트가 오염돼 다음 flush에서 죽는다.
+- 요금제·AI 문자열을 공용 `features/labels.ts`에 두지 말 것. 고객 번들로 샌다.
+  관리자 전용은 `features/admin/labels.ts`에 둔다.
+- 분석 보관기간과 개인정보 보존(120일)을 한 값으로 합치지 말 것.
+- 공급자 선택을 `@ConditionalOnProperty`로 되돌리지 말 것. `AI_PROVIDER` 오타 하나로 빈이 하나도
+  등록되지 않아 컨텍스트가 뜨지 않고, 관리자 기능 설정 실수가 손님 흐름까지 멈춘다.
+- 모델 호출을 `@Transactional` 안에 넣지 말 것. 45초 응답 대기 동안 커넥션을 붙들어 풀이 마른다.
+- 되돌릴 수 있는 실패는 공급자에 닿기 전 것뿐이다. 타임아웃과 응답 형식 오류는 이미 과금됐다.
+- 관리자 자유 입력(`tone`/`additionalRequest`/채팅)은 `Inputs`가 아니라
+  `AiContextService.withoutPersonalData`를 지난다. 여기가 유일한 PII 유입 경로였다.
+- 등급 변경은 `SYSTEM_ADMIN`만. 멤버십 검사를 운영자 검사보다 먼저 두지 말 것(운영자는 어느 매장의
+  멤버도 아니라서 자기가 해야 할 변경을 스스로 막게 된다).
+
+기본 공급자는 fake다. 실제 호출은 `AI_PROVIDER=openai`와 `OPENAI_API_KEY`가 있을 때만 일어난다.
 
 ## 스키마 변경
 
