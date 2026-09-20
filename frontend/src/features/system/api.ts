@@ -37,8 +37,18 @@ export async function opsApi<T>(path: string, init?: RequestInit): Promise<T> {
     headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}), ...init?.headers },
   });
   const body = (await response.json().catch(() => null)) as Envelope<T> | null;
-  // 만료·권한 회수·IP 차단은 모두 화면에서 같은 결말이다. 토큰을 버리고 로그인으로 돌아간다.
-  if ((response.status === 401 || response.status === 403 || response.status === 404) && !path.startsWith("/auth/")) {
+  // 세션 자체가 무효일 때만 토큰을 버린다. STEP_UP_REQUIRED와 PASSWORD_CHANGE_REQUIRED 같은
+  // 복구 가능한 403은 현재 화면에서 대화상자/비밀번호 변경으로 이어져야 한다.
+  const terminalSessionCodes = new Set([
+    "SESSION_EXPIRED",
+    "AUTH_REQUIRED",
+    "INVALID_TOKEN",
+    "ACCOUNT_DISABLED",
+    "FORBIDDEN",
+    "NOT_FOUND",
+  ]);
+  if (terminalSessionCodes.has(body?.error?.code ?? "")
+      && !path.startsWith("/auth/")) {
     clearOperatorToken();
     if (typeof window !== "undefined" && window.location.pathname !== LOGIN_PATH) window.location.assign(LOGIN_PATH);
   }

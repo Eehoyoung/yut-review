@@ -270,8 +270,10 @@ class SystemConsoleTest {
         OperatorSecurity security = securities.findByAdminId(operator.id).orElseThrow();
         security.allowedIps = "203.0.113.0/24";
         securities.save(security);
-        assertEquals("IP_NOT_ALLOWED", assertThrows(AppException.class,
-                () -> auth.login(email, PASSWORD, null, null, "10.20.1.7", UA)).code);
+        AppException hidden = assertThrows(AppException.class,
+                () -> auth.login(email, PASSWORD, null, null, "10.20.1.7", UA));
+        assertEquals("NOT_FOUND", hidden.code);
+        assertEquals(org.springframework.http.HttpStatus.NOT_FOUND, hidden.status);
         assertNotNull(auth.login(email, PASSWORD, null, null, "203.0.113.9", UA).enrollment());
     }
 

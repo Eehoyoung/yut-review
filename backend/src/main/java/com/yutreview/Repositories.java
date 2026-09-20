@@ -146,6 +146,16 @@ interface CouponRepository extends JpaRepository<Coupon,Long> {
 }
 interface AdminTotpRepository extends JpaRepository<AdminTotpCredential,Long> {
     Optional<AdminTotpCredential> findByAdminId(Long adminId);
+    @Modifying
+    @org.springframework.transaction.annotation.Transactional
+    @Query("update AdminTotpCredential c set c.lastUsedStep=:next where c.id=:id and c.lastUsedStep=:previous")
+    int advanceLastUsedStep(@Param("id") Long id,@Param("previous") long previous,@Param("next") long next);
+    @Modifying
+    @org.springframework.transaction.annotation.Transactional
+    @Query("update AdminTotpCredential c set c.confirmed=true,c.confirmedAt=:confirmedAt,c.lastUsedStep=:next "
+        + "where c.id=:id and c.confirmed=false and c.lastUsedStep=:previous")
+    int confirmAndAdvance(@Param("id") Long id,@Param("previous") long previous,@Param("next") long next,
+        @Param("confirmedAt") java.time.Instant confirmedAt);
 }
 interface SystemAuditLogRepository extends JpaRepository<SystemAuditLog,Long> {
     Page<SystemAuditLog> findAllByOrderByCreatedAtDesc(Pageable pageable);
@@ -176,6 +186,9 @@ interface OperatorSecurityRepository extends JpaRepository<OperatorSecurity,Long
     Optional<OperatorSecurity> findByAdminId(Long adminId);
     List<OperatorSecurity> findAllByOrderByIdAsc();
     long countByConsoleRoleAndDisabledFalse(ConsoleRole role);
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select s from OperatorSecurity s where s.consoleRole='OWNER' and s.disabled=false order by s.id")
+    List<OperatorSecurity> lockActiveOwners();
 }
 interface OperatorSessionRepository extends JpaRepository<OperatorSession,Long> {
     Optional<OperatorSession> findByTokenId(String tokenId);
@@ -187,7 +200,9 @@ interface OperatorSessionRepository extends JpaRepository<OperatorSession,Long> 
     long deleteByAbsoluteExpiresAtBefore(java.time.Instant cutoff);
 }
 interface OperatorBackupCodeRepository extends JpaRepository<OperatorBackupCode,Long> {
-    List<OperatorBackupCode> findByAdminIdAndUsedAtIsNull(Long adminId);
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select c from OperatorBackupCode c where c.admin.id=:adminId and c.usedAt is null order by c.id")
+    List<OperatorBackupCode> findUnusedForUpdate(@Param("adminId") Long adminId);
     long countByAdminIdAndUsedAtIsNull(Long adminId);
     long deleteByAdminId(Long adminId);
 }

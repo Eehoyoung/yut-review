@@ -180,9 +180,11 @@ class SystemConsoleSettings {
 class SystemConsoleGateFilter extends OncePerRequestFilter {
     private static final Logger log = LoggerFactory.getLogger(SystemConsoleGateFilter.class);
     private final SystemConsoleSettings settings;
+    private final SystemAuditService audit;
 
-    SystemConsoleGateFilter(SystemConsoleSettings settings) {
+    SystemConsoleGateFilter(SystemConsoleSettings settings, SystemAuditService audit) {
         this.settings = settings;
+        this.audit = audit;
     }
 
     @Override
@@ -193,12 +195,15 @@ class SystemConsoleGateFilter extends OncePerRequestFilter {
             return;
         }
         if (!settings.enabled()) {
+            audit.record(null, "", SystemAuditService.ACCESS_DENIED, null, null, "CONSOLE_DISABLED",
+                    ClientIps.of(req), false);
             SecurityConfig.writeError(res, 404, "NOT_FOUND", "요청하신 경로를 찾을 수 없습니다.");
             return;
         }
         String ip = ClientIps.of(req);
         if (!settings.ipAllowed(ip)) {
             log.warn("System console request rejected by IP allowlist");
+            audit.record(null, "", SystemAuditService.ACCESS_DENIED, null, null, "GLOBAL_IP_NOT_ALLOWED", ip, false);
             SecurityConfig.writeError(res, 404, "NOT_FOUND", "요청하신 경로를 찾을 수 없습니다.");
             return;
         }
@@ -833,7 +838,7 @@ class OperatorBackupCodeService {
     boolean consume(Long adminId, String candidate) {
         String normalized = normalize(candidate);
         if (normalized.isEmpty()) return false;
-        for (OperatorBackupCode row : codes.findByAdminIdAndUsedAtIsNull(adminId))
+        for (OperatorBackupCode row : codes.findUnusedForUpdate(adminId))
             if (encoder.matches(normalized, row.codeHash)) {
                 row.usedAt = clock.instant();
                 codes.save(row);
@@ -915,7 +920,7 @@ class SystemConsoleGuard {
             throw new AppException("ACCOUNT_DISABLED", "사용이 중지된 계정입니다.", HttpStatus.FORBIDDEN);
         String ip = ClientIps.of(req);
         if (!SystemConsoleSettings.ipAllowedBy(security.allowedIps, ip))
-            throw new AppException("IP_NOT_ALLOWED", "허용되지 않은 접속 위치입니다.", HttpStatus.FORBIDDEN);
+            throw new AppException("NOT_FOUND", "요청하신 경로를 찾을 수 없습니다.", HttpStatus.NOT_FOUND);
         OperatorSession session = sessions.validate(claims == null ? null : claims.tokenId(), admin.id, ip,
                 ClientIps.userAgent(req));
         return new OperatorContext(admin, security, session);
@@ -1027,7 +1032,7 @@ class OperatorAuthService {
         if (!SystemConsoleSettings.ipAllowedBy(security.allowedIps, ip)) {
             audit.record(operator.id, operator.email, SystemAuditService.LOGIN_BLOCKED, null, null, "IP_NOT_ALLOWED",
                     ip, false);
-            throw new AppException("IP_NOT_ALLOWED", "허용되지 않은 접속 위치입니다.", HttpStatus.FORBIDDEN);
+            throw new AppException("NOT_FOUND", "요청하신 경로를 찾을 수 없습니다.", HttpStatus.NOT_FOUND);
         }
 
         AdminTotpCredential credential = credentials.findByAdminId(operator.id).orElse(null);
@@ -1064,8 +1069,10 @@ class OperatorAuthService {
                         false);
                 throw new AppException("TOTP_INVALID", "인증 코드가 올바르지 않습니다.", HttpStatus.UNAUTHORIZED);
             }
-            credential.lastUsedStep = step.get();
-            credentials.save(credential);
+            if (credentials.advanceLastUsedStep(credential.id, credential.lastUsedStep, step.get()) != 1) {
+                limiter.failed(ip, email);
+                throw new AppException("TOTP_INVALID", "인증 코드가 올바르지 않습니다.", HttpStatus.UNAUTHORIZED);
+            }
         }
 
         limiter.succeeded(ip, email);
@@ -1105,10 +1112,8 @@ class OperatorAuthService {
             limiter.failed(ip, operator.email);
             throw new AppException("TOTP_INVALID", "인증 코드가 올바르지 않습니다.", HttpStatus.UNAUTHORIZED);
         }
-        credential.confirmed = true;
-        credential.confirmedAt = clock.instant();
-        credential.lastUsedStep = step.get();
-        credentials.save(credential);
+        if (credentials.confirmAndAdvance(credential.id, credential.lastUsedStep, step.get(), clock.instant()) != 1)
+            throw new AppException("TOTP_INVALID", "이미 사용했거나 올바르지 않은 인증 코드입니다.", HttpStatus.UNAUTHORIZED);
         audit.record(operator.id, operator.email, SystemAuditService.TOTP_ENROLLED, null, null, null, ip, true);
         List<String> codes = backupCodes.regenerate(operator);
         audit.record(operator.id, operator.email, SystemAuditService.BACKUP_CODES_ISSUED, null, null,
@@ -1119,6 +1124,7 @@ class OperatorAuthService {
     /** 위험한 조작 앞의 재인증. 코드가 맞으면 세션에 "방금 확인했다"는 표시를 남긴다. */
     @Transactional
     void stepUp(OperatorContext ctx, String code, String ip) {
+        limiter.check(ip, ctx.admin().email);
         AdminTotpCredential credential = credentials.findByAdminId(ctx.admin().id)
                 .filter(c -> c.confirmed)
                 .orElseThrow(() -> new AppException("TOTP_REQUIRED", "2단계 인증을 먼저 등록해 주세요.",
@@ -1131,8 +1137,11 @@ class OperatorAuthService {
                     false);
             throw new AppException("TOTP_INVALID", "인증 코드가 올바르지 않습니다.", HttpStatus.UNAUTHORIZED);
         }
-        credential.lastUsedStep = step.get();
-        credentials.save(credential);
+        if (credentials.advanceLastUsedStep(credential.id, credential.lastUsedStep, step.get()) != 1) {
+            limiter.failed(ip, ctx.admin().email);
+            throw new AppException("TOTP_INVALID", "이미 사용했거나 올바르지 않은 인증 코드입니다.", HttpStatus.UNAUTHORIZED);
+        }
+        limiter.succeeded(ip, ctx.admin().email);
         sessions.markStepUp(ctx.session());
         audit.record(ctx.admin().id, ctx.admin().email, SystemAuditService.STEP_UP, null, null, null, ip, true);
     }
@@ -1289,6 +1298,7 @@ class OperatorDirectoryService {
             throw new AppException("INVALID_REQUEST", "자기 자신의 계정은 중지할 수 없습니다.");
         boolean losingOwner = target.consoleRole == ConsoleRole.OWNER && !target.disabled
                 && ((role != null && role != ConsoleRole.OWNER) || Boolean.TRUE.equals(disabled));
+        if (losingOwner) securities.lockActiveOwners();
         if (losingOwner && securities.countByConsoleRoleAndDisabledFalse(ConsoleRole.OWNER) <= 1)
             throw new AppException("LAST_OWNER", "마지막 OWNER는 권한을 내리거나 중지할 수 없습니다.");
         if (role != null) target.consoleRole = role;
