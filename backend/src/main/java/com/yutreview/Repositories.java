@@ -184,6 +184,9 @@ interface SystemAuditLogRepository extends JpaRepository<SystemAuditLog,Long> {
 }
 interface OperatorSecurityRepository extends JpaRepository<OperatorSecurity,Long> {
     Optional<OperatorSecurity> findByAdminId(Long adminId);
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select s from OperatorSecurity s where s.admin.id=:adminId")
+    Optional<OperatorSecurity> findByAdminIdForUpdate(@Param("adminId") Long adminId);
     List<OperatorSecurity> findAllByOrderByIdAsc();
     long countByConsoleRoleAndDisabledFalse(ConsoleRole role);
     @Lock(LockModeType.PESSIMISTIC_WRITE)

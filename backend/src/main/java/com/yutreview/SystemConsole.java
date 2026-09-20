@@ -618,6 +618,10 @@ class OperatorSecurityService {
 
     @Transactional
     void recordFailure(OperatorSecurity security) {
+        // 로그인 요청들은 ensure() 뒤에 같은 행의 이전 값을 들고 동시에 들어올 수 있다. 전달받은
+        // 엔티티를 그대로 증가시키면 마지막 커밋이 앞선 증가를 덮어쓴다. DB 행을 잠근 뒤 최신 값을
+        // 다시 읽어 연속 실패 임계치가 동시 요청에서도 정확히 적용되게 한다.
+        security = securities.findByAdminIdForUpdate(security.admin.id).orElseThrow();
         Instant now = clock.instant();
         security.failedAttempts = security.failedAttempts + 1;
         if (security.failedAttempts >= settings.maxFailedAttempts()) {
@@ -630,6 +634,7 @@ class OperatorSecurityService {
 
     @Transactional
     void recordSuccess(OperatorSecurity security, String ip) {
+        security = securities.findByAdminIdForUpdate(security.admin.id).orElseThrow();
         Instant now = clock.instant();
         security.failedAttempts = 0;
         security.lockedUntil = null;
@@ -919,8 +924,11 @@ class SystemConsoleGuard {
         if (security.disabled)
             throw new AppException("ACCOUNT_DISABLED", "사용이 중지된 계정입니다.", HttpStatus.FORBIDDEN);
         String ip = ClientIps.of(req);
-        if (!SystemConsoleSettings.ipAllowedBy(security.allowedIps, ip))
+        if (!SystemConsoleSettings.ipAllowedBy(security.allowedIps, ip)) {
+            audit.record(admin.id, admin.email, SystemAuditService.ACCESS_DENIED, null, null,
+                    "ACCOUNT_IP_NOT_ALLOWED", ip, false);
             throw new AppException("NOT_FOUND", "요청하신 경로를 찾을 수 없습니다.", HttpStatus.NOT_FOUND);
+        }
         OperatorSession session = sessions.validate(claims == null ? null : claims.tokenId(), admin.id, ip,
                 ClientIps.userAgent(req));
         return new OperatorContext(admin, security, session);
@@ -1101,6 +1109,7 @@ class OperatorAuthService {
         AdminUser operator = admins.findById(claims.adminId())
                 .filter(a -> a.role == AdminRole.SYSTEM_ADMIN)
                 .orElseThrow(OperatorAuthService::invalid);
+        limiter.check(ip, operator.email);
         AdminTotpCredential credential = credentials.findByAdminId(operator.id)
                 .orElseThrow(() -> new AppException("ENROLLMENT_EXPIRED", "등록 시간이 지났습니다. 다시 로그인해 주세요.",
                         HttpStatus.UNAUTHORIZED));
