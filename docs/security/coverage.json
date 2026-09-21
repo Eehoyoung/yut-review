@@ -1,0 +1,108 @@
+{
+  "completeness": "partial",
+  "deferred": [
+    {
+      "candidateId": "privacy-openai-base-url",
+      "id": "privacy-openai-base-url",
+      "reason": "Operator-controlled hardening; modifying deployment environment generally conveys broader authority and private gateways are legitimate."
+    },
+    {
+      "candidateId": "legacy-consent-constructors",
+      "id": "legacy-consent-constructors",
+      "reason": "No externally reachable path uses the short consent-defaulting constructors."
+    },
+    {
+      "candidateId": "marketing-withdrawal-version",
+      "id": "marketing-withdrawal-version",
+      "reason": "Privacy/usability defect without an established attacker path."
+    }
+  ],
+  "documentType": "codex-security.coverage",
+  "excludePaths": [],
+  "explicitExclusions": [
+    {
+      "pattern": ".claude/skills/**",
+      "reason": "Bundled development skill assets were inventoried and pattern-searched but not audited line-by-line as application runtime."
+    },
+    {
+      "pattern": "output/** and binary artifacts",
+      "reason": "Generated PDF/PPTX/binary artifacts were not audited as executable product source."
+    }
+  ],
+  "includePaths": [
+    "."
+  ],
+  "inventoryStrategy": "repository",
+  "mode": "repository",
+  "openQuestions": [
+    {
+      "question": "Which external production deployment selects TLS ingress, secret storage and database backup controls?"
+    },
+    {
+      "question": "What entropy and rotation controls protect current runtime secrets?"
+    },
+    {
+      "question": "Should bundled developer skills receive a separate supply-chain scan?"
+    }
+  ],
+  "scanId": "864d82f8-3a8a-44fb-b51d-ba728034fd37",
+  "schemaVersion": "1.0",
+  "surfaces": [
+    {
+      "disposition": "reported",
+      "id": "public-api",
+      "label": "Public game and coupon APIs",
+      "notes": "Allocation DoS and phone-only coupon token disclosure.",
+      "receiptRefs": []
+    },
+    {
+      "disposition": "reported",
+      "id": "admin-auth",
+      "label": "Signup, login, JWT and tenant authorization",
+      "notes": "Signup identity/allocation and limiter findings; no cross-store IDOR.",
+      "receiptRefs": []
+    },
+    {
+      "disposition": "reported",
+      "id": "privacy-ai",
+      "label": "PII, cryptography, retention and AI",
+      "notes": "AES-GCM/retention and store-bound read-only tools effective; history filter bypass and HMAC validation gap.",
+      "receiptRefs": []
+    },
+    {
+      "disposition": "reported",
+      "id": "deployment",
+      "label": "Compose, Nginx and Cloudflare",
+      "notes": "Shared client identity and production ingress selection findings.",
+      "receiptRefs": []
+    },
+    {
+      "disposition": "reported",
+      "id": "frontend-export",
+      "label": "Frontend rendering and exports",
+      "notes": "CSV injection; no direct XSS sink found.",
+      "receiptRefs": []
+    },
+    {
+      "disposition": "no_issue_found",
+      "id": "consent",
+      "label": "Required and advertising consent",
+      "notes": "Current externally reachable consent enforcement and service-specific append-only history confirmed.",
+      "receiptRefs": []
+    },
+    {
+      "disposition": "needs_follow_up",
+      "id": "developer-tooling",
+      "label": "Bundled development tooling",
+      "notes": "Separate supply-chain/tooling audit recommended.",
+      "receiptRefs": []
+    },
+    {
+      "disposition": "needs_follow_up",
+      "id": "live-dependencies",
+      "label": "Live deployment and current dependency advisories",
+      "notes": "No network advisory lookup or production runtime test.",
+      "receiptRefs": []
+    }
+  ]
+}

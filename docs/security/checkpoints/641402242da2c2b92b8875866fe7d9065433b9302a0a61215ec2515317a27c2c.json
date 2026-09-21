@@ -1,0 +1,138 @@
+{
+  "complete": false,
+  "scanId": "864d82f8-3a8a-44fb-b51d-ba728034fd37",
+  "scope": {
+    "summary": "Repository-wide read-only security audit of current revision.",
+    "artifactsReviewed": [
+      "backend and frontend product source, Docker Compose, nginx configuration"
+    ],
+    "runtimeStatus": "Static offline source review in progress.",
+    "validationMode": "Source-backed static validation.",
+    "limitations": [
+      "Independent architecture and focused investigations still running."
+    ]
+  },
+  "threatModel": {
+    "summary": "Public customer and signup APIs cross into Spring services and PostgreSQL; authenticated administrators cross JWT and DB membership boundaries; nginx/cloudflared mediate client identity; AI sends aggregate store context to a configured provider.",
+    "assets": [
+      "Customer PII",
+      "admin authority",
+      "store isolation",
+      "game and coupon integrity",
+      "staff PIN",
+      "consent evidence",
+      "service availability"
+    ],
+    "trustBoundaries": [
+      "Internet to public APIs",
+      "Bearer JWT to admin APIs",
+      "store membership to tenant data",
+      "nginx/cloudflared to client-IP-derived throttles",
+      "aggregate context to LLM provider"
+    ],
+    "attackerCapabilities": [
+      "Unauthenticated caller with public QR token",
+      "malicious or compromised store admin",
+      "targeted caller knowing a customer phone number or bearer token"
+    ],
+    "securityObjectives": [
+      "Preserve store isolation",
+      "Prevent client-chosen game results and duplicate redemption",
+      "Protect PII and PINs",
+      "Keep public workflows abuse-resistant"
+    ],
+    "assumptions": [
+      "Static review only; deployment-specific exposure requires stated configuration prerequisites."
+    ]
+  },
+  "findings": [],
+  "coverage": {
+    "completeness": "partial",
+    "surfaces": [
+      {
+        "id": "baseline-audit",
+        "label": "Independent baseline audit",
+        "disposition": "needs_follow_up",
+        "notes": "Four candidates await parent validation."
+      }
+    ],
+    "explicitExclusions": [],
+    "deferred": [
+      {
+        "candidateId": "baseline-public-game-resource-exhaustion",
+        "reason": "Awaiting parent validation",
+        "candidate": {
+          "title": "Unauthenticated game creation permits persistent database exhaustion and store-wide denial of service",
+          "severity": "high",
+          "cwe": "CWE-770",
+          "evidence": [
+            "SecurityConfig.java:25-29",
+            "PublicController.java:15-18",
+            "CoreServices.java:292-296",
+            "Repositories.java:19-22"
+          ],
+          "counterevidence": [
+            "Length bounds and idempotency do not bound fresh phones and keys."
+          ]
+        }
+      },
+      {
+        "candidateId": "baseline-signup-resource-exhaustion",
+        "reason": "Awaiting parent validation",
+        "candidate": {
+          "title": "Public signup performs amplified provisioning without throttling",
+          "severity": "medium",
+          "cwe": "CWE-400",
+          "evidence": [
+            "SecurityConfig.java:25-29",
+            "AdminController.java:22-32",
+            "CoreServices.java:64-76",
+            "CoreServices.java:189-200",
+            "StorePosterService.java:37-78"
+          ],
+          "counterevidence": [
+            "Uniqueness checks do not bound attacker-created identities."
+          ]
+        }
+      },
+      {
+        "candidateId": "baseline-cloudflared-shared-rate-limit",
+        "reason": "Awaiting parent validation",
+        "candidate": {
+          "title": "Cloudflare field-test topology collapses all clients into one in-memory rate-limit identity",
+          "severity": "medium",
+          "cwe": "CWE-799",
+          "evidence": [
+            "docker-compose.yml:81-87",
+            "nginx/default.conf:16-23",
+            "AdminController.java:31-32,77",
+            "PublicController.java:20-21,38",
+            "CoreServices.java:226-236,299-304"
+          ],
+          "counterevidence": [
+            "Nginx overwrites caller-supplied X-Real-IP but uses the cloudflared container address."
+          ]
+        }
+      },
+      {
+        "candidateId": "baseline-csv-formula-injection",
+        "reason": "Awaiting parent validation",
+        "candidate": {
+          "title": "Prize CSV export permits spreadsheet formula injection",
+          "severity": "low",
+          "cwe": "CWE-1236",
+          "evidence": [
+            "AdminController.java:23-28,42-46,63-69",
+            "AnalyticsService.java:102-123"
+          ],
+          "counterevidence": [
+            "Requires authorized prize editor and a separate user opening the export."
+          ]
+        }
+      }
+    ],
+    "openQuestions": [
+      "Independent architecture and auth/business-logic investigation pending."
+    ]
+  }
+}

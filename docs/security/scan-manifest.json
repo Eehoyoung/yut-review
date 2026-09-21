@@ -1,0 +1,102 @@
+{
+  "documentType": "codex-security.scan-manifest",
+  "scan": {
+    "artifacts": [
+      {
+        "mediaType": "application/json",
+        "path": "findings.json",
+        "sha256": "66157484915a11bd8eef76379298d3f6693b624d37c8a735bd27883609610a5e"
+      },
+      {
+        "mediaType": "application/json",
+        "path": "coverage.json",
+        "sha256": "ddeb5e7a1cf657048f055f3614acd0f98781ae194405266b8ea93c306a99ba59"
+      }
+    ],
+    "completedAt": "2026-09-21T11:25:45.255812Z",
+    "coverageRef": "coverage.json",
+    "findingsRef": "findings.json",
+    "id": "864d82f8-3a8a-44fb-b51d-ba728034fd37",
+    "preservedSources": {
+      "checkpoints/0f8102e3b7970a38faf08c18c0fd1b4b13a2a3b7fed6f6d00704a21738b342b0.json": "0f8102e3b7970a38faf08c18c0fd1b4b13a2a3b7fed6f6d00704a21738b342b0",
+      "checkpoints/641402242da2c2b92b8875866fe7d9065433b9302a0a61215ec2515317a27c2c.json": "1e469d9c7aedbe461d66e9cf65eb25cecbe099678bc11fbc90b3f91721ffd78d",
+      "checkpoints/7a2b8f0a61d04a6981ee9b2abcbfb8c3565f2c9f56285b01a686fef10a77a24f.json": "8143f6ee85d508aba64231c4bfa621733fcb573daa6947ac865632db34e0ca95",
+      "checkpoints/ff59d536e975aa755cd47afc2ba7ce815fb5f9f51aa7f270114eead084f229d9.json": "80bf2417a7ba64a4684ebdc85d506a83360fc31f38c7fc7ab1388a0eb2e6c757"
+    },
+    "producer": {
+      "name": "codex-security-plugin",
+      "version": "0.1.24"
+    },
+    "scope": {
+      "artifactsReviewed": [
+        "Core backend production source/config",
+        "Security-sensitive frontend routes/shared API state",
+        "Docker Compose and Nginx configs",
+        "environment examples and deployment docs",
+        "tracked-file and secret-pattern inventory"
+      ],
+      "excludePaths": [],
+      "includePaths": [
+        "."
+      ],
+      "limitations": [
+        "Managed Deep Scan workers were unavailable.",
+        "Bundled development skills, generated/binary artifacts, live infrastructure, runtime secrets and online dependency advisories remain partial."
+      ],
+      "runtimeStatus": "Static offline source review.",
+      "summary": "Repository-wide static security audit with independent baseline, architecture review, focused authorization/business-logic review, focused privacy/AI/infrastructure review, and parent revalidation.",
+      "validationMode": "Multi-pass source tracing with counterevidence."
+    },
+    "sealedAt": "2026-09-21T11:25:45.255812Z",
+    "startedAt": "2026-09-21T11:13:44.342453Z",
+    "status": "completed",
+    "target": {
+      "displayName": "yut-review",
+      "kind": "git_revision",
+      "revision": "3877b6211008004a48dce07e27724f4304b5c01d",
+      "targetId": "target_sha256_478d28177288deff04c49df136801f1b2db1279f0b68ffab345f2145d3dd2237"
+    },
+    "threatModel": {
+      "assets": [
+        "Store isolation",
+        "game/coupon integrity",
+        "customer PII",
+        "staff PIN and bearer tokens",
+        "admin authority",
+        "consent evidence",
+        "service availability",
+        "canonical transport",
+        "AI no-PII boundary"
+      ],
+      "assumptions": [
+        "Static offline review; runtime secrets, TLS terminator, database ACLs, Cloudflare behavior and current advisory feeds were not verified."
+      ],
+      "attackerCapabilities": [
+        "Unauthenticated caller with public QR",
+        "targeted caller knowing a phone number",
+        "claimant of an unregistered business identifier",
+        "malicious tenant admin",
+        "distributed or proxy-sharing DoS actor"
+      ],
+      "securityObjectives": [
+        "Exact tenant authorization",
+        "server-decided idempotent games",
+        "atomic single-use redemption",
+        "PII/PIN/secret protection",
+        "abuse-resistant public allocation",
+        "read-only store-bound AI",
+        "canonical HTTPS production ingress",
+        "service-specific consent"
+      ],
+      "summary": "Multi-store Spring Boot/PostgreSQL and Next.js service behind Nginx; public QR flows issue persisted games/coupons, admins use Bearer JWT plus DB membership, field tests may use cloudflared, and optional AI sends aggregates/public labels plus admin text.",
+      "trustBoundaries": [
+        "Internet to public/signup APIs",
+        "JWT to tenant membership",
+        "Nginx/cloudflared to client identity",
+        "backend to PostgreSQL",
+        "authorized store context/text to LLM provider"
+      ]
+    }
+  },
+  "schemaVersion": "1.0"
+}

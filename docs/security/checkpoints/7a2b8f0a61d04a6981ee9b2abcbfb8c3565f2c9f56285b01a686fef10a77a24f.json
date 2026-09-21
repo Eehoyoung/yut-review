@@ -1,0 +1,741 @@
+{
+  "complete": true,
+  "scanId": "864d82f8-3a8a-44fb-b51d-ba728034fd37",
+  "scope": {
+    "summary": "Repository-wide static security audit with independent baseline, architecture review, focused authorization/business-logic review, focused privacy/AI/infrastructure review, and parent revalidation.",
+    "artifactsReviewed": [
+      "Core backend production source/config",
+      "Security-sensitive frontend routes/shared API state",
+      "Docker Compose and Nginx configs",
+      "environment examples and deployment docs",
+      "tracked-file and secret-pattern inventory"
+    ],
+    "runtimeStatus": "Static offline source review.",
+    "validationMode": "Multi-pass source tracing with counterevidence.",
+    "limitations": [
+      "Managed Deep Scan workers were unavailable.",
+      "Bundled development skills, generated/binary artifacts, live infrastructure, runtime secrets and online dependency advisories remain partial."
+    ]
+  },
+  "threatModel": {
+    "summary": "Multi-store Spring Boot/PostgreSQL and Next.js service behind Nginx; public QR flows issue persisted games/coupons, admins use Bearer JWT plus DB membership, field tests may use cloudflared, and optional AI sends aggregates/public labels plus admin text.",
+    "assets": [
+      "Store isolation",
+      "game/coupon integrity",
+      "customer PII",
+      "staff PIN and bearer tokens",
+      "admin authority",
+      "consent evidence",
+      "service availability",
+      "canonical transport",
+      "AI no-PII boundary"
+    ],
+    "trustBoundaries": [
+      "Internet to public/signup APIs",
+      "JWT to tenant membership",
+      "Nginx/cloudflared to client identity",
+      "backend to PostgreSQL",
+      "authorized store context/text to LLM provider"
+    ],
+    "attackerCapabilities": [
+      "Unauthenticated caller with public QR",
+      "targeted caller knowing a phone number",
+      "claimant of an unregistered business identifier",
+      "malicious tenant admin",
+      "distributed or proxy-sharing DoS actor"
+    ],
+    "securityObjectives": [
+      "Exact tenant authorization",
+      "server-decided idempotent games",
+      "atomic single-use redemption",
+      "PII/PIN/secret protection",
+      "abuse-resistant public allocation",
+      "read-only store-bound AI",
+      "canonical HTTPS production ingress",
+      "service-specific consent"
+    ],
+    "assumptions": [
+      "Static offline review; runtime secrets, TLS terminator, database ACLs, Cloudflare behavior and current advisory feeds were not verified."
+    ]
+  },
+  "findings": [
+    {
+      "ruleId": "resource-exhaustion.public-game-creation",
+      "title": "Unauthenticated game creation can exhaust storage and serialize a store",
+      "summary": "A caller with a public QR token can rotate phones and idempotency keys to create unlimited games/coupons while each request holds a store-row write lock.",
+      "severity": {
+        "level": "high"
+      },
+      "confidence": {
+        "level": "high",
+        "rationale": "Validated against current source with counterevidence considered."
+      },
+      "taxonomy": {
+        "category": "resource-exhaustion",
+        "cwe": [
+          "CWE-770"
+        ]
+      },
+      "locations": [
+        {
+          "path": "backend/src/main/java/com/yutreview/PublicController.java",
+          "startLine": 15,
+          "endLine": 18,
+          "role": "entrypoint"
+        },
+        {
+          "path": "backend/src/main/java/com/yutreview/CoreServices.java",
+          "startLine": 289,
+          "endLine": 296,
+          "role": "sink"
+        },
+        {
+          "path": "backend/src/main/java/com/yutreview/Repositories.java",
+          "startLine": 19,
+          "endLine": 22,
+          "role": "root_control"
+        }
+      ],
+      "rootCause": {
+        "summary": "A caller with a public QR token can rotate phones and idempotency keys to create unlimited games/coupons while each request holds a store-row write lock."
+      },
+      "remediation": "Add durable per-store/client limits and volume ceilings, and replace the store-wide lock with a customer-key concurrency strategy.",
+      "validation": {
+        "summary": "Source-to-sink path independently rechecked in current revision."
+      },
+      "attackPath": {
+        "dataflow": {
+          "summary": "A caller with a public QR token can rotate phones and idempotency keys to create unlimited games/coupons while each request holds a store-row write lock."
+        },
+        "reachability": {
+          "summary": "Reachability and prerequisites are stated in the finding summary and locations."
+        }
+      },
+      "remediationTests": [
+        "Add a regression test that exercises the stated attacker path and verifies the control fails closed."
+      ],
+      "preventiveControls": [],
+      "provenance": {
+        "source": "local_source_audit",
+        "candidateId": "baseline-public-game-resource-exhaustion"
+      },
+      "extensions": {}
+    },
+    {
+      "ruleId": "broken-access-control.phone-only-coupon-recovery",
+      "title": "Phone-only customer-state lookup discloses an active coupon bearer token",
+      "summary": "The public state endpoint ignores the supplied name and returns couponToken after only a store-plus-phone lookup; redemption still requires staff PIN.",
+      "severity": {
+        "level": "medium"
+      },
+      "confidence": {
+        "level": "high",
+        "rationale": "Validated against current source with counterevidence considered."
+      },
+      "taxonomy": {
+        "category": "broken-access-control",
+        "cwe": [
+          "CWE-639"
+        ]
+      },
+      "locations": [
+        {
+          "path": "backend/src/main/java/com/yutreview/PublicController.java",
+          "startLine": 13,
+          "endLine": 20,
+          "role": "entrypoint"
+        },
+        {
+          "path": "backend/src/main/java/com/yutreview/CoreServices.java",
+          "startLine": 238,
+          "endLine": 242,
+          "role": "sink"
+        }
+      ],
+      "rootCause": {
+        "summary": "The public state endpoint ignores the supplied name and returns couponToken after only a store-plus-phone lookup; redemption still requires staff PIN."
+      },
+      "remediation": "Return only coarse state and require a possession-bound customer session or recovery secret before returning an existing coupon token.",
+      "validation": {
+        "summary": "Source-to-sink path independently rechecked in current revision."
+      },
+      "attackPath": {
+        "dataflow": {
+          "summary": "The public state endpoint ignores the supplied name and returns couponToken after only a store-plus-phone lookup; redemption still requires staff PIN."
+        },
+        "reachability": {
+          "summary": "Reachability and prerequisites are stated in the finding summary and locations."
+        }
+      },
+      "remediationTests": [
+        "Add a regression test that exercises the stated attacker path and verifies the control fails closed."
+      ],
+      "preventiveControls": [],
+      "provenance": {
+        "source": "local_source_audit",
+        "candidateId": "privacy-phone-coupon-token"
+      },
+      "extensions": {}
+    },
+    {
+      "ruleId": "identity-verification.unverified-business-claim",
+      "title": "Signup grants store-owner authority without proof of business or email control",
+      "summary": "Any unauthenticated caller can claim an unregistered ten-digit business number and immediately receive OWNER membership, staff PIN and QR capability.",
+      "severity": {
+        "level": "medium"
+      },
+      "confidence": {
+        "level": "high",
+        "rationale": "Validated against current source with counterevidence considered."
+      },
+      "taxonomy": {
+        "category": "identity-verification",
+        "cwe": [
+          "CWE-290"
+        ]
+      },
+      "locations": [
+        {
+          "path": "backend/src/main/java/com/yutreview/AdminController.java",
+          "startLine": 22,
+          "endLine": 32,
+          "role": "entrypoint"
+        },
+        {
+          "path": "backend/src/main/java/com/yutreview/CoreServices.java",
+          "startLine": 60,
+          "endLine": 76,
+          "role": "sink"
+        },
+        {
+          "path": "backend/src/main/java/com/yutreview/CoreServices.java",
+          "startLine": 182,
+          "endLine": 200,
+          "role": "root_control"
+        }
+      ],
+      "rootCause": {
+        "summary": "Any unauthenticated caller can claim an unregistered ten-digit business number and immediately receive OWNER membership, staff PIN and QR capability."
+      },
+      "remediation": "Preserve self-signup while adding proof-of-control or operator review/recovery before the business claim becomes authoritative.",
+      "validation": {
+        "summary": "Source-to-sink path independently rechecked in current revision."
+      },
+      "attackPath": {
+        "dataflow": {
+          "summary": "Any unauthenticated caller can claim an unregistered ten-digit business number and immediately receive OWNER membership, staff PIN and QR capability."
+        },
+        "reachability": {
+          "summary": "Reachability and prerequisites are stated in the finding summary and locations."
+        }
+      },
+      "remediationTests": [
+        "Add a regression test that exercises the stated attacker path and verifies the control fails closed."
+      ],
+      "preventiveControls": [],
+      "provenance": {
+        "source": "local_source_audit",
+        "candidateId": "auth-unverified-business-claim"
+      },
+      "extensions": {}
+    },
+    {
+      "ruleId": "resource-exhaustion.public-signup-provisioning",
+      "title": "Public signup performs expensive persistent provisioning without throttling",
+      "summary": "Anonymous signup performs BCrypt, creates multiple persistent rows, and renders/stores a large PNG with no limiter, challenge or capacity quota.",
+      "severity": {
+        "level": "medium"
+      },
+      "confidence": {
+        "level": "high",
+        "rationale": "Validated against current source with counterevidence considered."
+      },
+      "taxonomy": {
+        "category": "resource-exhaustion",
+        "cwe": [
+          "CWE-400"
+        ]
+      },
+      "locations": [
+        {
+          "path": "backend/src/main/java/com/yutreview/AdminController.java",
+          "startLine": 31,
+          "endLine": 32,
+          "role": "entrypoint"
+        },
+        {
+          "path": "backend/src/main/java/com/yutreview/CoreServices.java",
+          "startLine": 60,
+          "endLine": 76,
+          "role": "sink"
+        },
+        {
+          "path": "backend/src/main/java/com/yutreview/StorePosterService.java",
+          "startLine": 37,
+          "endLine": 78,
+          "role": "sink"
+        }
+      ],
+      "rootCause": {
+        "summary": "Anonymous signup performs BCrypt, creates multiple persistent rows, and renders/stores a large PNG with no limiter, challenge or capacity quota."
+      },
+      "remediation": "Add shared signup throttles/global quotas and defer heavy provisioning until verification or activation.",
+      "validation": {
+        "summary": "Source-to-sink path independently rechecked in current revision."
+      },
+      "attackPath": {
+        "dataflow": {
+          "summary": "Anonymous signup performs BCrypt, creates multiple persistent rows, and renders/stores a large PNG with no limiter, challenge or capacity quota."
+        },
+        "reachability": {
+          "summary": "Reachability and prerequisites are stated in the finding summary and locations."
+        }
+      },
+      "remediationTests": [
+        "Add a regression test that exercises the stated attacker path and verifies the control fails closed."
+      ],
+      "preventiveControls": [],
+      "provenance": {
+        "source": "local_source_audit",
+        "candidateId": "baseline-signup-resource-exhaustion"
+      },
+      "extensions": {}
+    },
+    {
+      "ruleId": "rate-limit.proxy-identity-collapse",
+      "title": "Cloudflare proxy topology collapses users into shared rate-limit buckets",
+      "summary": "Nginx uses its immediate peer for X-Real-IP; in the included cloudflared topology one attacker can consume login or per-store PIN budgets for unrelated users.",
+      "severity": {
+        "level": "medium"
+      },
+      "confidence": {
+        "level": "high",
+        "rationale": "Validated against current source with counterevidence considered."
+      },
+      "taxonomy": {
+        "category": "rate-limit-denial-of-service",
+        "cwe": [
+          "CWE-400"
+        ]
+      },
+      "locations": [
+        {
+          "path": "docker-compose.yml",
+          "startLine": 81,
+          "endLine": 87,
+          "role": "entrypoint"
+        },
+        {
+          "path": "nginx/default.conf",
+          "startLine": 16,
+          "endLine": 23,
+          "role": "root_control"
+        },
+        {
+          "path": "backend/src/main/java/com/yutreview/CoreServices.java",
+          "startLine": 226,
+          "endLine": 236,
+          "role": "sink"
+        }
+      ],
+      "rootCause": {
+        "summary": "Nginx uses its immediate peer for X-Real-IP; in the included cloudflared topology one attacker can consume login or per-store PIN budgets for unrelated users."
+      },
+      "remediation": "Normalize original client IP only through an explicit trusted-proxy policy and combine it with account/store-aware durable throttles.",
+      "validation": {
+        "summary": "Source-to-sink path independently rechecked in current revision."
+      },
+      "attackPath": {
+        "dataflow": {
+          "summary": "Nginx uses its immediate peer for X-Real-IP; in the included cloudflared topology one attacker can consume login or per-store PIN budgets for unrelated users."
+        },
+        "reachability": {
+          "summary": "Reachability and prerequisites are stated in the finding summary and locations."
+        }
+      },
+      "remediationTests": [
+        "Add a regression test that exercises the stated attacker path and verifies the control fails closed."
+      ],
+      "preventiveControls": [],
+      "provenance": {
+        "source": "local_source_audit",
+        "candidateId": "baseline-cloudflared-shared-rate-limit"
+      },
+      "extensions": {}
+    },
+    {
+      "ruleId": "privacy.ai-history-filter-bypass",
+      "title": "AI chat history bypasses the server personal-data filter",
+      "summary": "Current chat text is filtered, but client-supplied history is copied directly into provider messages and can contain PII, coupon tokens, JWTs or secrets.",
+      "severity": {
+        "level": "medium"
+      },
+      "confidence": {
+        "level": "high",
+        "rationale": "Validated against current source with counterevidence considered."
+      },
+      "taxonomy": {
+        "category": "sensitive-data-exposure",
+        "cwe": [
+          "CWE-201"
+        ]
+      },
+      "locations": [
+        {
+          "path": "backend/src/main/java/com/yutreview/AiController.java",
+          "startLine": 36,
+          "endLine": 93,
+          "role": "entrypoint"
+        },
+        {
+          "path": "backend/src/main/java/com/yutreview/AiService.java",
+          "startLine": 188,
+          "endLine": 215,
+          "role": "root_control"
+        },
+        {
+          "path": "backend/src/main/java/com/yutreview/LlmProvider.java",
+          "startLine": 165,
+          "endLine": 180,
+          "role": "sink"
+        }
+      ],
+      "rootCause": {
+        "summary": "Current chat text is filtered, but client-supplied history is copied directly into provider messages and can contain PII, coupon tokens, JWTs or secrets."
+      },
+      "remediation": "Filter every history turn with the central no-PII/secret policy and preferably keep conversation state server-owned.",
+      "validation": {
+        "summary": "Source-to-sink path independently rechecked in current revision."
+      },
+      "attackPath": {
+        "dataflow": {
+          "summary": "Current chat text is filtered, but client-supplied history is copied directly into provider messages and can contain PII, coupon tokens, JWTs or secrets."
+        },
+        "reachability": {
+          "summary": "Reachability and prerequisites are stated in the finding summary and locations."
+        }
+      },
+      "remediationTests": [
+        "Add a regression test that exercises the stated attacker path and verifies the control fails closed."
+      ],
+      "preventiveControls": [],
+      "provenance": {
+        "source": "local_source_audit",
+        "candidateId": "privacy-ai-history-filter-bypass"
+      },
+      "extensions": {}
+    },
+    {
+      "ruleId": "deployment.production-ingress-not-selectable",
+      "title": "Checked-in Compose cannot select the hardened production Nginx configuration",
+      "summary": "The prod backend profile does not change Compose's mount of cleartext default.conf; no checked-in production override selects TLS config/certificates or HTTPS ports.",
+      "severity": {
+        "level": "medium"
+      },
+      "confidence": {
+        "level": "high",
+        "rationale": "Validated against current source with counterevidence considered."
+      },
+      "taxonomy": {
+        "category": "security-misconfiguration",
+        "cwe": [
+          "CWE-16"
+        ]
+      },
+      "locations": [
+        {
+          "path": "docker-compose.yml",
+          "startLine": 64,
+          "endLine": 69,
+          "role": "root_control"
+        },
+        {
+          "path": "nginx/default.conf",
+          "startLine": 1,
+          "endLine": 8,
+          "role": "concrete_implementation"
+        },
+        {
+          "path": "nginx/production.conf",
+          "startLine": 1,
+          "endLine": 22,
+          "role": "evidence"
+        }
+      ],
+      "rootCause": {
+        "summary": "The prod backend profile does not change Compose's mount of cleartext default.conf; no checked-in production override selects TLS config/certificates or HTTPS ports."
+      },
+      "remediation": "Add a fail-closed production Compose override/profile selecting production ingress and verified TLS termination while disabling field-test bootstrap.",
+      "validation": {
+        "summary": "Source-to-sink path independently rechecked in current revision."
+      },
+      "attackPath": {
+        "dataflow": {
+          "summary": "The prod backend profile does not change Compose's mount of cleartext default.conf; no checked-in production override selects TLS config/certificates or HTTPS ports."
+        },
+        "reachability": {
+          "summary": "Reachability and prerequisites are stated in the finding summary and locations."
+        }
+      },
+      "remediationTests": [
+        "Add a regression test that exercises the stated attacker path and verifies the control fails closed."
+      ],
+      "preventiveControls": [],
+      "provenance": {
+        "source": "local_source_audit",
+        "candidateId": "infra-production-nginx-selection"
+      },
+      "extensions": {}
+    },
+    {
+      "ruleId": "resource-exhaustion.login-limiter-cardinality",
+      "title": "Login limiter retains unique client keys indefinitely",
+      "summary": "The login ConcurrentHashMap has no TTL eviction or size bound, so many distinct effective source identities can grow process memory monotonically.",
+      "severity": {
+        "level": "low"
+      },
+      "confidence": {
+        "level": "high",
+        "rationale": "Validated against current source with counterevidence considered."
+      },
+      "taxonomy": {
+        "category": "resource-exhaustion",
+        "cwe": [
+          "CWE-770"
+        ]
+      },
+      "locations": [
+        {
+          "path": "backend/src/main/java/com/yutreview/AdminController.java",
+          "startLine": 32,
+          "endLine": 32,
+          "role": "entrypoint"
+        },
+        {
+          "path": "backend/src/main/java/com/yutreview/CoreServices.java",
+          "startLine": 232,
+          "endLine": 236,
+          "role": "sink"
+        }
+      ],
+      "rootCause": {
+        "summary": "The login ConcurrentHashMap has no TTL eviction or size bound, so many distinct effective source identities can grow process memory monotonically."
+      },
+      "remediation": "Use a bounded TTL cache or shared limiter with hard cardinality limits and independent eviction.",
+      "validation": {
+        "summary": "Source-to-sink path independently rechecked in current revision."
+      },
+      "attackPath": {
+        "dataflow": {
+          "summary": "The login ConcurrentHashMap has no TTL eviction or size bound, so many distinct effective source identities can grow process memory monotonically."
+        },
+        "reachability": {
+          "summary": "Reachability and prerequisites are stated in the finding summary and locations."
+        }
+      },
+      "remediationTests": [
+        "Add a regression test that exercises the stated attacker path and verifies the control fails closed."
+      ],
+      "preventiveControls": [],
+      "provenance": {
+        "source": "local_source_audit",
+        "candidateId": "auth-login-limiter-unbounded-map"
+      },
+      "extensions": {}
+    },
+    {
+      "ruleId": "csv-injection.prize-export",
+      "title": "Prize CSV export permits spreadsheet formula injection",
+      "summary": "Store-controlled prize names are delimiter-escaped but leading spreadsheet formula characters remain active.",
+      "severity": {
+        "level": "low"
+      },
+      "confidence": {
+        "level": "high",
+        "rationale": "Validated against current source with counterevidence considered."
+      },
+      "taxonomy": {
+        "category": "csv-injection",
+        "cwe": [
+          "CWE-1236"
+        ]
+      },
+      "locations": [
+        {
+          "path": "backend/src/main/java/com/yutreview/AdminController.java",
+          "startLine": 42,
+          "endLine": 46,
+          "role": "source"
+        },
+        {
+          "path": "backend/src/main/java/com/yutreview/AnalyticsService.java",
+          "startLine": 102,
+          "endLine": 123,
+          "role": "sink"
+        }
+      ],
+      "rootCause": {
+        "summary": "Store-controlled prize names are delimiter-escaped but leading spreadsheet formula characters remain active."
+      },
+      "remediation": "Neutralize spreadsheet formula triggers before RFC CSV quoting and test all trigger prefixes.",
+      "validation": {
+        "summary": "Source-to-sink path independently rechecked in current revision."
+      },
+      "attackPath": {
+        "dataflow": {
+          "summary": "Store-controlled prize names are delimiter-escaped but leading spreadsheet formula characters remain active."
+        },
+        "reachability": {
+          "summary": "Reachability and prerequisites are stated in the finding summary and locations."
+        }
+      },
+      "remediationTests": [
+        "Add a regression test that exercises the stated attacker path and verifies the control fails closed."
+      ],
+      "preventiveControls": [],
+      "provenance": {
+        "source": "local_source_audit",
+        "candidateId": "baseline-csv-formula-injection"
+      },
+      "extensions": {}
+    },
+    {
+      "ruleId": "crypto.weak-hmac-key-accepted",
+      "title": "Phone HMAC secret has no minimum-strength validation",
+      "summary": "PhoneService accepts any string as the HMAC key; a weak deployed value plus database access enables offline phone enumeration.",
+      "severity": {
+        "level": "low"
+      },
+      "confidence": {
+        "level": "medium",
+        "rationale": "Validated against current source with counterevidence considered."
+      },
+      "taxonomy": {
+        "category": "weak-cryptography-configuration",
+        "cwe": [
+          "CWE-326"
+        ]
+      },
+      "locations": [
+        {
+          "path": "backend/src/main/java/com/yutreview/CoreServices.java",
+          "startLine": 17,
+          "endLine": 22,
+          "role": "root_control"
+        },
+        {
+          "path": "backend/src/main/resources/application.yml",
+          "startLine": 17,
+          "endLine": 22,
+          "role": "source"
+        }
+      ],
+      "rootCause": {
+        "summary": "PhoneService accepts any string as the HMAC key; a weak deployed value plus database access enables offline phone enumeration."
+      },
+      "remediation": "Require a Base64-decoded random 32-byte HMAC key and document a safe rotation/migration procedure.",
+      "validation": {
+        "summary": "Source-to-sink path independently rechecked in current revision."
+      },
+      "attackPath": {
+        "dataflow": {
+          "summary": "PhoneService accepts any string as the HMAC key; a weak deployed value plus database access enables offline phone enumeration."
+        },
+        "reachability": {
+          "summary": "Reachability and prerequisites are stated in the finding summary and locations."
+        }
+      },
+      "remediationTests": [
+        "Add a regression test that exercises the stated attacker path and verifies the control fails closed."
+      ],
+      "preventiveControls": [],
+      "provenance": {
+        "source": "local_source_audit",
+        "candidateId": "privacy-weak-phone-hmac"
+      },
+      "extensions": {}
+    }
+  ],
+  "coverage": {
+    "completeness": "partial",
+    "surfaces": [
+      {
+        "id": "public-api",
+        "label": "Public game and coupon APIs",
+        "disposition": "reported",
+        "notes": "Allocation DoS and phone-only coupon token disclosure."
+      },
+      {
+        "id": "admin-auth",
+        "label": "Signup, login, JWT and tenant authorization",
+        "disposition": "reported",
+        "notes": "Signup identity/allocation and limiter findings; no cross-store IDOR."
+      },
+      {
+        "id": "privacy-ai",
+        "label": "PII, cryptography, retention and AI",
+        "disposition": "reported",
+        "notes": "AES-GCM/retention and store-bound read-only tools effective; history filter bypass and HMAC validation gap."
+      },
+      {
+        "id": "deployment",
+        "label": "Compose, Nginx and Cloudflare",
+        "disposition": "reported",
+        "notes": "Shared client identity and production ingress selection findings."
+      },
+      {
+        "id": "frontend-export",
+        "label": "Frontend rendering and exports",
+        "disposition": "reported",
+        "notes": "CSV injection; no direct XSS sink found."
+      },
+      {
+        "id": "consent",
+        "label": "Required and advertising consent",
+        "disposition": "no_issue_found",
+        "notes": "Current externally reachable consent enforcement and service-specific append-only history confirmed."
+      },
+      {
+        "id": "developer-tooling",
+        "label": "Bundled development tooling",
+        "disposition": "needs_follow_up",
+        "notes": "Separate supply-chain/tooling audit recommended."
+      },
+      {
+        "id": "live-dependencies",
+        "label": "Live deployment and current dependency advisories",
+        "disposition": "needs_follow_up",
+        "notes": "No network advisory lookup or production runtime test."
+      }
+    ],
+    "explicitExclusions": [
+      {
+        "pattern": ".claude/skills/**",
+        "reason": "Bundled development skill assets were inventoried and pattern-searched but not audited line-by-line as application runtime."
+      },
+      {
+        "pattern": "output/** and binary artifacts",
+        "reason": "Generated PDF/PPTX/binary artifacts were not audited as executable product source."
+      }
+    ],
+    "deferred": [
+      {
+        "candidateId": "privacy-openai-base-url",
+        "reason": "Operator-controlled hardening; modifying deployment environment generally conveys broader authority and private gateways are legitimate."
+      },
+      {
+        "candidateId": "legacy-consent-constructors",
+        "reason": "No externally reachable path uses the short consent-defaulting constructors."
+      },
+      {
+        "candidateId": "marketing-withdrawal-version",
+        "reason": "Privacy/usability defect without an established attacker path."
+      }
+    ],
+    "openQuestions": [
+      "Which external production deployment selects TLS ingress, secret storage and database backup controls?",
+      "What entropy and rotation controls protect current runtime secrets?",
+      "Should bundled developer skills receive a separate supply-chain scan?"
+    ]
+  }
+}

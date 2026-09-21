@@ -1,0 +1,835 @@
+{
+  "$schema": "https://docs.oasis-open.org/sarif/sarif/v2.1.0/os/schemas/sarif-schema-2.1.0.json",
+  "runs": [
+    {
+      "automationDetails": {
+        "id": "864d82f8-3a8a-44fb-b51d-ba728034fd37"
+      },
+      "invocations": [
+        {
+          "executionSuccessful": true,
+          "toolExecutionNotifications": [
+            {
+              "level": "warning",
+              "message": {
+                "text": "Operator-controlled hardening; modifying deployment environment generally conveys broader authority and private gateways are legitimate."
+              }
+            },
+            {
+              "level": "warning",
+              "message": {
+                "text": "No externally reachable path uses the short consent-defaulting constructors."
+              }
+            },
+            {
+              "level": "warning",
+              "message": {
+                "text": "Privacy/usability defect without an established attacker path."
+              }
+            }
+          ]
+        }
+      ],
+      "properties": {
+        "codexSecurityCoverageCompleteness": "partial",
+        "codexSecuritySchemaVersion": "1.0",
+        "codexSecurityTargetKind": "git_revision"
+      },
+      "results": [
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "message": {
+                "text": "root_control"
+              },
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docker-compose.yml"
+                },
+                "region": {
+                  "endLine": 69,
+                  "startLine": 64
+                }
+              }
+            },
+            {
+              "message": {
+                "text": "concrete_implementation"
+              },
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "nginx/default.conf"
+                },
+                "region": {
+                  "endLine": 8,
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "message": {
+                "text": "evidence"
+              },
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "nginx/production.conf"
+                },
+                "region": {
+                  "endLine": 22,
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Checked-in Compose cannot select the hardened production Nginx configuration\n\nThe prod backend profile does not change Compose's mount of cleartext default.conf; no checked-in production override selects TLS config/certificates or HTTPS ports.\n\nSeverity: medium\n\nCategory: Security misconfiguration\n\nWeaknesses: CWE-16\n\nRemediation:\nAdd a fail-closed production Compose override/profile selecting production ingress and verified TLS termination while disabling field-test bootstrap.\n\nRemediation tests:\n- Add a regression test that exercises the stated attacker path and verifies the control fails closed."
+          },
+          "partialFingerprints": {
+            "codexSecurity/v1": "codex-security/v1:sha256:d60a4ba4b4daccbc5f981ad554474c5b79573289ff26a8f366b4e85ff88dc526"
+          },
+          "properties": {
+            "category": "security-misconfiguration",
+            "confidence": "high",
+            "findingId": "csf_fc89625655fcf3aec1a8df44",
+            "occurrenceId": "occ_16bdbc895221e3965e03b4f9",
+            "severity": "medium"
+          },
+          "ruleId": "deployment.production-ingress-not-selectable",
+          "ruleIndex": 3
+        },
+        {
+          "level": "note",
+          "locations": [
+            {
+              "message": {
+                "text": "source"
+              },
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "backend/src/main/java/com/yutreview/AdminController.java"
+                },
+                "region": {
+                  "endLine": 46,
+                  "startLine": 42
+                }
+              }
+            },
+            {
+              "message": {
+                "text": "sink"
+              },
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "backend/src/main/java/com/yutreview/AnalyticsService.java"
+                },
+                "region": {
+                  "endLine": 123,
+                  "startLine": 102
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Prize CSV export permits spreadsheet formula injection\n\nStore-controlled prize names are delimiter-escaped but leading spreadsheet formula characters remain active.\n\nSeverity: low\n\nCategory: Csv injection\n\nWeaknesses: CWE-1236\n\nRemediation:\nNeutralize spreadsheet formula triggers before RFC CSV quoting and test all trigger prefixes.\n\nRemediation tests:\n- Add a regression test that exercises the stated attacker path and verifies the control fails closed."
+          },
+          "partialFingerprints": {
+            "codexSecurity/v1": "codex-security/v1:sha256:d7e25b08920104baed52ee5d909a452352dcc1d15f99d4be574644e42fd0ad35"
+          },
+          "properties": {
+            "category": "csv-injection",
+            "confidence": "high",
+            "findingId": "csf_498bcd9552eabe4041f10adb",
+            "occurrenceId": "occ_1e2f90076893639be0948937",
+            "severity": "low"
+          },
+          "ruleId": "csv-injection.prize-export",
+          "ruleIndex": 2
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "message": {
+                "text": "entrypoint"
+              },
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "backend/src/main/java/com/yutreview/PublicController.java"
+                },
+                "region": {
+                  "endLine": 20,
+                  "startLine": 13
+                }
+              }
+            },
+            {
+              "message": {
+                "text": "sink"
+              },
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "backend/src/main/java/com/yutreview/CoreServices.java"
+                },
+                "region": {
+                  "endLine": 242,
+                  "startLine": 238
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Phone-only customer-state lookup discloses an active coupon bearer token\n\nThe public state endpoint ignores the supplied name and returns couponToken after only a store-plus-phone lookup; redemption still requires staff PIN.\n\nSeverity: medium\n\nCategory: Broken access control\n\nWeaknesses: CWE-639\n\nRemediation:\nReturn only coarse state and require a possession-bound customer session or recovery secret before returning an existing coupon token.\n\nRemediation tests:\n- Add a regression test that exercises the stated attacker path and verifies the control fails closed."
+          },
+          "partialFingerprints": {
+            "codexSecurity/v1": "codex-security/v1:sha256:bacc39958b24dc45a5dc484ebb54f47da81c9db8b5dcd684523f40c6e96f1cfe"
+          },
+          "properties": {
+            "category": "broken-access-control",
+            "confidence": "high",
+            "findingId": "csf_22bb63b917b25a1c7ee8faaa",
+            "occurrenceId": "occ_2780bdea0b51f0adb08017c8",
+            "severity": "medium"
+          },
+          "ruleId": "broken-access-control.phone-only-coupon-recovery",
+          "ruleIndex": 0
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "message": {
+                "text": "root_control"
+              },
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "backend/src/main/java/com/yutreview/CoreServices.java"
+                },
+                "region": {
+                  "endLine": 200,
+                  "startLine": 182
+                }
+              }
+            },
+            {
+              "message": {
+                "text": "entrypoint"
+              },
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "backend/src/main/java/com/yutreview/AdminController.java"
+                },
+                "region": {
+                  "endLine": 32,
+                  "startLine": 22
+                }
+              }
+            },
+            {
+              "message": {
+                "text": "sink"
+              },
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "backend/src/main/java/com/yutreview/CoreServices.java"
+                },
+                "region": {
+                  "endLine": 76,
+                  "startLine": 60
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Signup grants store-owner authority without proof of business or email control\n\nAny unauthenticated caller can claim an unregistered ten-digit business number and immediately receive OWNER membership, staff PIN and QR capability.\n\nSeverity: medium\n\nCategory: Identity verification\n\nWeaknesses: CWE-290\n\nRemediation:\nPreserve self-signup while adding proof-of-control or operator review/recovery before the business claim becomes authoritative.\n\nRemediation tests:\n- Add a regression test that exercises the stated attacker path and verifies the control fails closed."
+          },
+          "partialFingerprints": {
+            "codexSecurity/v1": "codex-security/v1:sha256:21740a8bded0f67e1d46fde3078422d599c6695d9915fe4ed51fdce8dea5b1aa"
+          },
+          "properties": {
+            "category": "identity-verification",
+            "confidence": "high",
+            "findingId": "csf_96836be8ec1ffcf0da62545b",
+            "occurrenceId": "occ_3c6f3c889ca9805b43ae3265",
+            "severity": "medium"
+          },
+          "ruleId": "identity-verification.unverified-business-claim",
+          "ruleIndex": 4
+        },
+        {
+          "level": "error",
+          "locations": [
+            {
+              "message": {
+                "text": "root_control"
+              },
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "backend/src/main/java/com/yutreview/Repositories.java"
+                },
+                "region": {
+                  "endLine": 22,
+                  "startLine": 19
+                }
+              }
+            },
+            {
+              "message": {
+                "text": "entrypoint"
+              },
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "backend/src/main/java/com/yutreview/PublicController.java"
+                },
+                "region": {
+                  "endLine": 18,
+                  "startLine": 15
+                }
+              }
+            },
+            {
+              "message": {
+                "text": "sink"
+              },
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "backend/src/main/java/com/yutreview/CoreServices.java"
+                },
+                "region": {
+                  "endLine": 296,
+                  "startLine": 289
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Unauthenticated game creation can exhaust storage and serialize a store\n\nA caller with a public QR token can rotate phones and idempotency keys to create unlimited games/coupons while each request holds a store-row write lock.\n\nSeverity: high\n\nCategory: Resource exhaustion\n\nWeaknesses: CWE-770\n\nRemediation:\nAdd durable per-store/client limits and volume ceilings, and replace the store-wide lock with a customer-key concurrency strategy.\n\nRemediation tests:\n- Add a regression test that exercises the stated attacker path and verifies the control fails closed."
+          },
+          "partialFingerprints": {
+            "codexSecurity/v1": "codex-security/v1:sha256:f9238f529b0489bc7c4192260c1698db3b5e9bfbf590552a8283a4a9a31d9d3a"
+          },
+          "properties": {
+            "category": "resource-exhaustion",
+            "confidence": "high",
+            "findingId": "csf_ab75a41ef0c6670168d1e8d6",
+            "occurrenceId": "occ_492f91b08eed07ca2731b755",
+            "severity": "high"
+          },
+          "ruleId": "resource-exhaustion.public-game-creation",
+          "ruleIndex": 8
+        },
+        {
+          "level": "note",
+          "locations": [
+            {
+              "message": {
+                "text": "root_control"
+              },
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "backend/src/main/java/com/yutreview/CoreServices.java"
+                },
+                "region": {
+                  "endLine": 22,
+                  "startLine": 17
+                }
+              }
+            },
+            {
+              "message": {
+                "text": "source"
+              },
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "backend/src/main/resources/application.yml"
+                },
+                "region": {
+                  "endLine": 22,
+                  "startLine": 17
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Phone HMAC secret has no minimum-strength validation\n\nPhoneService accepts any string as the HMAC key; a weak deployed value plus database access enables offline phone enumeration.\n\nSeverity: low\n\nCategory: Weak cryptography configuration\n\nWeaknesses: CWE-326\n\nRemediation:\nRequire a Base64-decoded random 32-byte HMAC key and document a safe rotation/migration procedure.\n\nRemediation tests:\n- Add a regression test that exercises the stated attacker path and verifies the control fails closed."
+          },
+          "partialFingerprints": {
+            "codexSecurity/v1": "codex-security/v1:sha256:51ea501a398a46f1d9e8ed61481f493e9b4070b348a237f1c06c8a250cc6d98a"
+          },
+          "properties": {
+            "category": "weak-cryptography-configuration",
+            "confidence": "medium",
+            "findingId": "csf_06cca54d251d14ef5cfd4a37",
+            "occurrenceId": "occ_6cf8e0719b306da519a7693a",
+            "severity": "low"
+          },
+          "ruleId": "crypto.weak-hmac-key-accepted",
+          "ruleIndex": 1
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "message": {
+                "text": "entrypoint"
+              },
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "backend/src/main/java/com/yutreview/AdminController.java"
+                },
+                "region": {
+                  "endLine": 32,
+                  "startLine": 31
+                }
+              }
+            },
+            {
+              "message": {
+                "text": "sink"
+              },
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "backend/src/main/java/com/yutreview/CoreServices.java"
+                },
+                "region": {
+                  "endLine": 76,
+                  "startLine": 60
+                }
+              }
+            },
+            {
+              "message": {
+                "text": "sink"
+              },
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "backend/src/main/java/com/yutreview/StorePosterService.java"
+                },
+                "region": {
+                  "endLine": 78,
+                  "startLine": 37
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Public signup performs expensive persistent provisioning without throttling\n\nAnonymous signup performs BCrypt, creates multiple persistent rows, and renders/stores a large PNG with no limiter, challenge or capacity quota.\n\nSeverity: medium\n\nCategory: Resource exhaustion\n\nWeaknesses: CWE-400\n\nRemediation:\nAdd shared signup throttles/global quotas and defer heavy provisioning until verification or activation.\n\nRemediation tests:\n- Add a regression test that exercises the stated attacker path and verifies the control fails closed."
+          },
+          "partialFingerprints": {
+            "codexSecurity/v1": "codex-security/v1:sha256:a86e288cd73f6ae9bb445b1fb64ed9e73c8662ffcd7c6ce97df7fc210dd67c7b"
+          },
+          "properties": {
+            "category": "resource-exhaustion",
+            "confidence": "high",
+            "findingId": "csf_300f4bf1dadbd91673bfa446",
+            "occurrenceId": "occ_c1a864f2066d4b6984c65590",
+            "severity": "medium"
+          },
+          "ruleId": "resource-exhaustion.public-signup-provisioning",
+          "ruleIndex": 9
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "message": {
+                "text": "root_control"
+              },
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "nginx/default.conf"
+                },
+                "region": {
+                  "endLine": 23,
+                  "startLine": 16
+                }
+              }
+            },
+            {
+              "message": {
+                "text": "entrypoint"
+              },
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docker-compose.yml"
+                },
+                "region": {
+                  "endLine": 87,
+                  "startLine": 81
+                }
+              }
+            },
+            {
+              "message": {
+                "text": "sink"
+              },
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "backend/src/main/java/com/yutreview/CoreServices.java"
+                },
+                "region": {
+                  "endLine": 236,
+                  "startLine": 226
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Cloudflare proxy topology collapses users into shared rate-limit buckets\n\nNginx uses its immediate peer for X-Real-IP; in the included cloudflared topology one attacker can consume login or per-store PIN budgets for unrelated users.\n\nSeverity: medium\n\nCategory: Rate limit denial of service\n\nWeaknesses: CWE-400\n\nRemediation:\nNormalize original client IP only through an explicit trusted-proxy policy and combine it with account/store-aware durable throttles.\n\nRemediation tests:\n- Add a regression test that exercises the stated attacker path and verifies the control fails closed."
+          },
+          "partialFingerprints": {
+            "codexSecurity/v1": "codex-security/v1:sha256:d9997ccb0b501b38b3cca60f01935bd193510d3e8cd71c4b6dfa0b55efea3a42"
+          },
+          "properties": {
+            "category": "rate-limit-denial-of-service",
+            "confidence": "high",
+            "findingId": "csf_84ca5e6f84e16b38e9f1b362",
+            "occurrenceId": "occ_c36624b46c42c02346c8f590",
+            "severity": "medium"
+          },
+          "ruleId": "rate-limit.proxy-identity-collapse",
+          "ruleIndex": 6
+        },
+        {
+          "level": "note",
+          "locations": [
+            {
+              "message": {
+                "text": "entrypoint"
+              },
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "backend/src/main/java/com/yutreview/AdminController.java"
+                },
+                "region": {
+                  "endLine": 32,
+                  "startLine": 32
+                }
+              }
+            },
+            {
+              "message": {
+                "text": "sink"
+              },
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "backend/src/main/java/com/yutreview/CoreServices.java"
+                },
+                "region": {
+                  "endLine": 236,
+                  "startLine": 232
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Login limiter retains unique client keys indefinitely\n\nThe login ConcurrentHashMap has no TTL eviction or size bound, so many distinct effective source identities can grow process memory monotonically.\n\nSeverity: low\n\nCategory: Resource exhaustion\n\nWeaknesses: CWE-770\n\nRemediation:\nUse a bounded TTL cache or shared limiter with hard cardinality limits and independent eviction.\n\nRemediation tests:\n- Add a regression test that exercises the stated attacker path and verifies the control fails closed."
+          },
+          "partialFingerprints": {
+            "codexSecurity/v1": "codex-security/v1:sha256:c905ca1459b51e3df311cdaa0c32fb03cc4c670f37a43cf4643da1cbc34e3c9c"
+          },
+          "properties": {
+            "category": "resource-exhaustion",
+            "confidence": "high",
+            "findingId": "csf_8a6158efbd4af6011e4ac9ed",
+            "occurrenceId": "occ_de8f649d000702553e1573f7",
+            "severity": "low"
+          },
+          "ruleId": "resource-exhaustion.login-limiter-cardinality",
+          "ruleIndex": 7
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "message": {
+                "text": "root_control"
+              },
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "backend/src/main/java/com/yutreview/AiService.java"
+                },
+                "region": {
+                  "endLine": 215,
+                  "startLine": 188
+                }
+              }
+            },
+            {
+              "message": {
+                "text": "entrypoint"
+              },
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "backend/src/main/java/com/yutreview/AiController.java"
+                },
+                "region": {
+                  "endLine": 93,
+                  "startLine": 36
+                }
+              }
+            },
+            {
+              "message": {
+                "text": "sink"
+              },
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "backend/src/main/java/com/yutreview/LlmProvider.java"
+                },
+                "region": {
+                  "endLine": 180,
+                  "startLine": 165
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "AI chat history bypasses the server personal-data filter\n\nCurrent chat text is filtered, but client-supplied history is copied directly into provider messages and can contain PII, coupon tokens, JWTs or secrets.\n\nSeverity: medium\n\nCategory: Sensitive data exposure\n\nWeaknesses: CWE-201\n\nRemediation:\nFilter every history turn with the central no-PII/secret policy and preferably keep conversation state server-owned.\n\nRemediation tests:\n- Add a regression test that exercises the stated attacker path and verifies the control fails closed."
+          },
+          "partialFingerprints": {
+            "codexSecurity/v1": "codex-security/v1:sha256:d76578130a0555b9387c728700b42f7a129a3b458ff90af1c4adc8f0c530394c"
+          },
+          "properties": {
+            "category": "sensitive-data-exposure",
+            "confidence": "high",
+            "findingId": "csf_32b4c67065b2cd9c32a1c0ef",
+            "occurrenceId": "occ_f8f5e12e6fb3e868f2107180",
+            "severity": "medium"
+          },
+          "ruleId": "privacy.ai-history-filter-bypass",
+          "ruleIndex": 5
+        }
+      ],
+      "tool": {
+        "driver": {
+          "name": "Codex Security",
+          "rules": [
+            {
+              "fullDescription": {
+                "text": "Broken access control: Phone only coupon recovery. Categories: Broken access control. Weaknesses: CWE-639."
+              },
+              "help": {
+                "markdown": "Broken access control: Phone only coupon recovery. Categories: Broken access control. Weaknesses: CWE-639.\n\n## Remediation\n\nReturn only coarse state and require a possession-bound customer session or recovery secret before returning an existing coupon token.",
+                "text": "Broken access control: Phone only coupon recovery. Categories: Broken access control. Weaknesses: CWE-639.\n\nRemediation:\n\nReturn only coarse state and require a possession-bound customer session or recovery secret before returning an existing coupon token."
+              },
+              "id": "broken-access-control.phone-only-coupon-recovery",
+              "name": "Broken access control: Phone only coupon recovery",
+              "properties": {
+                "security-severity": "5.0",
+                "tags": [
+                  "broken-access-control",
+                  "external/cwe/cwe-639",
+                  "security"
+                ]
+              },
+              "shortDescription": {
+                "text": "Broken access control: Phone only coupon recovery"
+              }
+            },
+            {
+              "fullDescription": {
+                "text": "Crypto: Weak hmac key accepted. Categories: Weak cryptography configuration. Weaknesses: CWE-326."
+              },
+              "help": {
+                "markdown": "Crypto: Weak hmac key accepted. Categories: Weak cryptography configuration. Weaknesses: CWE-326.\n\n## Remediation\n\nRequire a Base64-decoded random 32-byte HMAC key and document a safe rotation/migration procedure.",
+                "text": "Crypto: Weak hmac key accepted. Categories: Weak cryptography configuration. Weaknesses: CWE-326.\n\nRemediation:\n\nRequire a Base64-decoded random 32-byte HMAC key and document a safe rotation/migration procedure."
+              },
+              "id": "crypto.weak-hmac-key-accepted",
+              "name": "Crypto: Weak hmac key accepted",
+              "properties": {
+                "security-severity": "2.0",
+                "tags": [
+                  "external/cwe/cwe-326",
+                  "security",
+                  "weak-cryptography-configuration"
+                ]
+              },
+              "shortDescription": {
+                "text": "Crypto: Weak hmac key accepted"
+              }
+            },
+            {
+              "fullDescription": {
+                "text": "Csv injection: Prize export. Categories: Csv injection. Weaknesses: CWE-1236."
+              },
+              "help": {
+                "markdown": "Csv injection: Prize export. Categories: Csv injection. Weaknesses: CWE-1236.\n\n## Remediation\n\nNeutralize spreadsheet formula triggers before RFC CSV quoting and test all trigger prefixes.",
+                "text": "Csv injection: Prize export. Categories: Csv injection. Weaknesses: CWE-1236.\n\nRemediation:\n\nNeutralize spreadsheet formula triggers before RFC CSV quoting and test all trigger prefixes."
+              },
+              "id": "csv-injection.prize-export",
+              "name": "Csv injection: Prize export",
+              "properties": {
+                "security-severity": "2.0",
+                "tags": [
+                  "csv-injection",
+                  "external/cwe/cwe-1236",
+                  "security"
+                ]
+              },
+              "shortDescription": {
+                "text": "Csv injection: Prize export"
+              }
+            },
+            {
+              "fullDescription": {
+                "text": "Deployment: Production ingress not selectable. Categories: Security misconfiguration. Weaknesses: CWE-16."
+              },
+              "help": {
+                "markdown": "Deployment: Production ingress not selectable. Categories: Security misconfiguration. Weaknesses: CWE-16.\n\n## Remediation\n\nAdd a fail-closed production Compose override/profile selecting production ingress and verified TLS termination while disabling field-test bootstrap.",
+                "text": "Deployment: Production ingress not selectable. Categories: Security misconfiguration. Weaknesses: CWE-16.\n\nRemediation:\n\nAdd a fail-closed production Compose override/profile selecting production ingress and verified TLS termination while disabling field-test bootstrap."
+              },
+              "id": "deployment.production-ingress-not-selectable",
+              "name": "Deployment: Production ingress not selectable",
+              "properties": {
+                "security-severity": "5.0",
+                "tags": [
+                  "external/cwe/cwe-016",
+                  "security",
+                  "security-misconfiguration"
+                ]
+              },
+              "shortDescription": {
+                "text": "Deployment: Production ingress not selectable"
+              }
+            },
+            {
+              "fullDescription": {
+                "text": "Identity verification: Unverified business claim. Categories: Identity verification. Weaknesses: CWE-290."
+              },
+              "help": {
+                "markdown": "Identity verification: Unverified business claim. Categories: Identity verification. Weaknesses: CWE-290.\n\n## Remediation\n\nPreserve self-signup while adding proof-of-control or operator review/recovery before the business claim becomes authoritative.",
+                "text": "Identity verification: Unverified business claim. Categories: Identity verification. Weaknesses: CWE-290.\n\nRemediation:\n\nPreserve self-signup while adding proof-of-control or operator review/recovery before the business claim becomes authoritative."
+              },
+              "id": "identity-verification.unverified-business-claim",
+              "name": "Identity verification: Unverified business claim",
+              "properties": {
+                "security-severity": "5.0",
+                "tags": [
+                  "external/cwe/cwe-290",
+                  "identity-verification",
+                  "security"
+                ]
+              },
+              "shortDescription": {
+                "text": "Identity verification: Unverified business claim"
+              }
+            },
+            {
+              "fullDescription": {
+                "text": "Privacy: Ai history filter bypass. Categories: Sensitive data exposure. Weaknesses: CWE-201."
+              },
+              "help": {
+                "markdown": "Privacy: Ai history filter bypass. Categories: Sensitive data exposure. Weaknesses: CWE-201.\n\n## Remediation\n\nFilter every history turn with the central no-PII/secret policy and preferably keep conversation state server-owned.",
+                "text": "Privacy: Ai history filter bypass. Categories: Sensitive data exposure. Weaknesses: CWE-201.\n\nRemediation:\n\nFilter every history turn with the central no-PII/secret policy and preferably keep conversation state server-owned."
+              },
+              "id": "privacy.ai-history-filter-bypass",
+              "name": "Privacy: Ai history filter bypass",
+              "properties": {
+                "security-severity": "5.0",
+                "tags": [
+                  "external/cwe/cwe-201",
+                  "security",
+                  "sensitive-data-exposure"
+                ]
+              },
+              "shortDescription": {
+                "text": "Privacy: Ai history filter bypass"
+              }
+            },
+            {
+              "fullDescription": {
+                "text": "Rate limit: Proxy identity collapse. Categories: Rate limit denial of service. Weaknesses: CWE-400."
+              },
+              "help": {
+                "markdown": "Rate limit: Proxy identity collapse. Categories: Rate limit denial of service. Weaknesses: CWE-400.\n\n## Remediation\n\nNormalize original client IP only through an explicit trusted-proxy policy and combine it with account/store-aware durable throttles.",
+                "text": "Rate limit: Proxy identity collapse. Categories: Rate limit denial of service. Weaknesses: CWE-400.\n\nRemediation:\n\nNormalize original client IP only through an explicit trusted-proxy policy and combine it with account/store-aware durable throttles."
+              },
+              "id": "rate-limit.proxy-identity-collapse",
+              "name": "Rate limit: Proxy identity collapse",
+              "properties": {
+                "security-severity": "5.0",
+                "tags": [
+                  "external/cwe/cwe-400",
+                  "rate-limit-denial-of-service",
+                  "security"
+                ]
+              },
+              "shortDescription": {
+                "text": "Rate limit: Proxy identity collapse"
+              }
+            },
+            {
+              "fullDescription": {
+                "text": "Resource exhaustion: Login limiter cardinality. Categories: Resource exhaustion. Weaknesses: CWE-770."
+              },
+              "help": {
+                "markdown": "Resource exhaustion: Login limiter cardinality. Categories: Resource exhaustion. Weaknesses: CWE-770.\n\n## Remediation\n\nUse a bounded TTL cache or shared limiter with hard cardinality limits and independent eviction.",
+                "text": "Resource exhaustion: Login limiter cardinality. Categories: Resource exhaustion. Weaknesses: CWE-770.\n\nRemediation:\n\nUse a bounded TTL cache or shared limiter with hard cardinality limits and independent eviction."
+              },
+              "id": "resource-exhaustion.login-limiter-cardinality",
+              "name": "Resource exhaustion: Login limiter cardinality",
+              "properties": {
+                "security-severity": "2.0",
+                "tags": [
+                  "external/cwe/cwe-770",
+                  "resource-exhaustion",
+                  "security"
+                ]
+              },
+              "shortDescription": {
+                "text": "Resource exhaustion: Login limiter cardinality"
+              }
+            },
+            {
+              "fullDescription": {
+                "text": "Resource exhaustion: Public game creation. Categories: Resource exhaustion. Weaknesses: CWE-770."
+              },
+              "help": {
+                "markdown": "Resource exhaustion: Public game creation. Categories: Resource exhaustion. Weaknesses: CWE-770.\n\n## Remediation\n\nAdd durable per-store/client limits and volume ceilings, and replace the store-wide lock with a customer-key concurrency strategy.",
+                "text": "Resource exhaustion: Public game creation. Categories: Resource exhaustion. Weaknesses: CWE-770.\n\nRemediation:\n\nAdd durable per-store/client limits and volume ceilings, and replace the store-wide lock with a customer-key concurrency strategy."
+              },
+              "id": "resource-exhaustion.public-game-creation",
+              "name": "Resource exhaustion: Public game creation",
+              "properties": {
+                "security-severity": "8.0",
+                "tags": [
+                  "external/cwe/cwe-770",
+                  "resource-exhaustion",
+                  "security"
+                ]
+              },
+              "shortDescription": {
+                "text": "Resource exhaustion: Public game creation"
+              }
+            },
+            {
+              "fullDescription": {
+                "text": "Resource exhaustion: Public signup provisioning. Categories: Resource exhaustion. Weaknesses: CWE-400."
+              },
+              "help": {
+                "markdown": "Resource exhaustion: Public signup provisioning. Categories: Resource exhaustion. Weaknesses: CWE-400.\n\n## Remediation\n\nAdd shared signup throttles/global quotas and defer heavy provisioning until verification or activation.",
+                "text": "Resource exhaustion: Public signup provisioning. Categories: Resource exhaustion. Weaknesses: CWE-400.\n\nRemediation:\n\nAdd shared signup throttles/global quotas and defer heavy provisioning until verification or activation."
+              },
+              "id": "resource-exhaustion.public-signup-provisioning",
+              "name": "Resource exhaustion: Public signup provisioning",
+              "properties": {
+                "security-severity": "5.0",
+                "tags": [
+                  "external/cwe/cwe-400",
+                  "resource-exhaustion",
+                  "security"
+                ]
+              },
+              "shortDescription": {
+                "text": "Resource exhaustion: Public signup provisioning"
+              }
+            }
+          ],
+          "version": "0.1.24"
+        }
+      }
+    }
+  ],
+  "version": "2.1.0"
+}
