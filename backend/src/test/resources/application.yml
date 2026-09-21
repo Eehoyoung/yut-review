@@ -6,8 +6,15 @@ spring:
     password:
   jpa.hibernate.ddl-auto: create-drop
 app:
-  phone-hmac-key: test-phone-hmac-key
+  # 테스트 고정값. 실제 운영 키가 아니며 Base64 32바이트 요건을 만족시키기 위한 것이다.
+  phone-hmac-key: eXV0LXJldmlldy10ZXN0LXBob25lLWhtYWMta2V5MCE=
   phone-encryption-key: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
   jwt-key: test-jwt-key-that-is-at-least-32-bytes-long
   bootstrap.enabled: false
   ai.provider: fake
+  trusted-proxies: 127.0.0.1/32
+  # 대부분의 테스트는 rate limit이 아니라 다른 것을 확인한다. 한도 자체는 전용 테스트에서
+  # properties로 낮춰 확인한다.
+  limits:
+    game-per-store-per-minute: 100000
+    game-per-ip-per-minute: 100000

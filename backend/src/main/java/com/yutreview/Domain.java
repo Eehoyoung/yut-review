@@ -5,7 +5,11 @@ import java.time.*;
 
 enum AdminRole { SYSTEM_ADMIN, STORE_ADMIN }
 enum MembershipRole { OWNER, MANAGER }
-enum StoreStatus { ACTIVE, INACTIVE }
+/**
+ * 매장 상태. 셀프 신청은 PENDING_APPROVAL로 시작하고 운영자 승인에서만 ACTIVE가 된다.
+ * 기존 매장은 전부 ACTIVE라 백필이 필요 없다.
+ */
+enum StoreStatus { PENDING_APPROVAL, ACTIVE, INACTIVE, REJECTED }
 enum QrStatus { ACTIVE, REVOKED }
 enum RedeemPolicy { SAME_DAY, NEXT_DAY, ANYTIME }
 /** The five physical throws. Which prize rank each one awards is store configuration, not a property of the throw. */

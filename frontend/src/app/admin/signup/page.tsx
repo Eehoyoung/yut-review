@@ -5,8 +5,10 @@ import { useMutation } from "@tanstack/react-query";
 import { api, errorMessage } from "@/lib/api";
 import { BUSINESS_NUMBER_LENGTH, PHONE_LENGTH, onlyDigits } from "@/features/normalize";
 import { ADMIN_PRIVACY_VERSION, MARKETING_SMS_VERSION, TERMS_VERSION, marketingServices } from "@/lib/legal";
+import type { StoreStatus } from "@/types/api";
 
-type SignUpResult = { storeId: number; storeName: string; staffPin: string; storeToken: string; posterReady: boolean };
+/** 가입은 신청까지다. QR·포스터·직원 PIN은 운영자 승인 후에 열린다. */
+type SignUpResult = { storeId: number; storeName: string; status: StoreStatus; approvalRequired: boolean };
 
 type Field = {
   key: string;
@@ -89,15 +91,13 @@ export default function SignUp() {
     return (
       <main className="screen">
         <p className="brand">윷리뷰</p>
-        <h1>{done.storeName} 등록 완료</h1>
+        <h1>{done.storeName} 신청 완료</h1>
         <div className="panel stack">
-          <p className="lead">직원 PIN은 지금 한 번만 표시됩니다. 매장 직원에게 안전하게 전달하세요.</p>
-          <p className="pin-readout" aria-label="직원 PIN">
-            {done.staffPin}
+          <p className="lead">소담랩스 운영자가 사업자 정보를 확인하고 있습니다.</p>
+          <p className="notice" role="status">
+            승인되면 QR 안내물, 포스터, 직원 PIN이 열립니다.
           </p>
-          <p className="notice">
-            A6 QR 안내물도 만들었습니다. 로그인 후 &lsquo;QR 안내물&rsquo;에서 저장하거나 공유하세요.
-          </p>
+          <p className="hint">지금 바로 로그인해 심사 상태를 확인할 수 있습니다.</p>
         </div>
         <Link className="btn" href="/admin/login">
           로그인

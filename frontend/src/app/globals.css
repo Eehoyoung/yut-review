@@ -661,6 +661,19 @@ form > .success {
   color: var(--ink-muted);
 }
 
+/* 승인 대기 / 승인 거부. .notice/.error와 같은 상태색을 써서 같은 뜻으로 읽히게 한다. */
+.pill[data-tone="wait"] {
+  background: var(--warn-bg);
+  border-color: transparent;
+  color: var(--warn);
+}
+
+.pill[data-tone="bad"] {
+  background: var(--danger-bg);
+  border-color: transparent;
+  color: var(--danger);
+}
+
 /* 로딩은 스피너 대신 자리를 지키는 뼈대로 */
 .skeleton {
   border-radius: var(--r-md);
@@ -1584,7 +1597,8 @@ form > .success {
   color: var(--ink-2);
 }
 
-.chart-table table {
+.chart-table table,
+.mini-table {
   width: 100%;
   margin-top: var(--s2);
   border-collapse: collapse;
@@ -1592,12 +1606,14 @@ form > .success {
   font-variant-numeric: tabular-nums;
 }
 
-.chart-table td {
+.chart-table td,
+.mini-table td {
   padding: 2px var(--s2) 2px 0;
   color: var(--ink-2);
 }
 
-.chart-table td:last-child {
+.chart-table td:last-child,
+.mini-table td:last-child {
   text-align: right;
   color: var(--ink);
   font-weight: 700;
@@ -1723,4 +1739,21 @@ form > .success {
   border-radius: 50%;
   background: var(--wood-strong);
   transform: translateY(-2px);
+}
+
+/* 자원 사용률 막대. 요일 막대와 같은 트랙을 쓰되 라벨과 숫자가 길어 열 폭만 다르다. */
+.weekday-row[data-wide] {
+  grid-template-columns: minmax(6rem, 1fr) minmax(4rem, 1.2fr) auto;
+}
+
+/*
+ * 사용률에 색을 준다. 막대 길이가 이미 양을 말하므로, 색은 양이 아니라 "지금 봐야 하는가"만 말한다.
+ * 길이와 색이 같은 것을 두 번 말하지 않게 임계값에서만 바뀐다.
+ */
+.weekday-fill[data-tone="wait"] {
+  background: var(--warn);
+}
+
+.weekday-fill[data-tone="bad"] {
+  background: var(--danger);
 }

@@ -3,10 +3,10 @@ import { FormEvent, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
-import { api, errorMessage } from "@/lib/api";
+import { ApiClientError, api, errorMessage } from "@/lib/api";
 import { useSession } from "@/lib/session";
 import { PHONE_LENGTH, isPhone, onlyDigits } from "@/features/normalize";
-import type { CustomerState, GameCreated } from "@/types/api";
+import type { Coupon, CustomerState, GameCreated } from "@/types/api";
 import { CUSTOMER_PRIVACY_VERSION } from "@/lib/legal";
 
 /**
@@ -31,15 +31,27 @@ export default function Identify() {
   // 제출을 눌러 본 뒤에만 이유를 말한다. 이름을 치는 중에 아직 오지도 않은
   // 전화번호 칸을 지적하면 손님에게는 잔소리로 읽힌다.
   const [tried, setTried] = useState(false);
+  // 회수 티켓을 교환하는 중인지. 확인 대기가 두 단계라 무엇을 기다리는지 말해 준다.
+  const [recovering, setRecovering] = useState(false);
   // Stable across retries so a double tap can never create a second game.
   const idempotencyKey = useRef(crypto.randomUUID());
 
   const mutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (): Promise<{ state: CustomerState; game?: GameCreated; couponToken?: string }> => {
+      setRecovering(false);
       const state = await api<CustomerState>(`/public/stores/${encodeURIComponent(token)}/customer-state`, {
         method: "POST",
         body: JSON.stringify({ name, phone, privacyAgreed: agreed, privacyConsentVersion: CUSTOMER_PRIVACY_VERSION }),
       });
+      if (state.state === "HAS_ACTIVE_COUPON") {
+        // 티켓은 1회용이고 5분이면 만료된다. 받자마자 쿠폰으로 바꾼다.
+        setRecovering(true);
+        const coupon = await api<Coupon>(`/public/stores/${encodeURIComponent(token)}/coupons/recover`, {
+          method: "POST",
+          body: JSON.stringify({ ticket: state.recoveryTicket ?? "" }),
+        });
+        return { state, couponToken: coupon.couponToken };
+      }
       if (state.state !== "CAN_PLAY") return { state };
       const game = await api<GameCreated>("/public/games", {
         method: "POST",
@@ -47,10 +59,10 @@ export default function Identify() {
       });
       return { state, game };
     },
-    onSuccess: ({ state, game }) => {
+    onSuccess: ({ game, couponToken }) => {
       save(token, name, phone);
-      if (state.state === "HAS_ACTIVE_COUPON" && state.couponToken) {
-        router.replace(`/s/${token}/coupon/${state.couponToken}`);
+      if (couponToken) {
+        router.replace(`/s/${token}/coupon/${couponToken}`);
       } else if (game) {
         setGame(game.playId, game.animationSeed);
         router.replace(`/s/${token}/game?playId=${encodeURIComponent(game.playId)}&seed=${encodeURIComponent(game.animationSeed)}`);
@@ -59,6 +71,8 @@ export default function Identify() {
   });
 
   const cooldown = mutation.data?.state.state === "COOLDOWN" ? mutation.data.state : undefined;
+  // 티켓이 만료·재사용되면 막다른 길이 된다. 다시 확인하면 새 티켓이 나온다.
+  const ticketExpired = mutation.error instanceof ApiClientError && mutation.error.code === "RECOVERY_TICKET_INVALID";
   const blocked = problem(name, phone, agreed);
 
   return (
@@ -137,10 +151,20 @@ export default function Identify() {
             {blocked.message}
           </p>
         )}
+        {mutation.isPending && (
+          <p className="notice" role="status">
+            {recovering ? "쿠폰을 확인하는 중이에요." : "참여할 수 있는지 확인하는 중이에요."}
+          </p>
+        )}
         {mutation.isError && (
           <p className="error" role="alert">
             {errorMessage(mutation.error)}
           </p>
+        )}
+        {ticketExpired && !mutation.isPending && (
+          <button type="button" className="btn secondary" onClick={() => mutation.mutate()}>
+            다시 확인
+          </button>
         )}
 
         <div className="actionbar">

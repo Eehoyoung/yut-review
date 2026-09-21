@@ -116,10 +116,23 @@ class AnalyticsService {
         return out.toString();
     }
 
-    /** 상품명에 쉼표나 따옴표가 들어가도 열이 밀리지 않게 한다. */
-    private static String csv(String value) {
-        if (value.indexOf(',') < 0 && value.indexOf('"') < 0 && value.indexOf('\n') < 0) return value;
-        return '"' + value.replace("\"", "\"\"") + '"';
+    /**
+     * 스프레드시트에서 수식으로 해석되지 않게 만든 뒤 RFC 방식으로 감싼다.
+     *
+     * 상품명은 매장이 직접 쓰는 값이라 `=cmd|...`나 `@SUM(...)`이 그대로 들어올 수 있다. 쉼표만
+     * 이스케이프하던 예전 구현은 열이 밀리는 것만 막았을 뿐, 파일을 연 사람의 엑셀에서 그 문장이
+     * 수식으로 실행되는 것은 막지 못했다.
+     *
+     * 값을 지우지 않고 작은따옴표를 앞에 붙인다. 지우면 사장이 자기가 적은 상품명을 못 알아본다.
+     */
+    static String csv(String value) {
+        String safe = value == null ? "" : value;
+        // 선행 공백·제어문자 뒤에 숨긴 수식 문자도 같이 잡는다. 엑셀은 앞의 공백을 무시하고 읽는다.
+        String head = safe.stripLeading();
+        if (!head.isEmpty() && "=+-@\t\r\n".indexOf(head.charAt(0)) >= 0) safe = "'" + safe;
+        if (safe.indexOf(',') < 0 && safe.indexOf('"') < 0 && safe.indexOf('\n') < 0
+                && safe.indexOf('\r') < 0 && safe.indexOf('\t') < 0) return safe;
+        return '"' + safe.replace("\"", "\"\"") + '"';
     }
 
     /** 파일명에 쓸 수 있는 매장명. 경로 구분자와 제어문자를 걷어낸다. */

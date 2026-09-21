@@ -3,7 +3,7 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiClientError, api, errorMessage } from "@/lib/api";
 import { ADMIN_ERROR_HINT, PLAN_LABEL } from "@/features/admin/labels";
-import type { AiChatAnswer, AiEventCopy, AiFeature, AiImprovement, AiReportContent, AiStatus } from "@/types/api";
+import type { AiChatAnswer, AiChatTurn, AiEventCopy, AiFeature, AiImprovement, AiReportContent, AiStatus } from "@/types/api";
 import { Dialog } from "@/features/ui/Dialog";
 
 /**
@@ -357,30 +357,50 @@ export function AiEventCopyDialog({ storeId }: { storeId: string }) {
   );
 }
 
-/** AI 매니저 대화. 서버가 매장을 고정하므로 다른 매장 데이터는 물어도 나오지 않는다. */
+/**
+ * AI 매니저 대화. 서버가 매장을 고정하므로 다른 매장 데이터는 물어도 나오지 않는다.
+ *
+ * 대화 이력도 서버가 소유한다. 화면이 history를 실어 보내면 무엇이 모델에 들어가는지 화면이
+ * 정하게 되고, 그 경로로 개인정보가 다시 흘러들 수 있다. 여기서는 읽어서 보여 주기만 한다.
+ */
 export function AiManagerChat({ storeId }: { storeId: string }) {
   const qc = useQueryClient();
   const status = useAiStatus(storeId);
   const [message, setMessage] = useState("");
-  const [turns, setTurns] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
+  const [confirmClear, setConfirmClear] = useState(false);
   const logRef = useRef<HTMLDivElement>(null);
+  const history = useQuery({
+    queryKey: ["ai-chat", storeId],
+    queryFn: () => api<{ turns: AiChatTurn[] }>(`/admin/stores/${storeId}/ai/chat/history`),
+    retry: false,
+  });
+  const turns = history.data?.turns ?? [];
   const ask = useMutation({
     mutationFn: (question: string) =>
       api<AiChatAnswer>(`/admin/stores/${storeId}/ai/chat`, {
         method: "POST",
-        body: JSON.stringify({ message: question, history: turns.slice(-6) }),
+        body: JSON.stringify({ message: question }),
       }),
-    onSuccess: (data, question) => {
-      setTurns((prev) => [...prev, { role: "user", content: question }, { role: "assistant", content: data.answer }]);
+    // 실패했을 때 입력을 지우지 않는다. 개인정보가 섞였다는 안내를 받고 고쳐 보내야 하는데
+    // 입력이 사라지면 처음부터 다시 써야 한다.
+    onSuccess: () => {
       setMessage("");
+      qc.invalidateQueries({ queryKey: ["ai-chat", storeId] });
       qc.invalidateQueries({ queryKey: ["ai-status", storeId] });
+    },
+  });
+  const clear = useMutation({
+    mutationFn: () => api<{ cleared: number }>(`/admin/stores/${storeId}/ai/chat/history`, { method: "DELETE" }),
+    onSuccess: () => {
+      setConfirmClear(false);
+      qc.invalidateQueries({ queryKey: ["ai-chat", storeId] });
     },
   });
 
   // 답이 오면 마지막 줄로 내린다. 위쪽을 보고 있으면 새 답이 온 줄도 모른다.
   useEffect(() => {
     if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
-  }, [turns]);
+  }, [history.data]);
 
   const why = blocked(status.data, "AI_CHAT");
 
@@ -393,13 +413,18 @@ export function AiManagerChat({ storeId }: { storeId: string }) {
       <p className="lead">이 매장의 운영 데이터만 보고 답합니다. 고객 개인정보는 묻거나 보여줄 수 없습니다.</p>
 
       {turns.length > 0 && (
-        <div className="chat-log" ref={logRef} tabIndex={0} role="log" aria-label="AI 대화 기록" aria-live="polite">
-          {turns.map((t, i) => (
-            <p key={i} className={t.role === "user" ? "chat-turn is-me" : "chat-turn"}>
-              {t.content}
-            </p>
-          ))}
-        </div>
+        <>
+          <div className="chat-log" ref={logRef} tabIndex={0} role="log" aria-label="AI 대화 기록" aria-live="polite">
+            {turns.map((t, i) => (
+              <p key={`${t.createdAt}-${i}`} className={t.role === "user" ? "chat-turn is-me" : "chat-turn"}>
+                {t.content}
+              </p>
+            ))}
+          </div>
+          <button type="button" className="btn ghost" onClick={() => setConfirmClear(true)}>
+            대화 지우기
+          </button>
+        </>
       )}
 
       <form
@@ -429,6 +454,26 @@ export function AiManagerChat({ storeId }: { storeId: string }) {
         </button>
         {why && <p className="hint">{why}</p>}
       </form>
+
+      <Dialog open={confirmClear} onClose={() => setConfirmClear(false)} labelledBy="clear-chat-title">
+        <div className="stack">
+          <h2 id="clear-chat-title">대화를 지울까요?</h2>
+          <p className="lead">지난 대화가 모두 사라지고 되돌릴 수 없습니다. 사용량은 되돌아오지 않습니다.</p>
+          {clear.isError && (
+            <p className="error" role="alert">
+              {adminError(clear.error)}
+            </p>
+          )}
+          <div className="sheet-actions">
+            <button type="button" className="btn ghost" onClick={() => setConfirmClear(false)}>
+              취소
+            </button>
+            <button type="button" className="btn" disabled={clear.isPending} onClick={() => clear.mutate()}>
+              {clear.isPending ? "지우는 중" : "지우기"}
+            </button>
+          </div>
+        </div>
+      </Dialog>
     </section>
   );
 }

@@ -26,22 +26,23 @@ class AiController {
     private final AiService ai;
     private final StoreAccessService access;
     private final StoreRepository stores;
+    private final StoreApprovalService approvals;
+    private final AiChatHistoryService history;
 
-    AiController(AiService ai, StoreAccessService access, StoreRepository stores) {
+    AiController(AiService ai, StoreAccessService access, StoreRepository stores,
+                 StoreApprovalService approvals, AiChatHistoryService history) {
         this.ai = ai;
         this.access = access;
         this.stores = stores;
+        this.approvals = approvals;
+        this.history = history;
     }
 
     record EventCopyBody(@Size(max = 40) String tone, @Size(max = 300) String additionalRequest) {
     }
 
-    record ChatBody(@NotBlank @Size(max = AiService.MAX_CHAT_MESSAGE_CHARS) String message,
-                    List<@Valid ChatTurnBody> history) {
-    }
-
-    record ChatTurnBody(@NotNull @Size(max = 20) String role,
-                        @NotBlank @Size(max = AiService.MAX_CHAT_MESSAGE_CHARS) String content) {
+    /** 이력은 받지 않는다. 서버가 가진 것만 쓴다. 클라이언트 history는 필터를 우회하는 통로였다. */
+    record ChatBody(@NotBlank @Size(max = AiService.MAX_CHAT_MESSAGE_CHARS) String message) {
     }
 
     @GetMapping("/status")
@@ -87,10 +88,21 @@ class AiController {
 
     @PostMapping("/chat")
     ApiResponse<?> chat(@PathVariable Long storeId, @Valid @RequestBody ChatBody body, Authentication auth) {
+        return ApiResponse.ok(ai.chat(store(storeId, auth), body.message()));
+    }
+
+    @GetMapping("/chat/history")
+    ApiResponse<?> chatHistory(@PathVariable Long storeId, Authentication auth) {
         Store store = store(storeId, auth);
-        List<AiService.ChatTurn> history = body.history() == null ? List.of()
-                : body.history().stream().map(t -> new AiService.ChatTurn(t.role(), t.content())).toList();
-        return ApiResponse.ok(ai.chat(store, body.message(), history));
+        List<Map<String, Object>> turns = history.recent(store.id).stream()
+                .map(t -> Map.<String, Object>of("role", t.role, "content", t.content, "createdAt", t.createdAt))
+                .toList();
+        return ApiResponse.ok(Map.of("turns", turns));
+    }
+
+    @DeleteMapping("/chat/history")
+    ApiResponse<?> clearChatHistory(@PathVariable Long storeId, Authentication auth) {
+        return ApiResponse.ok(Map.of("cleared", history.clear(store(storeId, auth).id)));
     }
 
     /** 매장 조회 전에 멤버십을 먼저 본다. 남의 매장 id를 넣어도 존재 여부조차 알려주지 않는다. */
@@ -98,9 +110,9 @@ class AiController {
         access.member((Long) auth.getPrincipal(), storeId);
         Store store = stores.findById(storeId)
                 .orElseThrow(() -> new AppException("STORE_NOT_FOUND", "매장을 찾을 수 없습니다."));
-        // 운영이 중지된 매장은 고객 경로에서도 막힌다. 관리자 AI만 계속 돌아가면 정지가 정지가 아니다.
-        if (store.status != StoreStatus.ACTIVE)
-            throw new AppException("STORE_INACTIVE", "운영 중인 매장이 아닙니다.");
+        // 운영이 중지되거나 아직 승인되지 않은 매장은 고객 경로에서도 막힌다. 관리자 AI만 계속
+        // 돌아가면 정지가 정지가 아니고, 승인 전 매장이 운영자 API 키로 모델을 부를 수 있게 된다.
+        approvals.requireOperable(store);
         return store;
     }
 }

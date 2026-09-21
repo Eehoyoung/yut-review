@@ -78,6 +78,12 @@ const friendly: Record<string, string> = {
   INVALID_BUSINESS_NUMBER: "사업자등록번호는 숫자 10자리로 입력해 주세요.",
   DUPLICATE_EMAIL: "이미 가입된 이메일입니다.", DUPLICATE_BUSINESS_NUMBER: "이미 등록된 사업자등록번호입니다.",
   STORE_LIMIT_REACHED: "한 계정이 관리할 수 있는 매장 수를 넘었습니다.",
+  RATE_LIMITED: "요청이 너무 많아요. 잠시 후 다시 시도해 주세요.",
+  GAME_RATE_LIMITED: "지금 참여가 몰리고 있어요. 잠시 후 다시 시도해 주세요.",
+  STORE_DAILY_LIMIT: "오늘은 참여가 마감됐어요. 내일 다시 참여해 주세요.",
+  RECOVERY_TICKET_INVALID: "쿠폰 확인 시간이 지났어요. 번호를 다시 입력해 주세요.",
+  STORE_PENDING_APPROVAL: "아직 준비 중인 매장이에요. 직원에게 문의해 주세요.",
+  STORE_REJECTED: "현재 이벤트를 운영하지 않는 매장입니다.",
 };
 
 export function errorMessage(error: unknown) {

@@ -73,10 +73,11 @@ docker compose --env-file .env.field-test --profile field-test up -d   # Cloudfl
 
 ## 알려진 제약
 
-- PIN·로그인 시도 제한은 인메모리 `ConcurrentHashMap` 기반이라 단일 인스턴스 전제다.
-- Cloudflare 터널을 경유하면 Nginx가 보는 `$remote_addr`가 cloudflared 컨테이너 IP로 고정되어
-  PIN 시도 제한이 매장 단위 전역 제한(분당 10회)처럼 동작한다. 현장 테스트 규모에서는 문제가 없지만,
-  실제 운영에서 클라이언트별 제한이 필요하면 신뢰 가능한 프록시 설정과 함께 real_ip 처리를 추가해야 한다.
+- PIN·로그인·가입·게임 시도 제한은 DB 카운터(`rate_counters`)라 인스턴스가 늘어도 같이 센다.
+  Redis는 여전히 도입하지 않는다.
+- 운영 Nginx는 Cloudflare 대역에서만 `CF-Connecting-IP`를 real_ip로 해석하고, 백엔드는
+  `TRUSTED_PROXY_CIDRS` 안의 peer가 보낸 `X-Real-IP`만 믿는다. 개발용 Quick Tunnel 경로는
+  여전히 cloudflared 컨테이너 IP로 뭉치므로, 현장 테스트에서는 IP 기준 제한이 매장 전역처럼 동작한다.
 - 터널 주소가 바뀌면 관리자 QR 화면을 새 주소로 열어 QR을 다시 만들어야 한다(토큰 자체는 유지된다).
 
 ## 3D 윷 (건드리기 전에 반드시 읽을 것)
@@ -175,6 +176,58 @@ docker compose --env-file .env.field-test --profile field-test up -d   # Cloudfl
   멤버도 아니라서 자기가 해야 할 변경을 스스로 막게 된다).
 
 기본 공급자는 fake다. 실제 호출은 `AI_PROVIDER=openai`와 `OPENAI_API_KEY`가 있을 때만 일어난다.
+
+## 보안점검 반영 (2026-09-22)
+
+`docs/security/report.md`의 10건을 코드·테스트·배포 설정에 반영했다. 구현 위치만 적는다.
+규칙 원문은 `09_SECURITY_AND_ABUSE.md`, 계약은 `05_API_SPEC.md`에 있다.
+
+- `RateLimits.java` — `RateCounter`(bucket당 1행, 조건부 UPDATE) + `RateLimitService` + `ClientIpResolver`.
+  **모든 rate limit이 여기 하나로 모인다.** 인메모리 맵으로 되돌리지 말 것(만료도 상한도 없어서
+  서로 다른 키가 들어올수록 메모리가 단조 증가했다). Redis도 도입하지 말 것.
+- `Recovery.java` — 5분·1회용 쿠폰 회수 티켓. 평문은 저장하지 않고 SHA-256만 남긴다.
+  `customer-state` 응답에서 `couponToken`을 다시 돌려주지 말 것. 그게 원래 문제였다.
+- `StoreApproval.java` — `PENDING_APPROVAL` → 운영자 승인. 감사 로그 + `/api/admin/operator/**`.
+  거부 사유는 `stores` 컬럼이 아니라 마지막 `REJECT` 이벤트에서 읽는다(사실을 두 곳에 두지 않는다).
+- `PhoneHashMigration.java` — HMAC 키 회전의 마지막 단계. 원문이 AES-GCM으로 남아 있어 되돌릴 수 있다.
+- `AiChat.java` — 서버가 소유하는 AI 대화 이력. **클라이언트 `history`를 다시 받지 말 것.**
+  그 칸이 개인정보·토큰의 유일한 우회로였다.
+- `AiContextService.reasonToBlock` — 개인정보·비밀값 차단의 유일한 자리. 전화번호, 이메일, 긴 hex,
+  `cp_`/`rt_`/`seed_`, `sk-`, JWT, Bearer, PIN 표기. 여기 말고 다른 곳에 패턴을 또 적지 말 것.
+- `Monitoring.java` + `features/admin/ResourceMonitor.tsx` — 운영자 자원 현황.
+  차단 수는 `rate_counters`의 `rejected:{code}` bucket에 24시간 창으로 쌓인다. 별도 테이블을 만들지 말 것.
+  거절 기록은 **거절을 만든 트랜잭션 밖에서** 커밋한다. 안에서 쓰면 거절만 정확히 전부 사라진다.
+- 운영 스크립트: `scripts/generate-production-secrets.sh`(서버에서 키 생성, 화면에 찍지 않음),
+  `scripts/verify-production.sh`(배포 후 TLS/DNS/헤더/fail-closed 점검), `scripts/load-test/`(k6).
+  계획과 임계값은 `docs/LOAD_TEST_PLAN.md`.
+- 테스트: `SecurityRemediationTest.java` (회수 티켓 만료·재사용·타 매장, 게임/가입 429 경계와 TTL purge,
+  신뢰 프록시 IP, 승인/거부/재심사/소유권 + 감사 로그, AI 이력 PII 배제, CSV 수식 전체, HMAC 강도·회전,
+  차단 집계와 자원 현황).
+
+되돌리면 안 되는 지점:
+
+- 게임 생성에서 매장 행을 `FOR UPDATE`로 잡지 말 것. 한 손님의 게임이 그 매장의 다른 모든 손님을
+  줄 세운다. 잠금 단위는 `(매장, phoneHash)`이며 `RateLimitService.lock`이 그 행을 잡는다.
+- `RateLimitService`의 행 생성을 호출부 트랜잭션 안에서 하지 말 것. 유니크 충돌이 영속성 컨텍스트를
+  오염시켜 다음 flush에서 죽는다(AI 쿼터 행에서 이미 당했다).
+- rate limit 카운트를 바깥 트랜잭션에 묶지 말 것. 실패한 요청이 세어지지 않으면 실패를 반복해
+  한도를 우회할 수 있다.
+- 매장 quota와 고객 쿨타임을 하나로 합치지 말 것. 참여 제한은 여전히 2일 쿨타임이 authoritative다.
+- 승인 전 매장에서 포스터를 만들지 말 것. 익명 요청 하나로 큰 PNG를 계속 쌓는 길이 다시 열린다.
+- 백엔드는 `app.trusted-proxies` 안의 peer가 보낸 `X-Real-IP`만 믿는다. 무조건 믿던 예전 코드로
+  되돌리지 말 것. Nginx와 Spring의 client-IP 정책은 항상 같이 움직여야 한다.
+
+### `PHONE_HMAC_SECRET` 형식이 바뀌었다
+
+Base64로 디코딩해 32바이트 이상이어야 하고, 아니면 **기동하지 않는다**. 기존 `.env.field-test`의
+원문 문자열 키는 이제 거부된다. 기존 볼륨을 유지한 채 바꾸려면:
+
+1. `PHONE_HMAC_PREVIOUS_SECRET`에 **기존 값 그대로**, `PHONE_HMAC_SECRET`에 새 Base64 키를 넣는다.
+2. 재기동한다. 이 동안 쿨타임·쿠폰 조회는 두 해시를 함께 본다.
+3. 운영자 계정으로 `POST /api/admin/operator/phone-hash/rehash`를 1회 실행한다.
+4. `PHONE_HMAC_PREVIOUS_SECRET`을 비우고 재기동한다.
+
+DB를 버려도 되는 로컬이라면 `docker compose down -v` 후 새 키로 올리는 쪽이 빠르다.
 
 ## 스키마 변경
 

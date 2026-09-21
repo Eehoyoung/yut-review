@@ -99,6 +99,7 @@ class AiService {
     private final AiUsageService usage;
     private final AiAnalyticsToolRegistry toolRegistry;
     private final AiReportRepository reports;
+    private final AiChatHistoryService history;
     private final SubscriptionService subscriptions;
     private final PlanEntitlementService entitlements;
     private final ObjectMapper json;
@@ -109,7 +110,7 @@ class AiService {
 
     AiService(LlmProvider provider, AiPromptService prompts, AiContextService context, AiQuotaService quota,
               AiUsageService usage, AiAnalyticsToolRegistry toolRegistry, AiReportRepository reports,
-              SubscriptionService subscriptions, PlanEntitlementService entitlements, ObjectMapper json, Clock clock,
+              AiChatHistoryService history, SubscriptionService subscriptions, PlanEntitlementService entitlements, ObjectMapper json, Clock clock,
               @Value("${app.ai.model.fast:gpt-4.1-mini}") String fastModel,
               @Value("${app.ai.model.analysis:gpt-4.1}") String analysisModel,
               @Value("${app.ai.model.chat:gpt-4.1-mini}") String chatModel) {
@@ -120,6 +121,7 @@ class AiService {
         this.usage = usage;
         this.toolRegistry = toolRegistry;
         this.reports = reports;
+        this.history = history;
         this.subscriptions = subscriptions;
         this.entitlements = entitlements;
         this.json = json;
@@ -130,9 +132,6 @@ class AiService {
     }
 
     record EventCopyRequest(String tone, String additionalRequest) {
-    }
-
-    record ChatTurn(String role, String content) {
     }
 
     /** 이벤트 안내 문구. 실제 상품·확률만 근거로 쓴다. */
@@ -185,25 +184,28 @@ class AiService {
      * AI 매니저 대화. 모델은 도구로만 숫자를 확인하고, 도구는 이 매장의 집계만 돌려준다.
      * 왕복 상한에 닿으면 도구 없이 한 번 더 물어 답을 받는다.
      */
-    Map<String, Object> chat(Store store, String message, List<ChatTurn> history) {
+    Map<String, Object> chat(Store store, String message) {
         Plan plan = requirePlan(store, AiFeature.AI_CHAT);
         String question = AiContextService.withoutPersonalData(message, "질문");
         if (question.isEmpty()) throw new AppException("INVALID_REQUEST", "질문을 입력해 주세요.");
         if (question.length() > MAX_CHAT_MESSAGE_CHARS)
             throw new AppException("INVALID_REQUEST", "질문은 " + MAX_CHAT_MESSAGE_CHARS + "자 이내로 입력해 주세요.");
 
+        // 이력은 서버 것만 쓴다. 클라이언트가 보낸 history를 그대로 복사하던 시절에는, 필터를
+        // 지나는 것이 현재 질문 하나뿐이라 history 칸이 개인정보와 토큰의 우회로였다.
         List<LlmMessage> messages = new ArrayList<>();
-        if (history != null) {
-            List<ChatTurn> tail = history.size() > MAX_CHAT_HISTORY_TURNS
-                    ? history.subList(history.size() - MAX_CHAT_HISTORY_TURNS, history.size())
-                    : history;
-            for (ChatTurn turn : tail) {
-                if (turn == null || turn.content() == null || turn.content().isBlank()) continue;
-                String content = turn.content().length() > MAX_CHAT_MESSAGE_CHARS
-                        ? turn.content().substring(0, MAX_CHAT_MESSAGE_CHARS) : turn.content();
-                messages.add("assistant".equals(turn.role()) ? LlmMessage.assistant(content) : LlmMessage.user(content));
-            }
+        int filtered = 0;
+        for (AiChatTurn turn : history.recent(store.id)) {
+            // 저장 전에 이미 걸렀지만 사용 직전에 한 번 더 본다. 여기서 걸린 턴은 공급자에게
+            // 가지 않고 조용히 빠진다. 과거 한 줄 때문에 대화가 영영 막히면 그것도 장애다.
+            String safe = AiContextService.filteredOrNull(turn.content);
+            if (safe == null) { filtered++; continue; }
+            if (safe.length() > MAX_CHAT_MESSAGE_CHARS) safe = safe.substring(0, MAX_CHAT_MESSAGE_CHARS);
+            messages.add("assistant".equals(turn.role) ? LlmMessage.assistant(safe) : LlmMessage.user(safe));
         }
+        if (filtered > 0) log.warn("ai chat history turns dropped by personal-data filter: count={}", filtered);
+        if (messages.size() > MAX_CHAT_HISTORY_TURNS)
+            messages = new ArrayList<>(messages.subList(messages.size() - MAX_CHAT_HISTORY_TURNS, messages.size()));
         messages.add(LlmMessage.user(question));
 
         String chargedMonth = quota.consume(store, plan, AiFeature.AI_CHAT);
@@ -238,8 +240,12 @@ class AiService {
                 total = add(total, response.usage());
             }
             usage.record(store, AiFeature.AI_CHAT, response.model(), version, total, true, null);
+            // 성공한 왕복만 이력에 남긴다. 실패한 호출까지 쌓으면 다음 질문이 없는 답을 근거로 삼는다.
+            history.append(store, "user", question);
+            String answer = response.text();
+            if (answer != null && !answer.isBlank()) history.append(store, "assistant", answer);
             Map<String, Object> out = new LinkedHashMap<>();
-            out.put("answer", response.text());
+            out.put("answer", answer);
             out.put("toolsUsed", toolsUsed);
             return out;
         } catch (AppException e) {

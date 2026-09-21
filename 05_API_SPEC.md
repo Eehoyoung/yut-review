@@ -77,10 +77,51 @@ COOLDOWN
 예:
 ```json
 {
-  "state": "COOLDOWN",
-  "nextPlayableDate": "2026-09-04"
+  "state": "HAS_ACTIVE_COUPON",
+  "nextPlayableDate": "",
+  "recoveryTicket": "<opaque>"
 }
 ```
+
+```json
+{
+  "state": "COOLDOWN",
+  "nextPlayableDate": "2026-09-04",
+  "recoveryTicket": ""
+}
+```
+
+이 응답은 `couponToken`을 반환하지 않는다. 예전에는 미사용 쿠폰이 있으면 여기서 바로 쿠폰 토큰을
+내려줬는데, 전화번호 하나만 알면 남의 쿠폰 bearer token을 받아갈 수 있었기 때문에 제거했다.
+대신 `recoveryTicket`을 주고, 실제 쿠폰은 아래 회수 API를 한 번 더 호출해야 받는다.
+
+`recoveryTicket`은 `HAS_ACTIVE_COUPON`일 때만 비어 있지 않다. 5분 만료, 1회용이며
+(매장 · phoneHash · couponId)에 묶여 있다. 서버는 티켓 해시만 저장하고 평문은 이 응답에서만 나간다.
+
+## 쿠폰 회수
+```http
+POST /api/public/stores/{storeToken}/coupons/recover
+```
+Request:
+```json
+{ "ticket": "<recoveryTicket>" }
+```
+Response는 `GET /api/public/coupons/{couponToken}`과 같은 couponView다.
+```json
+{
+  "prizeRank": 1,
+  "couponToken": "cp_xxx",
+  "status": "ISSUED",
+  "prize": { "name": "삼겹살 1인분", "description": "1테이블 1회" },
+  "redeemPolicy": "ANYTIME",
+  "validFrom": "2026-09-22T19:30:00+09:00",
+  "expiresAt": "2026-12-20T23:59:59+09:00"
+}
+```
+
+티켓은 한 번 쓰면 소모된다. 만료·재사용·다른 매장 토큰·존재하지 않는 티켓은 전부 400
+`RECOVERY_TICKET_INVALID` 하나로 응답하며 어느 쪽인지 구분해 알려주지 않는다.
+어떤 전화번호에 쿠폰이 있는지 이 엔드포인트로 탐색할 수 없게 하기 위한 규칙이다.
 
 ## 게임 생성
 ```http
@@ -109,6 +150,11 @@ Response:
 
 서버는 현재 고객 개인정보 동의 버전을 검증하고 참여 기록에 동의 버전과 시각을 저장한다.
 `customer-state`를 먼저 호출했더라도 게임 생성 요청에서 다시 검증하므로 직접 API 호출로 우회할 수 없다.
+
+요청/성공 응답 형식은 그대로지만 429가 새로 날 수 있다. 매장·IP 분당 한도를 넘으면
+`GAME_RATE_LIMITED`, 매장 1일 생성 상한을 넘으면 `STORE_DAILY_LIMIT`이다.
+전화번호 기준 참여 제한은 여전히 2일 쿨타임과 미사용 쿠폰 우선 규칙이 authoritative하며,
+rate limit이 이를 대체하지 않는다.
 
 ## 결과 공개
 ```http
@@ -177,13 +223,14 @@ Response:
 {
   "storeId": 3,
   "storeName": "홍대포차",
-  "staffPin": "483921",
-  "storeToken": "qR7...",
-  "posterReady": true
+  "status": "PENDING_APPROVAL",
+  "approvalRequired": true
 }
 ```
-가입과 동시에 `STORE_ADMIN` 계정, 매장, OWNER 멤버십, QR 토큰, 기본 3등급 상품과
-기본 가중치 설정이 생성된다. `staffPin`은 이 응답에서 한 번만 반환한다.
+가입과 동시에 `STORE_ADMIN` 계정, 매장, OWNER 멤버십, 기본 3등급 상품과 기본 가중치 설정이
+생성된다. 매장은 `PENDING_APPROVAL`로 시작한다. 가입 자체는 성공이고 로그인도 되지만
+**`staffPin`과 `storeToken`은 더 이상 이 응답에서 반환하지 않는다.** QR·직원 PIN·안내물은
+운영자 승인 후에 열린다.
 
 서버는 현재 이용약관과 개인정보 동의 버전을 각각 검증하고 동의 시각·버전을 계정에 저장한다.
 동의가 없거나 구버전이면 `TERMS_CONSENT_REQUIRED` / `PRIVACY_CONSENT_REQUIRED`로 거부한다.
@@ -227,6 +274,18 @@ Request:
 ```
 계정은 이메일로만 식별한다. 아이디(`loginId`) 개념은 없다. 대소문자는 서버가 소문자로 맞춘다.
 
+## 내 계정
+```http
+GET /api/admin/me
+```
+Response:
+```json
+{ "id": 3, "email": "owner@example.com", "name": "홍대표", "role": "STORE_ADMIN" }
+```
+
+`role`은 `SYSTEM_ADMIN` 또는 `STORE_ADMIN`이다. 관리자 화면은 이 값으로만 운영자 메뉴 노출을
+판단하고, JWT를 직접 해석하지 않는다.
+
 ## 내 매장
 ```http
 GET /api/admin/stores
@@ -235,16 +294,149 @@ GET /api/admin/stores/{storeId}
 PUT /api/admin/stores/{storeId}
 ```
 
-`POST`는 로그인한 관리자가 자기 매장을 하나 더 만드는 요청이다. 매장, 소유 멤버십, QR,
-기본 3등급 상품과 기본 가중치 설정을 함께 생성하고 최초 직원 PIN을 응답에서 한 번만 반환한다.
+`GET`의 각 항목은 상태와 거부 사유를 포함한다.
+
+```json
+[
+  { "id": 12, "name": "홍대포차", "businessNumber": "3582302207",
+    "status": "PENDING_APPROVAL", "approvalNote": "" }
+]
+```
+
+`status`는 `PENDING_APPROVAL` / `ACTIVE` / `INACTIVE` / `REJECTED` 네 가지다.
+`approvalNote`는 상태가 `REJECTED`일 때 마지막 거부 사유가 채워지고, 그 밖에는 `""`다.
+값은 `stores`가 아니라 `store_approval_events`의 마지막 `REJECT` 행에서 읽는다.
+
+`POST`는 로그인한 관리자가 자기 매장을 하나 더 만드는 요청이다. 매장, 소유 멤버십,
+기본 3등급 상품과 기본 가중치 설정을 함께 생성한다. 추가 매장도 `PENDING_APPROVAL`로 시작하며
+**직원 PIN과 QR 토큰은 응답에 담기지 않는다.**
 
 Request:
 ```json
 { "name": "홍대포차 2호점", "businessNumber": "1234567891", "phone": "01012345678" }
 ```
 
+Response:
+```json
+{ "id": 13, "name": "홍대포차 2호점", "status": "PENDING_APPROVAL", "approvalRequired": true }
+```
+
 `businessNumber`는 매장마다 유일해야 하며 중복이면 `DUPLICATE_BUSINESS_NUMBER`다.
 한 계정이 가질 수 있는 매장 수를 넘기면 `STORE_LIMIT_REACHED`를 반환한다.
+
+## 승인 전 매장의 엔드포인트 차단
+
+매장이 `ACTIVE`가 아니면 아래 운영 엔드포인트는 403이다. 코드는 상태에 따라
+`STORE_PENDING_APPROVAL`, `STORE_REJECTED`, `STORE_INACTIVE` 중 하나다.
+
+```text
+PUT  /api/admin/stores/{storeId}
+     /api/admin/stores/{storeId}/prizes
+     /api/admin/stores/{storeId}/game-config
+     /api/admin/stores/{storeId}/event-configuration
+     /api/admin/stores/{storeId}/event-settings
+     /api/admin/stores/{storeId}/qr-codes
+     /api/admin/stores/{storeId}/poster
+     /api/admin/stores/{storeId}/staff-pin
+     /api/admin/stores/{storeId}/game-plays
+     /api/admin/stores/{storeId}/coupons
+     /api/admin/stores/{storeId}/analytics
+     /api/admin/stores/{storeId}/ai/**
+```
+
+열려 있는 것은 계정 단위 엔드포인트(`GET /api/admin/me`, `GET /api/admin/stores`,
+`POST /api/admin/stores`, `/api/admin/marketing-consents`)와 매장 요약
+`GET /api/admin/stores/{storeId}`뿐이다. 요약은 점주가 자기 매장의 심사 상태를 확인하는 통로라
+승인 전에도 허용한다.
+
+## 운영자 API
+```http
+GET  /api/admin/operator/summary
+GET  /api/admin/operator/monitoring
+GET  /api/admin/operator/stores?status=&page=0&size=20
+POST /api/admin/operator/stores/{storeId}/approve
+POST /api/admin/operator/stores/{storeId}/reject
+POST /api/admin/operator/stores/{storeId}/review-again
+POST /api/admin/operator/stores/{storeId}/ownership
+GET  /api/admin/operator/stores/{storeId}/approval-events
+POST /api/admin/operator/phone-hash/rehash
+```
+
+### 자원 현황 — `GET /api/admin/operator/monitoring`
+
+공개 게임 생성의 자원 고갈 방어를 눈으로 보는 자리다. 집계와 매장 공개 라벨만 나가며 고객
+개인정보는 한 칸도 들어 있지 않다.
+
+```json
+{
+  "date": "2026-09-22",
+  "throttled": { "GAME_RATE_LIMITED": 12, "STORE_DAILY_LIMIT": 0, "SIGNUP_RATE_LIMITED": 3,
+                 "AUTH_RATE_LIMITED": 1, "STAFF_PIN_RATE_LIMITED": 0, "RATE_LIMITED": 5 },
+  "counters": { "rows": 412, "maxRows": 50000 },
+  "limits": { "gamePerStorePerMinute": 30, "gamePerIpPerMinute": 10, "gamePerStorePerDay": 2000 },
+  "storage": { "gamePlays": 10234, "coupons": 10234, "recoverySessions": 3,
+               "aiChatTurns": 40, "stores": 52, "posterBase64Chars": 8912340 },
+  "busiestStores": [
+    { "storeId": 3, "name": "테스트포차", "playsToday": 143, "dailyLimit": 2000, "usedPercent": 7.2 }
+  ]
+}
+```
+
+- `throttled`은 **최근 24시간** 거절 수이고, 0인 코드도 함께 내려온다(화면이 "조용함"과
+  "집계 없음"을 구분해야 한다).
+- 거절 기록은 거절을 만든 트랜잭션과 분리해 커밋된다. 같이 묶으면 거절 기록만 정확히 전부 사라진다.
+- `busiestStores`는 오늘 참여가 많은 순 최대 10곳이다.
+- 임계값 판단 기준은 `docs/LOAD_TEST_PLAN.md` 5장에 있다.
+
+`/api/admin/operator/**`는 `SYSTEM_ADMIN` 전용이다. 일반 관리자가 호출하면 403 `OPERATOR_ONLY`다.
+운영자는 어느 매장의 멤버도 아니므로 이 경로에서는 매장 membership 검사를 하지 않는다.
+
+`GET /summary`:
+```json
+{ "pending": 3, "active": 12, "rejected": 1 }
+```
+
+`GET /stores`는 `status`를 생략하면 전체를 반환하고, `data`는 다른 목록과 같은 페이지 형식이다.
+content 항목:
+```json
+{
+  "id": 12,
+  "name": "홍대포차",
+  "businessNumber": "3582302207",
+  "ownerName": "홍대표",
+  "ownerEmail": "owner@example.com",
+  "ownerPhone": "01012345678",
+  "status": "PENDING_APPROVAL",
+  "createdAt": "2026-09-22T10:00:00+09:00",
+  "note": ""
+}
+```
+
+| 엔드포인트 | Request | Response |
+|---|---|---|
+| `POST .../approve` | `{ "note": "선택, 200자" }` | `{ "id":12, "status":"ACTIVE", "changed":true }` |
+| `POST .../reject` | `{ "reason": "필수, 1~200자" }` | `{ "id":12, "status":"REJECTED", "changed":true }` |
+| `POST .../review-again` | `{ "note": "선택" }` | `{ "id":12, "status":"PENDING_APPROVAL", "changed":true }` |
+| `POST .../ownership` | `{ "email":"new@owner.com", "note":"선택" }` | `{ "id":12, "ownerEmail":"new@owner.com" }` |
+
+이미 그 상태면 `changed:false`로 응답하고 감사 로그를 추가하지 않는다. 같은 요청을 다시 눌러도
+이력이 늘지 않게 하려는 것이다. `review-again`은 `REJECTED`에서만 가능하다.
+`ownership`의 이메일에 해당하는 계정이 없으면 400 `ADMIN_NOT_FOUND`다.
+
+`GET .../approval-events`는 append-only 감사 로그를 그대로 반환한다.
+```json
+[
+  { "action": "REJECT", "actorEmail": "operator@example.com",
+    "note": "사업자등록번호 확인 불가", "createdAt": "2026-09-22T11:00:00+09:00" }
+]
+```
+`action`은 `APPROVE` / `REJECT` / `REVIEW_AGAIN` / `OWNERSHIP_CHANGE`다.
+
+`POST /phone-hash/rehash`는 phone HMAC 키 회전 중 이전 키로 만든 해시를 현재 키로 재계산한다.
+이전 키를 폐기하기 전에 한 번만 실행한다.
+```json
+{ "scanned": 1200, "rehashed": 340 }
+```
 
 ## 상품 조회/수정
 ```http
@@ -427,10 +619,36 @@ POST /api/admin/stores/{storeId}/ai/report?from=&to=
 GET  /api/admin/stores/{storeId}/ai/report/latest
 POST /api/admin/stores/{storeId}/ai/improvement?from=&to=
 GET  /api/admin/stores/{storeId}/ai/improvement/latest
-POST /api/admin/stores/{storeId}/ai/chat
+POST   /api/admin/stores/{storeId}/ai/chat
+GET    /api/admin/stores/{storeId}/ai/chat/history
+DELETE /api/admin/stores/{storeId}/ai/chat/history
 ```
 
 모든 요청이 인증 → 매장 멤버십 → 요금제 권한 → 월 한도 순으로 검사된다.
+
+채팅 이력은 서버가 소유한다. `POST /ai/chat` 요청 body는 `{ "message": "..." }`뿐이며
+**클라이언트가 보내던 `history`는 제거했다.** 응답은 그대로 `{ answer, toolsUsed }`다.
+모델에 들어가는 이전 턴은 서버가 저장한 것만 쓰고, 저장 시점에 개인정보 필터를 통과한 텍스트다.
+
+```http
+GET /api/admin/stores/{storeId}/ai/chat/history
+```
+```json
+{
+  "turns": [
+    { "role": "user", "content": "이번 달 이벤트 반응 어때?", "createdAt": "2026-09-22T10:00:00+09:00" },
+    { "role": "assistant", "content": "...", "createdAt": "2026-09-22T10:00:04+09:00" }
+  ]
+}
+```
+오래된 턴이 먼저 오고 최대 12개다.
+
+```http
+DELETE /api/admin/stores/{storeId}/ai/chat/history
+```
+```json
+{ "cleared": 8 }
+```
 
 | code | 상황 |
 |---|---|
@@ -469,7 +687,68 @@ GET /api/admin/stores/{storeId}/analytics/summary
 `advancedAvailable`와 현재 요금제에서 허용된 CSV 종류인 `csvExports`가 포함된다.
 상세 통계의 `prizePerformance.prizes`는 등급을 `prizeRank`로 반환한다.
 
+# Rate Limit
+
+DB 카운터로 세며 Redis를 쓰지 않는다. 한도를 넘으면 429다.
+
+| 대상 | 키 | 한도 | code |
+|---|---|---|---|
+| 매장 회원가입 | IP | 1시간 5회 / 24시간 20회 | `SIGNUP_RATE_LIMITED` |
+| 매장 회원가입 | 사업자등록번호 | 24시간 3회 | `SIGNUP_RATE_LIMITED` |
+| 고객 상태 조회 | IP | 1분 20회 | `RATE_LIMITED` |
+| 게임 생성 | storeId | 1분 30회 | `GAME_RATE_LIMITED` |
+| 게임 생성 | IP | 1분 10회 | `GAME_RATE_LIMITED` |
+| 게임 생성 | storeId 일일 행 | 1일 2000건 | `STORE_DAILY_LIMIT` |
+| 로그인 | IP | 1분 5회, 성공 시 초기화 | `AUTH_RATE_LIMITED` |
+| 로그인 | 이메일 | 1분 5회, 성공 시 초기화 | `AUTH_RATE_LIMITED` |
+| 직원 PIN | storeId + IP | 1분 10회 | `STAFF_PIN_RATE_LIMITED` |
+| 직원 PIN | storeId + couponId | 1분 5회 | `STAFF_PIN_RATE_LIMITED` |
+
+고객 상태 조회에 한도가 붙은 이유는 그 호출이 회수 티켓 행을 만들기 때문이다. 읽기처럼 보이지만
+쓰기가 있는 공개 엔드포인트다.
+
+게임 생성의 세 한도는 `app.limits.game-per-store-per-minute` / `-per-ip-per-minute` /
+`-per-store-per-day`로 조정할 수 있다. 표의 값이 기본값이자 정책이며, 눈에 띄게 붐비는 매장을
+위한 조정 나사다.
+
+로그인은 IP 키와 계정 키를 함께 쓴다. 한 IP가 여러 계정을 훑는 경우와 여러 IP가 한 계정을
+노리는 경우가 서로 다른 공격이라 한쪽만 막으면 다른 쪽이 그대로 열린다.
+
+매장 단위 한도와 고객별 2일 쿨타임은 별개다. 쿨타임은 phone hash 기준 참여 제한이고 그대로
+authoritative하며, rate limit은 그 앞단의 자원 보호다. 정상 QR 손님이 매장 한도에 걸리는 일이
+없도록 매장 분당 한도는 실제 회전율보다 넉넉히 잡는다.
+
+429 응답:
+```json
+{
+  "success": false,
+  "data": null,
+  "error": {
+    "code": "GAME_RATE_LIMITED",
+    "message": "잠시 후 다시 시도해 주세요."
+  }
+}
+```
+
 # Error Code
+
+2026-09-22 보안 보완으로 추가된 코드:
+
+| code | HTTP | 언제 |
+|---|---|---|
+| `RATE_LIMITED` | 429 | 공통 공개 throttle |
+| `SIGNUP_RATE_LIMITED` | 429 | 가입 IP·사업자등록번호 한도 초과 |
+| `GAME_RATE_LIMITED` | 429 | 게임 생성 매장·IP 한도 초과 |
+| `STORE_DAILY_LIMIT` | 429 | 매장 1일 게임 생성 상한 초과 |
+| `RECOVERY_TICKET_INVALID` | 400 | 쿠폰 회수 티켓 만료·재사용·타 매장·미존재 |
+| `STORE_PENDING_APPROVAL` | 403 | 운영자 승인 대기 중인 매장 |
+| `STORE_REJECTED` | 403 | 승인 거부된 매장 |
+| `OPERATOR_ONLY` | 403 | 운영자 전용 API를 일반 관리자가 호출 |
+
+운영자 소유권 변경에서 대상 이메일 계정이 없으면 400 `ADMIN_NOT_FOUND`다.
+
+기존 코드:
+
 ```text
 STORE_NOT_FOUND
 STORE_INACTIVE

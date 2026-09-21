@@ -226,15 +226,46 @@ class AiContextService {
     static String withoutPersonalData(String text, String field) {
         if (text == null || text.isBlank()) return "";
         String value = text.trim();
-        String digits = value.replaceAll("[^0-9]", "");
-        // 휴대전화·일반전화·사업자번호가 될 만한 숫자 덩어리. 구분자가 섞여 있어도 잡힌다.
-        if (digits.length() >= 9)
+        String reason = reasonToBlock(value);
+        if (reason != null)
             throw new AppException("PERSONAL_DATA_NOT_ALLOWED",
-                    field + "에 전화번호처럼 보이는 숫자가 있습니다. AI에는 고객 개인정보를 보낼 수 없습니다.");
-        if (value.matches(".*[\\w.+-]+@[\\w-]+\\.[\\w.]+.*"))
-            throw new AppException("PERSONAL_DATA_NOT_ALLOWED",
-                    field + "에 이메일 주소가 있습니다. AI에는 고객 개인정보를 보낼 수 없습니다.");
+                    field + "에 " + reason + "이(가) 있습니다. AI에는 고객 개인정보나 비밀값을 보낼 수 없습니다.");
         return value;
+    }
+
+    /**
+     * 같은 필터, 다른 실패 방식.
+     *
+     * 서버가 보관한 지난 대화 턴에 쓴다. 저장 전에 이미 걸렀지만 사용 직전에 한 번 더 보고,
+     * 걸리면 그 턴만 버린다(null). 과거 한 줄 때문에 그 매장의 AI 대화가 영영 막히면 안 된다.
+     * 공급자에게 가는 문자열은 어느 경로로도 이 검사를 건너뛰지 않는다는 점이 요점이다.
+     */
+    static String filteredOrNull(String text) {
+        if (text == null || text.isBlank()) return null;
+        String value = text.trim();
+        return reasonToBlock(value) == null ? value : null;
+    }
+
+    /**
+     * 차단 사유. 없으면 null.
+     *
+     * 값을 가리지 않고 통째로 거부한다. 가려서 보내면 사장은 자기가 쓴 내용이 그대로 갔다고
+     * 믿은 채 남는다. 사유 문자열에 원문 조각을 넣지 않는 이유도 같다(오류 응답이 새 유출 경로다).
+     */
+    private static String reasonToBlock(String value) {
+        // 휴대전화·일반전화·사업자번호가 될 만한 숫자 덩어리. 구분자가 섞여 있어도 잡힌다.
+        if (value.replaceAll("[^0-9]", "").length() >= 9) return "전화번호처럼 보이는 숫자";
+        if (value.matches("(?s).*[\\w.+-]+@[\\w-]+\\.[\\w.]+.*")) return "이메일 주소";
+        // phone_hash는 64자 hex다. 32자만 넘어도 이 서비스에서 사람이 손으로 쓸 값이 아니다.
+        if (value.matches("(?s).*\\b[0-9a-fA-F]{32,}\\b.*")) return "해시처럼 보이는 값";
+        // 쿠폰 토큰(cp_), 회수 티켓(rt_), 애니메이션 시드(seed_).
+        if (value.matches("(?s).*(cp_|rt_|seed_)[A-Za-z0-9_-]{8,}.*")) return "쿠폰·게임 토큰";
+        if (value.matches("(?s).*\\bsk-[A-Za-z0-9_-]{8,}.*")) return "API 키";
+        if (value.matches("(?s).*\\beyJ[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]+.*")) return "인증 토큰";
+        if (value.matches("(?si).*\\bbearer\\s+[A-Za-z0-9._-]{8,}.*")) return "인증 토큰";
+        // "PIN 1234"처럼 직원 PIN을 그대로 적는 경우. 6자리 숫자는 위 전화번호 규칙에 걸리지 않는다.
+        if (value.matches("(?si).*(pin|핀번호|핀|비밀번호)\\s*[:=]?\\s*\\d{4,8}.*")) return "직원 PIN처럼 보이는 값";
+        return null;
     }
 
     private static Map<String, Long> counts(List<Object[]> rows) {

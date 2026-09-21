@@ -104,7 +104,7 @@ class SubscriptionAiTest {
         assertEquals("PLAN_UPGRADE_REQUIRED",
                 assertThrows(AppException.class, () -> ai.improvement(store, null, null)).code);
         assertEquals("PLAN_UPGRADE_REQUIRED",
-                assertThrows(AppException.class, () -> ai.chat(store, "참여 몇 건이야?", List.of())).code);
+                assertThrows(AppException.class, () -> ai.chat(store, "참여 몇 건이야?")).code);
         // 막힌 호출은 한도를 건드리지 않는다.
         assertTrue(quotaRows.findByStoreIdAndQuotaMonth(store.id, quota.currentMonth()).isEmpty());
     }
@@ -121,7 +121,7 @@ class SubscriptionAiTest {
         assertTrue(report.containsKey("dataLimitations"));
 
         assertEquals("PLAN_UPGRADE_REQUIRED",
-                assertThrows(AppException.class, () -> ai.chat(store, "지난주 어땠어?", List.of())).code);
+                assertThrows(AppException.class, () -> ai.chat(store, "지난주 어땠어?")).code);
         assertEquals("PLAN_UPGRADE_REQUIRED",
                 assertThrows(AppException.class, () -> ai.improvement(store, null, null)).code);
     }
@@ -132,7 +132,7 @@ class SubscriptionAiTest {
         assertTrue(ai.eventCopy(store, null).containsKey("headline"));
         assertTrue(ai.report(store, null, null).containsKey("summary"));
         assertTrue(ai.improvement(store, null, null).containsKey("experiments"));
-        Map<String, Object> chat = ai.chat(store, "지난 30일 참여 몇 건이야?", List.of());
+        Map<String, Object> chat = ai.chat(store, "지난 30일 참여 몇 건이야?");
         assertNotNull(chat.get("answer"));
         assertTrue(entitlements.automaticWeeklyReport(Plan.PRO));
         assertFalse(entitlements.automaticWeeklyReport(Plan.STANDARD));
@@ -282,10 +282,10 @@ class SubscriptionAiTest {
     void chatInputIsBounded() {
         subscriptions.changePlan(store, Plan.PRO, "테스트");
         assertEquals("INVALID_REQUEST",
-                assertThrows(AppException.class, () -> ai.chat(store, "  ", List.of())).code);
+                assertThrows(AppException.class, () -> ai.chat(store, "  ")).code);
         assertEquals("INVALID_REQUEST",
                 assertThrows(AppException.class,
-                        () -> ai.chat(store, "가".repeat(AiService.MAX_CHAT_MESSAGE_CHARS + 1), List.of())).code);
+                        () -> ai.chat(store, "가".repeat(AiService.MAX_CHAT_MESSAGE_CHARS + 1))).code);
     }
 
     @Test
@@ -371,7 +371,7 @@ class SubscriptionAiTest {
         fake.queueToolCalls(List.of(new LlmToolCall("call-1", "get_period_summary", "{}")));
         fake.queueToolCalls(List.of(new LlmToolCall("call-2", "get_prize_performance", "{}")));
 
-        Map<String, Object> answer = ai.chat(store, "지난 30일 참여 몇 건이야?", List.of());
+        Map<String, Object> answer = ai.chat(store, "지난 30일 참여 몇 건이야?");
         assertNotNull(answer.get("answer"));
         @SuppressWarnings("unchecked")
         List<String> used = (List<String>) answer.get("toolsUsed");
@@ -396,7 +396,7 @@ class SubscriptionAiTest {
         for (int i = 1; i <= 8; i++)
             fake.queueToolCalls(List.of(new LlmToolCall("c" + i, "get_period_summary", "{}")));
 
-        Map<String, Object> answer = ai.chat(store, "계속 확인해줘", List.of());
+        Map<String, Object> answer = ai.chat(store, "계속 확인해줘");
         @SuppressWarnings("unchecked")
         List<String> used = (List<String>) answer.get("toolsUsed");
         assertEquals(AiService.MAX_TOOL_CALLS, used.size(), "상한을 넘겨 도구를 돌렸다");
@@ -520,7 +520,7 @@ class SubscriptionAiTest {
                         () -> ai.eventCopy(store, new AiService.EventCopyRequest(null, "hong@example.com 님께"))).code);
         assertEquals("PERSONAL_DATA_NOT_ALLOWED",
                 assertThrows(AppException.class,
-                        () -> ai.chat(store, "01099998888 손님 언제 왔어?", List.of())).code);
+                        () -> ai.chat(store, "01099998888 손님 언제 왔어?")).code);
 
         // 평범한 숫자는 막지 않는다. 과하게 막으면 사장이 쓸 수 없다.
         assertTrue(ai.eventCopy(store, new AiService.EventCopyRequest("친근하게", "3등 상품 위주로 20자 내외"))

@@ -17,8 +17,14 @@ management.endpoints.web.exposure.include: health
 app:
   # 비어 있으면 개발/field-test에서 현재 요청 origin을 사용한다. prod profile은 canonical origin을 고정한다.
   public-origin: ${APP_PUBLIC_ORIGIN:}
+  # Base64로 인코딩한 무작위 32바이트 이상. 미달이면 기동하지 않는다(PhoneService).
   phone-hmac-key: ${PHONE_HMAC_SECRET}
+  # 키 회전 중에만 채운다. 재계산이 끝나면 비우고 재배포한다.
+  phone-hmac-previous-key: ${PHONE_HMAC_PREVIOUS_SECRET:}
   phone-encryption-key: ${PHONE_ENCRYPTION_KEY}
+  # X-Real-IP를 믿어도 되는 peer 대역. 기본값은 컨테이너 네트워크의 Nginx뿐이다.
+  # 목록 밖에서 온 요청은 헤더를 무시하고 socket peer를 쓴다.
+  trusted-proxies: ${TRUSTED_PROXY_CIDRS:127.0.0.1/32,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}
   jwt-key: ${JWT_SECRET}
   ai:
     # 기본은 fake다. 키 없이도 서비스가 뜨고 CI가 네트워크를 타지 않는다.

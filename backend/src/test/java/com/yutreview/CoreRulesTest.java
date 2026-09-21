@@ -27,7 +27,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest @AutoConfigureMockMvc @Transactional class CoreRulesTest {
     @Autowired StoreRepository stores; @Autowired QrRepository qrs; @Autowired PrizeRepository prizes; @Autowired GameRepository gameRepository;
     @Autowired PasswordEncoder encoder; @Autowired GameService games; @Autowired EntityManager entityManager;
-    @Autowired CouponRepository coupons; @Autowired AdminSignupService signup; @Autowired AdminUserRepository admins; @Autowired MembershipRepository memberships; @Autowired StorePosterRepository posters; @Autowired StorePosterService posterService; @Autowired CouponService couponService; @Autowired ParticipationService participation; @Autowired PhoneService personalData; @Autowired GameConfigService config; @Autowired StoreOutcomeRepository outcomes; @Autowired PrivacyCleanupService privacyCleanup; @Autowired MockMvc mvc; @Autowired JwtService jwt;
+    @Autowired CouponRepository coupons; @Autowired AdminSignupService signup; @Autowired AdminUserRepository admins; @Autowired MembershipRepository memberships; @Autowired StorePosterRepository posters; @Autowired StorePosterService posterService; @Autowired CouponService couponService; @Autowired ParticipationService participation; @Autowired PhoneService personalData; @Autowired GameConfigService config; @Autowired StoreOutcomeRepository outcomes; @Autowired PrivacyCleanupService privacyCleanup; @Autowired MockMvc mvc; @Autowired JwtService jwt; @Autowired StoreApprovalService approvals;
     Store store; String qr;
     @BeforeEach void setup(){Instant now=Instant.now();store=new Store();store.name="test";store.phone="0200000000";store.staffPinHash=encoder.encode("123456");store.status=StoreStatus.ACTIVE;store.createdAt=now;store.updatedAt=now;stores.save(store);StoreQrCode q=new StoreQrCode();q.store=store;q.publicToken="qr-"+System.nanoTime();q.status=QrStatus.ACTIVE;q.createdAt=now;qrs.save(q);qr=q.publicToken;config.save(store,GameConfigService.defaults());}
     /** Weights indexed by YutResult.ordinal, mapped one rank per outcome so the awarded rank identifies the throw. */
@@ -110,6 +110,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         assertEquals(LegalConsentPolicy.TERMS_VERSION,owner.termsVersion);assertNotNull(owner.termsAgreedAt);assertEquals(LegalConsentPolicy.ADMIN_PRIVACY_VERSION,owner.privacyVersion);assertNotNull(owner.privacyAgreedAt);
         assertEquals("01022223333",owner.phone,"전화번호는 숫자만 남긴다");
         assertTrue(memberships.existsByAdminIdAndStoreId(owner.id,p.store().id));
+        // 셀프 신청은 운영자 승인 전까지 PENDING_APPROVAL이고, 비싼 포스터 렌더링도 그때까지 미룬다.
+        assertEquals(StoreStatus.PENDING_APPROVAL,p.store().status);
+        assertTrue(posters.findByStoreId(p.store().id).isEmpty(),"승인 전에는 안내물을 만들지 않는다");
+        assertEquals("STORE_PENDING_APPROVAL",assertThrows(AppException.class,()->approvals.requireOperable(p.store())).code);
+        AdminUser operator=new AdminUser();operator.email="operator-signup@test.com";operator.passwordHash=encoder.encode("secret1234");operator.name="운영자";operator.role=AdminRole.SYSTEM_ADMIN;operator.createdAt=Instant.now();admins.save(operator);
+        assertEquals(true,approvals.approve(operator,p.store().id,"사업자 확인 완료","https://field-test.example").get("changed"));
+        assertEquals(false,approvals.approve(operator,p.store().id,null,"https://field-test.example").get("changed"),"같은 승인을 다시 보내도 상태와 기록이 늘지 않는다");
+        entityManager.flush();entityManager.clear();
+        assertEquals(StoreStatus.ACTIVE,stores.findById(p.store().id).orElseThrow().status);
+        assertEquals(1,approvals.events(p.store().id).size());
         StorePoster poster=posters.findByStoreId(p.store().id).orElseThrow();byte[] png=posterService.bytes(poster);var image=ImageIO.read(new ByteArrayInputStream(png));
         assertEquals("https://field-test.example",poster.publicOrigin);assertEquals(StorePosterService.WIDTH,image.getWidth());assertEquals(StorePosterService.HEIGHT,image.getHeight());
         var decoded=new MultiFormatReader().decode(new BinaryBitmap(new HybridBinarizer(new BufferedImageLuminanceSource(image))));assertEquals("https://field-test.example/s/"+p.storeToken(),decoded.getText());

@@ -1,4 +1,4 @@
-import type { AiFeature, Plan } from "@/types/api";
+import type { AiFeature, Plan, StoreStatus } from "@/types/api";
 
 /**
  * 관리자 화면에서만 쓰는 라벨.
@@ -31,4 +31,40 @@ export const priceLabel = (krw: number) => `월 ${krw.toLocaleString("ko-KR")}�
  */
 export const ADMIN_ERROR_HINT: Record<string, string> = {
   PERSONAL_DATA_NOT_ALLOWED: "전화번호와 이메일을 빼고 다시 입력해 주세요.",
+};
+
+/** 매장 승인 상태. 손님 화면에는 승인이라는 개념 자체가 없으므로 여기에 둔다. */
+export const STORE_STATUS_LABEL: Record<StoreStatus, string> = {
+  PENDING_APPROVAL: "승인 대기",
+  ACTIVE: "운영 중",
+  INACTIVE: "운영 중지",
+  REJECTED: "승인 거부",
+};
+
+export const STORE_STATUS_TONE: Record<StoreStatus, string> = {
+  PENDING_APPROVAL: "wait",
+  ACTIVE: "ok",
+  INACTIVE: "off",
+  REJECTED: "bad",
+};
+
+/** 대시보드가 막혔을 때 무엇을 기다리는지 한 문장으로. */
+export const STORE_STATUS_HINT: Record<StoreStatus, string> = {
+  PENDING_APPROVAL: "소담랩스 운영자가 사업자 정보를 확인하고 있습니다. 승인되면 QR 안내물, 포스터, 직원 PIN이 열립니다.",
+  ACTIVE: "",
+  INACTIVE: "운영을 중지한 매장입니다. 다시 열려면 소담랩스에 문의해 주세요.",
+  REJECTED: "승인이 거부된 매장입니다. 아래 사유를 확인하고 소담랩스에 문의해 주세요.",
+};
+
+/**
+ * 차단 코드를 운영자가 읽을 문장으로. 서버 코드를 그대로 보여 주면 무엇이 막힌 것인지
+ * 매번 스펙 문서를 찾아봐야 한다.
+ */
+export const THROTTLE_LABEL: Record<string, string> = {
+  GAME_RATE_LIMITED: "게임 생성 (매장·IP 분당 한도)",
+  STORE_DAILY_LIMIT: "게임 생성 (매장 일일 상한)",
+  SIGNUP_RATE_LIMITED: "매장 가입 신청",
+  AUTH_RATE_LIMITED: "관리자 로그인",
+  STAFF_PIN_RATE_LIMITED: "직원 PIN 확인",
+  RATE_LIMITED: "고객 상태 조회",
 };

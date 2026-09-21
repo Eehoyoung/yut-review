@@ -120,6 +120,13 @@ export interface AiChatAnswer {
   toolsUsed: string[];
 }
 
+/** 대화 이력은 서버가 소유한다. 화면은 읽어서 보여 주기만 한다. */
+export interface AiChatTurn {
+  role: "user" | "assistant";
+  content: string;
+  createdAt: string;
+}
+
 export interface Prize {
   /** 1 is the best prize. How many ranks a store has is its own configuration. */
   rank: number;
@@ -157,6 +164,9 @@ export interface EventSettings {
   defaultDays: number;
 }
 
+/** 매장은 운영자 승인을 거쳐야 ACTIVE가 된다. 기존 매장은 전부 ACTIVE로 남는다. */
+export type StoreStatus = "PENDING_APPROVAL" | "ACTIVE" | "INACTIVE" | "REJECTED";
+
 export interface StoreSummary {
   id: number | string;
   name: string;
@@ -164,13 +174,69 @@ export interface StoreSummary {
   publicToken?: string;
   naverPlaceUrl?: string;
   posterTagline?: string;
-  status?: "ACTIVE" | "INACTIVE";
+  status?: StoreStatus;
+  /** 거부 사유가 있을 때만 채워진다. */
+  approvalNote?: string;
   prizes?: PublicPrize[];
 }
 
+export interface AdminMe {
+  id: number;
+  email: string;
+  name: string;
+  role: "SYSTEM_ADMIN" | "STORE_ADMIN";
+}
+
+export interface OperatorSummary {
+  pending: number;
+  active: number;
+  rejected: number;
+}
+
+export interface OperatorStore {
+  id: number;
+  name: string;
+  businessNumber: string;
+  ownerName: string;
+  ownerEmail: string;
+  ownerPhone: string;
+  status: StoreStatus;
+  createdAt: string;
+  note: string;
+}
+
+/** 운영자 자원 현황. 집계와 매장 공개 라벨뿐이고 고객 개인정보는 들어 있지 않다. */
+export interface OperatorMonitoring {
+  date: string;
+  /** 코드별 최근 24시간 차단 수. 0인 코드도 내려온다. */
+  throttled: Record<string, number>;
+  counters: { rows: number; maxRows: number };
+  limits: { gamePerStorePerMinute: number; gamePerIpPerMinute: number; gamePerStorePerDay: number };
+  storage: {
+    gamePlays: number;
+    coupons: number;
+    recoverySessions: number;
+    aiChatTurns: number;
+    stores: number;
+    posterBase64Chars: number;
+  };
+  busiestStores: { storeId: number; name: string; playsToday: number; dailyLimit: number; usedPercent: number }[];
+}
+
+export interface ApprovalEvent {
+  action: "APPROVE" | "REJECT" | "REVIEW_AGAIN" | "OWNERSHIP_CHANGE";
+  actorEmail: string;
+  note: string;
+  createdAt: string;
+}
+
+/**
+ * `couponToken`은 더 이상 여기로 오지 않는다. HAS_ACTIVE_COUPON이면 1회용·5분 만료
+ * `recoveryTicket`을 받아 `coupons/recover`로 교환한다.
+ */
 export type CustomerState = {
   state: "HAS_ACTIVE_COUPON" | "CAN_PLAY" | "COOLDOWN";
-  couponToken?: string;
+  recoveryTicket?: string;
   nextPlayableDate?: string;
 };
 

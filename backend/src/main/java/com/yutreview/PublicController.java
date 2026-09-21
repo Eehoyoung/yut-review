@@ -8,17 +8,33 @@ import java.util.Map;
 import org.springframework.web.bind.annotation.*;
 
 @RestController @RequestMapping("/api/public") class PublicController {
-    private final StoreAccessService access;private final PhoneService phones;private final ParticipationService participation;private final GameService games;private final CouponService coupons;private final PrizeRepository prizes;private final GameConfigService gameConfig;
-    PublicController(StoreAccessService access,PhoneService phones,ParticipationService participation,GameService games,CouponService coupons,PrizeRepository prizes,GameConfigService gameConfig){this.access=access;this.phones=phones;this.participation=participation;this.games=games;this.coupons=coupons;this.prizes=prizes;this.gameConfig=gameConfig;}
+    /** 상태 조회 + 회수 티켓 발급의 IP 상한. */
+    static final int STATE_LOOKUPS_PER_IP_PER_MINUTE=20;
+    private final StoreAccessService access;private final PhoneService phones;private final ParticipationService participation;private final GameService games;private final CouponService coupons;private final PrizeRepository prizes;private final GameConfigService gameConfig;private final CouponRecoveryService recovery;private final ClientIpResolver clientIps;private final RateLimitService rateLimits;
+    PublicController(StoreAccessService access,PhoneService phones,ParticipationService participation,GameService games,CouponService coupons,PrizeRepository prizes,GameConfigService gameConfig,CouponRecoveryService recovery,ClientIpResolver clientIps,RateLimitService rateLimits){this.access=access;this.phones=phones;this.participation=participation;this.games=games;this.coupons=coupons;this.prizes=prizes;this.gameConfig=gameConfig;this.recovery=recovery;this.clientIps=clientIps;this.rateLimits=rateLimits;}
     record CustomerStateRequest(@NotBlank @Size(max=100) String name,@NotBlank @Size(max=30) String phone,boolean privacyAgreed,@Size(max=20) String privacyConsentVersion){}
     record PinRequest(@Pattern(regexp="\\d{6}") String pin){}
+    record RecoverRequest(@NotBlank @Size(max=100) String ticket){}
     record GameRequest(@NotBlank @Size(max=100) String storeToken,@NotBlank @Size(max=100) String name,@NotBlank @Size(max=30) String phone,@NotBlank @Size(max=100) String idempotencyKey,boolean privacyAgreed,@Size(max=20) String privacyConsentVersion){}
     @GetMapping("/stores/by-token/{token}") ApiResponse<?> store(@PathVariable String token){Store s=access.activeQr(token).store;return ApiResponse.ok(Map.of("name",s.name,"naverPlaceUrl",s.naverPlaceUrl==null?"":s.naverPlaceUrl,"posterTagline",s.posterTagline==null?"":s.posterTagline,"prizes",publicPrizes(s.id)));}
-    @PostMapping("/stores/{token}/customer-state") ApiResponse<?> state(@PathVariable String token,@Valid @RequestBody CustomerStateRequest r){LegalConsentPolicy.requireCustomer(r.privacyAgreed,r.privacyConsentVersion);Store s=access.activeQr(token).store;ParticipationService.State x=participation.state(s.id,r.phone);return ApiResponse.ok(Map.of("state",x.state(),"nextPlayableDate",x.nextPlayableDate()==null?"":x.nextPlayableDate().toString(),"couponToken",x.coupon()==null?"":x.coupon().couponToken));}
-    @PostMapping("/games") ApiResponse<?> create(@Valid @RequestBody GameRequest r){GamePlay g=games.create(r.storeToken,r.name,r.phone,r.idempotencyKey,r.privacyAgreed,r.privacyConsentVersion);return ApiResponse.ok(Map.of("playId",g.publicId,"animationSeed",g.animationSeed,"animationProfile","STANDARD"));}
+    /**
+     * 참여 가능 여부.
+     *
+     * 예전에는 여기서 `couponToken`을 그대로 돌려줬다. 매장 QR과 번호만 알면 남의 쿠폰 bearer
+     * token이 나왔다는 뜻이다. 지금은 5분·1회용 회수 티켓만 주고, 토큰은 그 티켓을 실제로 들고 온
+     * 요청에만 연다.
+     */
+    @PostMapping("/stores/{token}/customer-state") ApiResponse<?> state(@PathVariable String token,@Valid @RequestBody CustomerStateRequest r,HttpServletRequest req){
+        // 이 조회가 회수 티켓 행을 만든다. 쓰기가 생긴 공개 엔드포인트라 상한이 필요하다.
+        // 손님 한 명이 번호를 잘못 눌러 몇 번 다시 시도하는 것보다는 충분히 넉넉하다.
+        String ip=clientIps.resolve(req);if(!ip.isBlank())rateLimits.check("state-ip:"+ip,STATE_LOOKUPS_PER_IP_PER_MINUTE,java.time.Duration.ofMinutes(1),"RATE_LIMITED","요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.");
+        LegalConsentPolicy.requireCustomer(r.privacyAgreed,r.privacyConsentVersion);Store s=access.activeQr(token).store;ParticipationService.State x=participation.state(s.id,r.phone);String ticket=x.coupon()==null?"":recovery.issue(s,x.coupon(),x.coupon().phoneHash);return ApiResponse.ok(Map.of("state",x.state(),"nextPlayableDate",x.nextPlayableDate()==null?"":x.nextPlayableDate().toString(),"recoveryTicket",ticket));}
+    /** 회수 티켓 1회 사용. 만료·재사용·타 매장은 구분 없이 같은 오류로 막힌다. */
+    @PostMapping("/stores/{token}/coupons/recover") ApiResponse<?> recover(@PathVariable String token,@Valid @RequestBody RecoverRequest r){Store s=access.activeQr(token).store;return ApiResponse.ok(couponView(recovery.redeem(s.id,r.ticket()),false));}
+    @PostMapping("/games") ApiResponse<?> create(@Valid @RequestBody GameRequest r,HttpServletRequest req){GamePlay g=games.create(r.storeToken,r.name,r.phone,r.idempotencyKey,r.privacyAgreed,r.privacyConsentVersion,clientIps.resolve(req));return ApiResponse.ok(Map.of("playId",g.publicId,"animationSeed",g.animationSeed,"animationProfile","STANDARD"));}
     @PostMapping("/games/{playId}/reveal") ApiResponse<?> reveal(@PathVariable String playId){return ApiResponse.ok(couponView(games.reveal(playId),true));}
     @GetMapping("/coupons/{token}") ApiResponse<?> coupon(@PathVariable String token){return ApiResponse.ok(couponView(coupons.get(token),false));}
-    @PostMapping("/coupons/{token}/redeem") ApiResponse<?> redeem(@PathVariable String token,@Valid @RequestBody PinRequest r,HttpServletRequest req){return ApiResponse.ok(couponView(coupons.redeem(token,r.pin,clientIp(req)),false));}
+    @PostMapping("/coupons/{token}/redeem") ApiResponse<?> redeem(@PathVariable String token,@Valid @RequestBody PinRequest r,HttpServletRequest req){return ApiResponse.ok(couponView(coupons.redeem(token,r.pin,clientIps.resolve(req)),false));}
     private Map<String,Object> couponView(Coupon c,boolean reveal){ZoneId z=ZoneId.of("Asia/Seoul");Map<String,Object> m=new java.util.LinkedHashMap<>();if(reveal){m.put("playId",c.gamePlay.publicId);m.put("yutResult",c.gamePlay.yutResult);}m.put("prizeRank",c.prizeRankSnapshot);m.put("couponToken",c.couponToken);m.put("status",c.status);m.put("prize",Map.of("name",c.prizeNameSnapshot,"description",c.prizeDescriptionSnapshot==null?"":c.prizeDescriptionSnapshot));m.put("redeemPolicy",c.redeemPolicySnapshot);m.put("validFrom",c.validFrom.atZone(z));m.put("expiresAt",c.expiresAt.atZone(z));return m;}
     /**
      * A rank nobody can reach is left out of the list. Advertising a prize next to a 0% chance of
@@ -35,5 +51,4 @@ import org.springframework.web.bind.annotation.*;
         }
         return view;
     }
-    private String clientIp(HttpServletRequest r){String proxied=r.getHeader("X-Real-IP");return proxied==null||proxied.isBlank()?r.getRemoteAddr():proxied;}
 }

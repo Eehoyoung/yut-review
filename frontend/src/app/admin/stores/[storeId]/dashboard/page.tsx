@@ -6,9 +6,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AdminFrame } from "@/features/admin/AdminFrame";
 import { api, errorMessage } from "@/lib/api";
 import { AiInsightCard } from "@/features/admin/AiCards";
-import type { AiStatus, Summary } from "@/types/api";
+import { STORE_STATUS_HINT, STORE_STATUS_LABEL, STORE_STATUS_TONE } from "@/features/admin/labels";
+import type { AiStatus, StoreStatus, Summary } from "@/types/api";
 
-type StoreDetail = { id: number; name: string; phone: string; address: string; naverPlaceUrl?: string };
+type StoreDetail = { id: number; name: string; phone: string; address: string; naverPlaceUrl?: string; status?: StoreStatus; approvalNote?: string };
 
 export default function Dashboard() {
   const id = String(useParams().storeId);
@@ -45,10 +46,28 @@ export default function Dashboard() {
     retry: false,
   });
   const aiOpen = ai.data?.features.some((feature) => feature.allowed) === true;
+  // ACTIVE가 아니면 운영 엔드포인트가 전부 403이다. 오류 덩어리 대신 무엇을 기다리는지 말한다.
+  // GET /admin/stores/{id}만 상태 확인용으로 열려 있어 여기서 판단할 수 있다.
+  const status = store.data?.status;
   const couponTotal = (summary.data?.issuedCoupons ?? 0) + (summary.data?.redeemedCoupons ?? 0);
   const redemptionRate = couponTotal
     ? Math.round(((summary.data?.redeemedCoupons ?? 0) / couponTotal) * 100)
     : null;
+
+  if (status && status !== "ACTIVE")
+    return (
+      <AdminFrame title="대시보드">
+        <section className="panel stack">
+          <div className="row">
+            <h2>{store.data?.name}</h2>
+            <span className="pill" data-tone={STORE_STATUS_TONE[status]}>{STORE_STATUS_LABEL[status]}</span>
+          </div>
+          <p className="lead" role="status">{STORE_STATUS_HINT[status]}</p>
+          {store.data?.approvalNote && <p className="notice">사유: {store.data.approvalNote}</p>}
+          <Link className="btn secondary" href="/admin">내 매장으로</Link>
+        </section>
+      </AdminFrame>
+    );
 
   return (
     <AdminFrame title="대시보드">

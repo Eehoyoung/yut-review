@@ -1,0 +1,93 @@
+# 운영(AWS Lightsail 2GB + Cloudflare Free) override.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file .env.production up -d --build
+#
+# 왜 override인가: base(docker-compose.yml)는 field-test 기본값이라 HTTP 8088 + default.conf로 뜬다.
+# 운영 ingress를 "명시적으로 선택"하지 않으면 cleartext로 운영될 수 있어서(보안점검 07) 이 파일로 고정한다.
+#
+# 주의 1 — volumes 병합 규칙: compose override에서 volumes 리스트는 교체가 아니라 **병합**된다.
+#   그래서 base의 `./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro`가 그냥 남지 않도록,
+#   아래 production.conf를 **같은 컨테이너 경로** `/etc/nginx/conf.d/default.conf`에 마운트한다.
+#   target 경로가 같으면 override 값이 이긴다. 경로를 바꾸면 default.conf가 함께 살아남아
+#   HTTP 설정이 운영에 섞이므로 절대 바꾸지 말 것.
+#
+# 주의 2 — 이 파일과 `--profile field-test`를 **절대 함께 쓰지 말 것**. Quick Tunnel(cloudflared)은
+#   개발/현장테스트 전용이며 운영 ingress에 섞으면 real_ip와 TLS 경계가 무너진다.
+#   그래서 cloudflared 서비스는 이 override에 넣지 않는다.
+#
+# 주의 3 — postgres/backend/frontend는 host 포트를 열지 않는다(base에도 ports가 없다).
+#   외부 공개는 nginx의 80/443뿐이며 Lightsail 방화벽도 그 두 개만 연다.
+
+services:
+  postgres:
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    mem_limit: 512m
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+
+  backend:
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      FIELD_TEST_BOOTSTRAP_ENABLED: "false"
+      APP_PUBLIC_ORIGIN: ${APP_PUBLIC_ORIGIN:?set APP_PUBLIC_ORIGIN}
+      # nginx가 넘긴 X-Real-IP를 신뢰할 peer 대역. nginx/cloudflare-real-ip.conf의 real_ip 정책과
+      # 이 목록이 어긋나면 rate limit 식별자가 다시 전역으로 뭉개진다(보안점검 05).
+      TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:-127.0.0.1/32,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}
+      # HMAC 키 회전 중에만 채운다. rehash 완료 후 비우고 재배포한다.
+      PHONE_HMAC_PREVIOUS_SECRET: ${PHONE_HMAC_PREVIOUS_SECRET:-}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    mem_limit: 768m
+    deploy:
+      resources:
+        limits:
+          memory: 768m
+
+  frontend:
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    mem_limit: 384m
+    deploy:
+      resources:
+        limits:
+          memory: 384m
+
+  nginx:
+    # ports는 volumes와 달리 target 경로 같은 병합 키가 없어서 그냥 append된다.
+    # `!override` 없이 두면 base의 `${APP_PORT:-8088}:80`이 운영에서도 함께 열린다.
+    ports: !override
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/production.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/cloudflare-real-ip.conf:/etc/nginx/conf.d/cloudflare-real-ip.conf:ro
+      - ${TLS_CERT_DIR:?set TLS_CERT_DIR}:/etc/nginx/certs:ro
+    # 운영에서는 컨테이너 내부 HTTP/HTTPS 자가 요청이 default_server 444에 걸리거나
+    # canonical Host/SNI를 흉내 내야 해서 신뢰도가 낮다. 설정 유효성만 확인한다.
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    mem_limit: 96m
+    deploy:
+      resources:
+        limits:
+          memory: 96m

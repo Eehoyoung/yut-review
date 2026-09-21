@@ -18,12 +18,15 @@ interface MarketingConsentEventRepository extends JpaRepository<MarketingConsent
 }
 interface StoreRepository extends JpaRepository<Store,Long> {
     boolean existsByBusinessNumber(String businessNumber);
+    long countByStatus(StoreStatus status);
+    Page<Store> findByStatus(StoreStatus status,Pageable pageable);
     @Lock(LockModeType.PESSIMISTIC_WRITE) @Query("select s from Store s where s.id=:id") Optional<Store> findForUpdate(@Param("id") Long id);
 }
 interface MembershipRepository extends JpaRepository<AdminStoreMembership,Long> {
     long countByAdminId(Long adminId);
     boolean existsByAdminIdAndStoreId(Long adminId, Long storeId);
     List<AdminStoreMembership> findByAdminId(Long adminId);
+    List<AdminStoreMembership> findByStoreId(Long storeId);
 }
 interface QrRepository extends JpaRepository<StoreQrCode,Long> {
     Optional<StoreQrCode> findByPublicToken(String token);
@@ -75,7 +78,8 @@ interface AiReportRepository extends JpaRepository<AiReport,Long> {
 }
 interface GameRepository extends JpaRepository<GamePlay,Long> {
     Optional<GamePlay> findByPublicId(String id); Optional<GamePlay> findByIdempotencyKey(String key);
-    Optional<GamePlay> findFirstByStoreIdAndPhoneHashOrderByPlayedDateDesc(Long storeId,String phoneHash);
+    /** 회전 중에는 현재/이전 키 해시를 함께 본다. 쓰기는 언제나 현재 키 하나뿐이다. */
+    Optional<GamePlay> findFirstByStoreIdAndPhoneHashInOrderByPlayedDateDesc(Long storeId,Collection<String> phoneHashes);
     Page<GamePlay> findByStoreIdOrderByPlayedAtDesc(Long storeId,Pageable pageable); long countByStoreId(Long storeId); long countByStoreIdAndPlayedDate(Long storeId,LocalDate date); long countByStoreIdAndYutResult(Long storeId,YutResult result);
 }
 /**
@@ -142,7 +146,7 @@ interface StoreEventSettingsRepository extends JpaRepository<StoreEventSettings,
 }
 interface CouponRepository extends JpaRepository<Coupon,Long> {
     Optional<Coupon> findByCouponToken(String token); Optional<Coupon> findByGamePlayId(Long gamePlayId);
-    Optional<Coupon> findFirstByStoreIdAndPhoneHashAndStatusOrderByIssuedAtDesc(Long storeId,String hash,CouponStatus status);
+    Optional<Coupon> findFirstByStoreIdAndPhoneHashInAndStatusOrderByIssuedAtDesc(Long storeId,Collection<String> hashes,CouponStatus status);
     Page<Coupon> findByStoreIdOrderByIssuedAtDesc(Long storeId,Pageable pageable); long countByStoreIdAndStatus(Long storeId,CouponStatus status);
     @Lock(LockModeType.PESSIMISTIC_WRITE) @Query("select c from Coupon c join fetch c.store where c.couponToken=:token")
     Optional<Coupon> findForUpdate(@Param("token") String token);
