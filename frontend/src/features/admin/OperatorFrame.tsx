@@ -14,6 +14,7 @@ const menus: [string, string][] = [
   ["accounts", "계정"],
   ["resources", "자원 현황"],
   ["audit", "활동 기록"],
+  ["devices", "기기"],
 ];
 
 export function OperatorFrame({ title, children }: { title: string; children: React.ReactNode }) {

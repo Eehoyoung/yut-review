@@ -252,6 +252,7 @@ DB를 버려도 되는 로컬이라면 `docker compose down -v` 후 새 키로 �
 | `/admin/operator/accounts` | 관리자 계정 목록, 운영자 권한 부여·회수, 운영자 신설 |
 | `/admin/operator/resources` | 자원 현황 + 전화번호 해시 재계산 |
 | `/admin/operator/audit` | 매장 심사와 계정 변경을 합친 활동 기록 |
+| `/admin/operator/devices` | 접근 통제 상태, 기기 등록·인증·삭제 |
 
 - `Operators.java` — `OperatorAuditEvent`(append-only), `OperatorAccountService`,
   `OperatorAccountController`, `OperatorBootstrap`.
@@ -267,6 +268,52 @@ DB를 버려도 되는 로컬이라면 `docker compose down -v` 후 새 키로 �
 - 활동 피드는 두 테이블을 메모리에서 합친다. UNION 뷰나 공통 상위 테이블을 만들지 말 것.
   각각 200건 상한이고 운영자 동작은 하루 수십 건 규모다.
 - 테스트: `OperatorAccountTest.java` (신설·멱등 부여/회수·잠금 방지 두 경로·검색과 해시 비노출).
+
+### 접근 통제 (`OperatorAccess.java`)
+
+운영자 계정 하나면 모든 매장의 승인·거부·소유권 이전과 모든 손님의 참여 집계에 닿는다.
+비밀번호 하나가 그 전부를 여는 상태를 두지 않는다. 두 겹이다.
+
+| 상황 | 결과 |
+|---|---|
+| `OPERATOR_ALLOWED_CIDRS` 안 | 그냥 열린다 |
+| 그 밖 + 유효한 통행증 | 열린다 (통행증은 기기 인증 4시간) |
+| 그 밖 + 통행증 없음 | 403 `DEVICE_REQUIRED` |
+
+- `OperatorAccessFilter`가 `/api/admin/operator/**`를 지킨다. `JwtFilter` **뒤**여야 한다 —
+  통행증의 주인과 대조할 계정 id를 그쪽이 넣는다.
+- `access/status`, `access/authenticate-challenge`, `access/authenticate` 셋만 문지기를 지나지
+  않는다. 지나게 하면 기기 인증을 하려면 먼저 기기 인증을 통과해야 하는 순환이 생긴다.
+- **등록(`access/register`)은 문지기를 지난다.** 그래서 첫 기기는 반드시 허용 IP에서 등록한다.
+  아무 데서나 등록되면 기기 인증이 아무것도 막지 않는다. 이 경로를 OPEN에 넣지 말 것.
+- **WebAuthn을 라이브러리 없이 한다.** 어려운 부분은 등록 시 attestationObject의 CBOR 파싱인데,
+  브라우저 `getPublicKey()`가 SPKI(X.509) DER을 바로 주고 Java `KeyFactory`가 읽는다.
+  CBOR 파서나 webauthn 라이브러리를 추가하지 말 것.
+- attestation은 검증하지 않는다(`attestation: "none"`). 알아야 하는 것은 제조사가 아니라
+  "앞으로 이 공개키로 서명하는 쪽만 들여보낸다"이고, 등록 요청은 이미 문지기를 지나온 뒤다.
+- 검증하는 것: clientData의 type·challenge·origin, rpIdHash, User Present 비트, 서명, 서명 카운터.
+  챌린지는 1회용이라 쓰는 즉시 지운다(남기면 같은 서명 재전송으로 통과한다).
+  카운터가 0인 기기는 카운터를 쓰지 않는다는 뜻이라 통과시킨다(대부분의 패스키가 그렇다).
+- 실패 이유를 구분해 주지 않는다. 전부 `DEVICE_ASSERTION_INVALID`다.
+- 통행증은 평문을 저장하지 않고 SHA-256만 남긴다(쿠폰 회수 티켓과 같은 이유).
+  기기를 지우면 그 기기로 받은 통행증도 같이 죽는다.
+- 챌린지·통행증 테이블은 10분마다 만료분을 치운다. 인메모리 맵으로 되돌리지 말 것
+  (만료도 상한도 없어서 단조 증가한다 — `rate_counters`에서 이미 당했다).
+- 테스트: `OperatorAccessTest.java`. 실제 ES256 키쌍으로 assertion을 만들어 서명 검증 경로를
+  통째로 돈다. 위조 서명·재전송·잘못된 rpId/origin·UP 비트·남의 기기·카운터 롤백 전부 확인한다.
+
+#### 잠금 탈출구
+
+**`OPERATOR_ACCESS_ENABLED=false`가 유일하다.** 가정용 인터넷 IP는 바뀌고 기기는 잃어버린다.
+둘 다 일어나면 화면으로는 복구할 방법이 없다. 서버 SSH가 이미 신뢰의 뿌리라 여기에 탈출구를
+두는 것이 새 구멍을 만들지 않는다. 이 변수를 지우거나 "항상 true"로 하드코딩하지 말 것.
+
+켜는 순서를 지킨다. 순서를 어기면 그 자리에서 잠긴다.
+
+1. `OPERATOR_ALLOWED_CIDRS`에 지금 IP를 넣고 **`ENABLED=false`인 채로** 재기동
+2. `/admin/operator/devices`에서 "지금 이 위치 = 허용 IP"인지 확인
+3. 노트북과 휴대폰 **각각 등록**(하나만 등록하고 잃으면 허용 IP 밖에서 못 들어온다)
+4. `OPERATOR_ACCESS_ENABLED=true`로 재기동
 
 ### 첫 운영자 주입
 

@@ -51,6 +51,13 @@ app:
     staff-pin: ${FIELD_TEST_STAFF_PIN:}
   # 첫 운영자 한 명. app.bootstrap과 달리 매장을 만들지 않는다.
   # 운영자가 한 명이라도 있으면 무시되므로 값이 남아 있어도 계정이 되돌아오지 않는다.
+  # 운영자 콘솔 접근 통제. enabled=false면 문지기가 통째로 비켜선다.
+  # **이 false가 유일한 잠금 탈출구다.** IP가 바뀌고 기기를 잃으면 화면으로는 복구할 수 없다.
+  operator-access:
+    enabled: ${OPERATOR_ACCESS_ENABLED:false}
+    allowed-cidrs: ${OPERATOR_ALLOWED_CIDRS:}
+    # 비우면 app.public-origin의 호스트를 쓴다. 둘이 어긋나면 브라우저가 등록을 거부한다.
+    rp-id: ${OPERATOR_RP_ID:}
   operator-bootstrap:
     email: ${OPERATOR_BOOTSTRAP_EMAIL:}
     password: ${OPERATOR_BOOTSTRAP_PASSWORD:}

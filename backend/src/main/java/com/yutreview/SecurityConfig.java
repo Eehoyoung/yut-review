@@ -22,11 +22,14 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 @Configuration class SecurityConfig {
     @Bean PasswordEncoder passwordEncoder(){return new BCryptPasswordEncoder();}
-    @Bean SecurityFilterChain chain(HttpSecurity http,JwtFilter jwt) throws Exception {
+    @Bean SecurityFilterChain chain(HttpSecurity http,JwtFilter jwt,OperatorAccessFilter operatorAccess) throws Exception {
         return http.csrf(c->c.disable()).sessionManagement(s->s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(a->a.requestMatchers("/api/public/**","/api/admin/auth/login","/api/admin/auth/signup","/actuator/health").permitAll().anyRequest().authenticated())
             .exceptionHandling(e->e.authenticationEntryPoint((req,res,x)->writeError(res,401,"AUTH_REQUIRED","로그인이 필요합니다.")).accessDeniedHandler((req,res,x)->writeError(res,403,"FORBIDDEN","접근 권한이 없습니다.")))
-            .addFilterBefore(jwt,UsernamePasswordAuthenticationFilter.class).build();
+            .addFilterBefore(jwt,UsernamePasswordAuthenticationFilter.class)
+            // JwtFilter 뒤여야 한다. 운영자 접근 통제는 "누가 보냈는가"를 알아야
+            // 통행증의 주인과 대조할 수 있고, 그 값은 JwtFilter가 넣는다.
+            .addFilterAfter(operatorAccess,JwtFilter.class).build();
     }
     private static void writeError(HttpServletResponse res,int status,String code,String message)throws IOException{res.setStatus(status);res.setContentType("application/json;charset=UTF-8");res.getWriter().write("{\"success\":false,\"data\":null,\"error\":{\"code\":\""+code+"\",\"message\":\""+message+"\"}}");}
 }

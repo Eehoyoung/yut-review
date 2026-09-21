@@ -234,7 +234,8 @@ interface RateCounterRepository extends JpaRepository<RateCounter,Long> {
  * 채울 수 있었다. 그래서 신뢰 대역에서 온 요청의 헤더만 해석하고, 나머지는 socket peer를 쓴다.
  */
 @Component class ClientIpResolver {
-    private record Cidr(byte[] address,int bits){
+    /** 패키지 공개다. 운영자 접근 통제(OperatorAccess)가 같은 파싱과 같은 비교를 쓴다. */
+    record Cidr(byte[] address,int bits){
         boolean contains(byte[] candidate){
             if(candidate.length!=address.length)return false;
             for(int i=0;i<bits/8;i++)if(candidate[i]!=address[i])return false;
@@ -246,18 +247,36 @@ interface RateCounterRepository extends JpaRepository<RateCounter,Long> {
     }
     private final List<Cidr> trusted;
     ClientIpResolver(@Value("${app.trusted-proxies:}") String configured){
+        this.trusted=parseCidrs(configured);
+    }
+
+    /**
+     * 쉼표로 나열한 CIDR 목록을 읽는다. 빈 값은 빈 목록이다.
+     *
+     * 잘못된 값은 여기서 기동을 멈춘다. 조용히 건너뛰면 오타 하나로 목록이 비고, 비어 있는 목록은
+     * "아무도 신뢰하지 않음"이 아니라 설정이 사라진 상태다. 둘을 구분할 수 없게 만들지 않는다.
+     */
+    static List<Cidr> parseCidrs(String configured){
         List<Cidr> parsed=new ArrayList<>();
+        if(configured==null)return List.of();
         for(String entry:configured.split(",")){
             String value=entry.trim();
             if(value.isEmpty())continue;
             int slash=value.indexOf('/');
             byte[] address=parse(slash<0?value:value.substring(0,slash));
-            if(address==null)throw new IllegalArgumentException("TRUSTED_PROXY_CIDRS entry is not an IP range");
+            if(address==null)throw new IllegalArgumentException("CIDR entry is not an IP range: "+value);
             int bits=slash<0?address.length*8:Integer.parseInt(value.substring(slash+1));
-            if(bits<0||bits>address.length*8)throw new IllegalArgumentException("TRUSTED_PROXY_CIDRS prefix is out of range");
+            if(bits<0||bits>address.length*8)throw new IllegalArgumentException("CIDR prefix is out of range: "+value);
             parsed.add(new Cidr(address,bits));
         }
-        this.trusted=List.copyOf(parsed);
+        return List.copyOf(parsed);
+    }
+
+    /** 목록이 비어 있으면 어떤 주소도 맞지 않는다. 빈 목록을 "전부 허용"으로 읽지 말 것. */
+    static boolean matches(List<Cidr> cidrs,String ip){
+        byte[] address=parse(ip);
+        if(address==null||cidrs.isEmpty())return false;
+        return cidrs.stream().anyMatch(c->c.contains(address));
     }
 
     String resolve(HttpServletRequest request){

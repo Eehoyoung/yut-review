@@ -8,10 +8,21 @@ export class ApiClientError extends Error {
 
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const token = typeof window === "undefined" ? null : sessionStorage.getItem("adminToken");
+  // 운영자 기기 통행증. 허용 IP에서는 없어도 열리므로 있을 때만 싣는다.
+  // 운영자 경로에만 싣는 것은 다른 요청 로그에 이 값이 남지 않게 하려는 것이다.
+  const device =
+    typeof window === "undefined" || !path.startsWith("/admin/operator")
+      ? null
+      : sessionStorage.getItem("operatorDeviceToken");
   const response = await fetch(`/api${path}`, {
     ...init,
     credentials: "include",
-    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}), ...init?.headers },
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(device ? { "X-Operator-Device": device } : {}),
+      ...init?.headers,
+    },
   });
   const body = (await response.json().catch(() => null)) as Envelope<T> | null;
   if (response.status === 401 && path.startsWith("/admin/") && path !== "/admin/auth/login" && typeof window !== "undefined") {

@@ -365,6 +365,13 @@ POST /api/admin/operator/admins
 POST /api/admin/operator/admins/{adminId}/grant
 POST /api/admin/operator/admins/{adminId}/revoke
 GET  /api/admin/operator/audit
+GET    /api/admin/operator/access/status
+GET    /api/admin/operator/access/devices
+POST   /api/admin/operator/access/register-challenge
+POST   /api/admin/operator/access/register
+POST   /api/admin/operator/access/authenticate-challenge
+POST   /api/admin/operator/access/authenticate
+DELETE /api/admin/operator/access/devices/{deviceId}
 ```
 
 ### 계정 — `/api/admin/operator/admins`
@@ -395,6 +402,43 @@ GET  /api/admin/operator/audit
 최근 200건까지 준다. 한 줄은 `{kind, action, actor, target, storeId?, note, createdAt}`이며
 `kind`는 `STORE` 또는 `ACCOUNT`다. `target`은 매장이면 매장명, 계정이면 **사건 시점의 이메일**이다
 (계정이 지워져도 누구였는지가 남아야 한다).
+
+### 접근 통제 — `/api/admin/operator/access/**`
+
+`OPERATOR_ACCESS_ENABLED=true`면 `/api/admin/operator/**` 전체가 문지기를 지난다.
+
+| 상황 | 결과 |
+|---|---|
+| 클라이언트 IP가 `OPERATOR_ALLOWED_CIDRS` 안 | 통과 |
+| 그 밖 + `X-Operator-Device` 헤더가 유효한 통행증 | 통과 |
+| 그 밖 + 통행증 없음/만료 | 403 `DEVICE_REQUIRED` |
+
+`status`, `authenticate-challenge`, `authenticate` 셋만 문지기를 지나지 않는다. 지나게 하면
+기기 인증을 하려면 먼저 기기 인증을 통과해야 하는 순환이 생긴다. **`register`는 지난다** —
+첫 기기는 허용 IP에서만 등록된다.
+
+등록: `register-challenge`가 `{challenge, rpId, timeoutMs}`를 준다. 브라우저 `navigator.credentials
+.create()`의 결과에서 `getPublicKey()`(SPKI DER)와 `getPublicKeyAlgorithm()`을 꺼내
+`{name, credentialId, publicKey, algorithm, clientDataJson}`으로 보낸다. 서버는 attestation을
+받지도 검증하지도 않는다.
+
+인증: `authenticate-challenge`가 `{challenge, rpId, allowCredentials, timeoutMs}`를 준다.
+`navigator.credentials.get()` 결과를 `{credentialId, clientDataJson, authenticatorData, signature}`로
+보내면 `{deviceToken, expiresAt, deviceName}`이 온다. **`deviceToken` 평문은 이때 한 번만 내려간다**
+(서버는 SHA-256만 저장한다). 수명 4시간.
+
+서버가 검증하는 것: clientData의 `type`·`challenge`·`origin`, `rpIdHash`, User Present 비트,
+서명, 서명 카운터. 챌린지는 1회용이라 쓰는 즉시 지운다. 실패는 이유를 구분하지 않고 전부
+`DEVICE_ASSERTION_INVALID`(403)다.
+
+| 코드 | 언제 |
+|---|---|
+| `DEVICE_REQUIRED` | 허용 IP 밖인데 통행증이 없다 |
+| `DEVICE_ASSERTION_INVALID` | 기기 인증 실패 (이유는 구분하지 않는다) |
+| `DEVICE_CHALLENGE_INVALID` | 등록 챌린지가 만료·불일치 |
+| `DEVICE_ALREADY_REGISTERED` | 같은 자격증명이 이미 있다 |
+| `DEVICE_KEY_INVALID` | 공개키를 SPKI로 읽을 수 없다 |
+| `DEVICE_NOT_FOUND` | 남의 기기이거나 없는 기기 |
 
 ### 자원 현황 — `GET /api/admin/operator/monitoring`
 

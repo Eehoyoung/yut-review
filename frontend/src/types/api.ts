@@ -252,6 +252,25 @@ export interface OperatorAuditEntry {
   createdAt: string;
 }
 
+/** 운영자 기기. 공개키는 서버에만 있고 화면으로 내려오지 않는다. */
+export interface OperatorDevice {
+  id: number;
+  name: string;
+  createdAt: string;
+  lastUsedAt: string | null;
+}
+
+/** 지금 이 브라우저가 운영자 콘솔을 쓸 수 있는지, 없다면 무엇이 필요한지. */
+export interface OperatorAccessStatus {
+  /** false면 접근 통제가 꺼져 있다. 모든 요청이 그냥 통과한다. */
+  enabled: boolean;
+  rpId: string;
+  /** 지금 IP가 허용 목록에 있는가. true면 기기 인증 없이 열린다. */
+  ipAllowed: boolean;
+  deviceCount: number;
+  devices: OperatorDevice[];
+}
+
 export interface ApprovalEvent {
   action: "APPROVE" | "REJECT" | "REVIEW_AGAIN" | "OWNERSHIP_CHANGE";
   actorEmail: string;
