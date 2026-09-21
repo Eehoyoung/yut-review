@@ -133,13 +133,22 @@ else
   warn "ORIGIN_IP 없이 default_server(444) 동작을 확인할 수 없습니다"
 fi
 
-# 위조한 forwarded 헤더를 보내도 서비스가 정상 응답해야 한다(무시한다는 뜻).
-# 헤더를 믿는지 여부 자체는 밖에서 관측되지 않으므로 회귀 테스트가 담당한다
-# (SecurityRemediationTest.forwardedIpIsTrustedOnlyFromAConfiguredProxy).
-SPOOF=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 \
-  -H 'X-Real-IP: 1.2.3.4' -H 'CF-Connecting-IP: 1.2.3.4' "$ORIGIN/" 2>/dev/null)
-[ "$SPOOF" = "200" ] && ok "위조 forwarded 헤더가 서비스를 깨뜨리지 않습니다" \
-  || warn "위조 헤더 요청 응답 코드: $SPOOF"
+# 위조한 forwarded 헤더. 두 헤더는 막는 주체가 달라서 따로 본다.
+#
+# X-Real-IP: 손님이 보낼 수 있는 평범한 헤더다. 200이어야 정상이고, "무시한다"는 사실 자체는
+#   밖에서 관측되지 않아 회귀 테스트가 담당한다
+#   (SecurityRemediationTest.forwardedIpIsTrustedOnlyFromAConfiguredProxy).
+# CF-Connecting-IP: Cloudflare가 자기 몫으로 쓰는 헤더라 엣지가 위조본을 403으로 끊는다.
+#   origin에 닿지도 않는다. 200이 나오면 요청이 Cloudflare를 안 지났다는 뜻이다.
+SPOOF=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15   -H 'X-Real-IP: 1.2.3.4' "$ORIGIN/" 2>/dev/null)
+[ "$SPOOF" = "200" ] && ok "위조 X-Real-IP가 서비스를 깨뜨리지 않습니다"   || warn "위조 X-Real-IP 요청 응답 코드: $SPOOF"
+
+CFSPOOF=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15   -H 'CF-Connecting-IP: 1.2.3.4' "$ORIGIN/" 2>/dev/null)
+case "$CFSPOOF" in
+  403) ok "위조 CF-Connecting-IP를 Cloudflare 엣지가 차단합니다 (403)" ;;
+  200) warn "위조 CF-Connecting-IP가 200입니다. 요청이 Cloudflare를 지나지 않았을 수 있습니다" ;;
+  *)   warn "위조 CF-Connecting-IP 응답 코드: $CFSPOOF" ;;
+esac
 
 # ---------------------------------------------------------------- 애플리케이션
 section "애플리케이션"
