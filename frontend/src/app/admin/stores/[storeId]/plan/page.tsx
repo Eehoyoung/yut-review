@@ -1,6 +1,6 @@
 "use client";
 import { useParams } from "next/navigation";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { AdminFrame } from "@/features/admin/AdminFrame";
 import { api, errorMessage } from "@/lib/api";
 import { AI_FEATURE_LABEL, PLAN_LABEL, PLAN_TAGLINE, priceLabel } from "@/features/admin/labels";
@@ -25,7 +25,6 @@ const ORDER: Plan[] = ["BASIC", "STANDARD", "PRO"];
 
 export default function PlanPage() {
   const id = String(useParams().storeId);
-  const qc = useQueryClient();
   const current = useQuery({
     queryKey: ["subscription", id],
     queryFn: () => api<Subscription>(`/admin/stores/${id}/subscription`),
@@ -34,16 +33,6 @@ export default function PlanPage() {
     queryKey: ["plans", id],
     queryFn: () => api<PlanOption[]>(`/admin/stores/${id}/subscription/plans`),
   });
-  const change = useMutation({
-    mutationFn: (plan: Plan) =>
-      api<Subscription>(`/admin/stores/${id}/subscription`, { method: "PUT", body: JSON.stringify({ plan }) }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["subscription", id] });
-      qc.invalidateQueries({ queryKey: ["ai-status", id] });
-      qc.invalidateQueries({ queryKey: ["analytics", id] });
-    },
-  });
-
   if (current.isPending || plans.isPending)
     return (
       <AdminFrame title="요금제">
@@ -152,27 +141,16 @@ export default function PlanPage() {
               )}
             </div>
 
-            {!isCurrent && (
-              <button className="btn secondary" disabled={change.isPending} onClick={() => change.mutate(plan)}>
-                {PLAN_LABEL[plan]}로 변경
-              </button>
-            )}
           </section>
         );
       })}
 
-      {change.isError && (
-        <p className="error" role="alert">
-          {errorMessage(change.error)}
-        </p>
-      )}
-      {change.isSuccess && (
-        <p className="success" role="status">
-          요금제를 변경했어요.
-        </p>
-      )}
+      {/*
+        ponytail: 변경 버튼을 두지 않는다. 서버에서 이 화면의 변경 경로를 닫았고(요금제는 운영자
+        콘솔에서만 바뀐다), 언제나 실패하는 버튼은 안내가 아니라 막다른 길이다.
+      */}
       <p className="hint">
-        결제 기능은 아직 없습니다. 권한이 있는 계정만 요금제를 바로 변경할 수 있습니다.
+        결제 기능은 아직 없습니다. 요금제 변경은 고객센터로 문의해 주세요.
       </p>
       <p className="hint">
         분석 집계 보관 기간만 요금제별로 다릅니다. 고객 개인정보는 모든 요금제에서 120일 보관합니다.

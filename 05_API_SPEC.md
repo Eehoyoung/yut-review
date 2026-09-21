@@ -320,8 +320,13 @@ Request(PUT):
 { "plan": "STANDARD", "note": "" }
 ```
 
-구독 행이 없는 매장은 `BASIC`으로 응답한다. 결제(PG) 연동은 범위 밖이라 등급 변경은 관리자
+구독 행이 없는 매장은 `BASIC`으로 응답한다. 결제(PG) 연동은 범위 밖이라 등급 변경은 운영자
 조작으로만 일어난다.
+
+**`PUT /api/admin/stores/{storeId}/subscription`은 닫혀 있다.** 누가 호출하든 403
+`OPERATOR_CONSOLE_REQUIRED`이며, 유일한 변경 경로는 `PUT /api/system/stores/{storeId}/plan`이다.
+콘솔 경로만 콘솔 권한 등급·재인증·세션 상태·감사 기록을 전부 지나기 때문이다. 같은 일을 하는 문이
+둘이면 약한 쪽이 곧 그 기능의 보안 수준이 된다.
 
 `analyticsRetentionDays`는 **비식별 집계**에만 적용된다. 고객 개인정보 보존은 요금제와 무관하게
 120일 기준을 유지한다.
@@ -372,6 +377,140 @@ phoneLast4·쿠폰 토큰·직원 PIN은 어떤 기능에서도 전달되지 않
 GET /api/admin/stores/{storeId}/analytics/summary
 ```
 
+# System Console API
+
+운영자(SYSTEM_ADMIN) 전용이다. 주소부터 `/api/system`으로 나눠 두어 앞단(Nginx, 프록시)에서 이
+경로만 따로 다룰 수 있다. 응답에는 고객 개인정보가 없고 매장 단위 집계까지만 담긴다.
+
+막는 층은 다섯이다.
+
+1. 꺼짐 스위치와 전역 IP 허용 목록. 막히면 401/403이 아니라 **404**로 답한다(존재 자체를 알리지 않는다).
+2. 비밀번호 + TOTP(또는 복구 코드). 실패는 IP당 5분에 5회·계정당 10회로 제한하고, 연속 10회 실패면
+   계정이 15분 잠긴다(잠금은 DB에 남아 재시작으로 풀리지 않는다).
+3. 전용 스코프(`scope=OPERATOR`) 토큰 + 서버가 들고 있는 세션 행. 로그아웃·강제 종료·유휴 만료가
+   토큰 만료를 기다리지 않고 바로 듣는다.
+4. 요청마다 역할·계정 상태·세션 상태 재확인. 권한을 회수하거나 계정을 중지하면 즉시 막힌다.
+5. 권한 등급(`VIEWER` < `OPERATOR` < `OWNER`)과 위험한 조작 앞의 재인증(step-up, 기본 5분).
+
+## 운영자 로그인
+```http
+POST /api/system/auth/login
+POST /api/system/auth/totp/confirm
+```
+Request(login):
+```json
+{ "email": "ops@example.com", "password": "", "code": "123456", "backupCode": "" }
+```
+`code`(인증 앱) 또는 `backupCode`(복구 코드) 중 하나를 쓴다.
+
+Response(2단계 인증이 아직 없는 계정):
+```json
+{
+  "status": "TOTP_ENROLLMENT_REQUIRED",
+  "enrollmentToken": "",
+  "secret": "BASE32",
+  "otpauthUrl": "otpauth://totp/...",
+  "qrImage": "data:image/png;base64,..."
+}
+```
+Response(등록을 마친 계정):
+```json
+{
+  "status": "AUTHENTICATED", "accessToken": "", "tokenType": "Bearer", "expiresInSeconds": 3600,
+  "email": "", "name": "", "consoleRole": "OWNER", "mustChangePassword": false, "backupCodesRemaining": 10
+}
+```
+`POST /api/system/auth/totp/confirm`은 `{ "enrollmentToken": "", "code": "123456" }`를 받아 등록을
+확정하고 **복구 코드 10개를 한 번만** 돌려준다(`{ "status": "TOTP_ENROLLED", "backupCodes": [] }`).
+등록에 쓴 코드는 이미 쓴 코드라 그대로 로그인되지 않는다(같은 30초 코드 재사용 차단).
+
+없는 계정·틀린 비밀번호·운영자가 아닌 계정은 모두 같은 `AUTH_INVALID`를 받는다. 잠금·중지·IP 차단은
+비밀번호가 맞은 뒤에만 알려 준다.
+
+## 내 계정과 세션
+```http
+GET    /api/system/me
+POST   /api/system/session/step-up     { "code": "123456" }
+POST   /api/system/session/logout
+GET    /api/system/sessions?scope=mine|all
+DELETE /api/system/sessions/{sessionId}
+POST   /api/system/account/password    { "currentPassword": "", "newPassword": "", "newPasswordConfirm": "" }
+POST   /api/system/account/backup-codes
+```
+
+- `scope=all`과 남의 세션 종료는 `OWNER`이고 재인증을 거쳐야 한다.
+- 비밀번호를 바꾸면 **다른 세션은 모두 닫힌다.** 운영자 비밀번호는 영문·숫자·기호를 포함해 12자 이상,
+  이메일과 겹칠 수 없다.
+- 임시 비밀번호(남이 만들어 준 계정)를 바꾸기 전에는 `/me`와 비밀번호 변경 외 모든 요청이
+  403 `PASSWORD_CHANGE_REQUIRED`다.
+- 복구 코드 재발급은 재인증이 필요하고, 발급하면 예전 코드는 모두 무효가 된다.
+
+## 플랫폼 조회 (`VIEWER` 이상)
+```http
+GET /api/system/overview
+GET /api/system/stores?page=&size=&query=
+GET /api/system/stores/{storeId}
+GET /api/system/audit?page=&size=&action=&actor=&failuresOnly=&from=&to=
+```
+
+`overview.security`는 열려 있는 세션 수, 24시간 실패 시도, 잠긴 계정, 2단계 인증 미등록 운영자 수를
+함께 담는다. 감사 조회는 기간을 비우면 최근 30일을 본다.
+
+## 매장 변경 (`OPERATOR` 이상 + 재인증)
+```http
+PUT /api/system/stores/{storeId}/plan     { "plan": "PRO", "note": "사유" }
+PUT /api/system/stores/{storeId}/status   { "status": "INACTIVE", "note": "사유" }
+```
+
+`note`는 필수다. 기록에 "무엇을"만 남고 "왜"가 없으면 나중에 쓸모가 없다. 매장 중지는 손님의 QR
+진입을 막을 뿐, 이미 발급된 쿠폰을 회수하지 않는다.
+
+운영자가 매장 안의 설정(상품, 확률, 직원 PIN, 참여자 명단)을 대신 바꾸는 엔드포인트는 없다.
+
+## 운영자 계정 (`OWNER` + 재인증)
+```http
+GET  /api/system/operators
+POST /api/system/operators                  { "email": "", "name": "", "password": "", "consoleRole": "VIEWER" }
+PUT  /api/system/operators/{adminId}        { "consoleRole": "", "disabled": false, "allowedIps": "" }
+POST /api/system/operators/{adminId}/totp/reset
+POST /api/system/operators/{adminId}/unlock
+```
+
+- 새 계정은 임시 비밀번호로 만들어지고 본인이 바꾸기 전에는 조회조차 못 한다.
+- 마지막 `OWNER`는 권한을 내리거나 중지할 수 없고, 자기 자신의 권한도 내릴 수 없다(스스로 잠기는 사고).
+- 권한을 내리거나 계정을 중지하면 그 계정의 세션이 즉시 닫힌다.
+- `allowedIps`는 계정별 접속 허용 목록(IP 또는 CIDR, 쉼표 구분)이며 전역 설정과 함께 적용된다.
+
+## 감사 기록 (`OPERATOR`: 내보내기 / `OWNER`: 검증)
+```http
+GET /api/system/audit/export?action=&actor=&failuresOnly=&from=&to=   (text/csv)
+GET /api/system/audit/verify
+```
+
+로그인 성공·실패, 재인증, 세션 종료, 비밀번호 변경, 요금제·매장 상태 변경, 운영자 계정 변경, 권한
+없는 시도, 기록 내보내기가 모두 남는다. 각 행은 앞 행의 해시를 품고 있어 `verify`가 중간이 바뀐
+지점을 짚어 준다(마지막 행부터 잘라내는 것까지 잡지는 못한다. 조용히 고칠 수 없게 하는 장치다).
+
+| code | 상황 |
+|---|---|
+| `TOTP_REQUIRED` | 401. 2단계 인증 코드가 비어 있음 |
+| `TOTP_INVALID` | 401. 코드 불일치·이미 사용한 코드 |
+| `TOTP_ALREADY_ENROLLED` | 400. 이미 등록된 계정의 확정 요청 |
+| `BACKUP_CODE_INVALID` | 401. 복구 코드 불일치·이미 사용 |
+| `ENROLLMENT_EXPIRED` | 401. 등록용 임시 토큰 만료(5분) |
+| `ACCOUNT_LOCKED` | 423. 연속 실패로 잠긴 계정 |
+| `ACCOUNT_DISABLED` | 403. 중지된 계정 |
+| `IP_NOT_ALLOWED` | 403. 계정별 허용 IP 밖 |
+| `SESSION_EXPIRED` | 401. 로그아웃·유휴 만료·기기 불일치·강제 종료 |
+| `STEP_UP_REQUIRED` | 403. 재인증 필요 |
+| `PASSWORD_CHANGE_REQUIRED` | 403. 임시 비밀번호를 아직 안 바꿈 |
+| `PASSWORD_REUSED` | 400. 지금 쓰는 비밀번호와 같음 |
+| `LAST_OWNER` | 400. 마지막 OWNER 권한 회수 시도 |
+| `INVALID_IP_RULE` | 400. 허용 IP 형식 오류 |
+| `OPERATOR_CONSOLE_REQUIRED` | 403. 운영자 콘솔 토큰이 아님 |
+| `FORBIDDEN` | 403. 권한 등급 부족 |
+| `NOT_FOUND` | 404. 콘솔이 꺼져 있거나 허용되지 않은 IP |
+
 # Error Code
 ```text
 STORE_NOT_FOUND
@@ -402,4 +541,19 @@ INVALID_BUSINESS_NUMBER
 DUPLICATE_LOGIN_ID
 DUPLICATE_EMAIL
 DUPLICATE_BUSINESS_NUMBER
+OPERATOR_CONSOLE_REQUIRED
+TOTP_REQUIRED
+TOTP_INVALID
+TOTP_ALREADY_ENROLLED
+BACKUP_CODE_INVALID
+ENROLLMENT_EXPIRED
+ACCOUNT_LOCKED
+ACCOUNT_DISABLED
+IP_NOT_ALLOWED
+SESSION_EXPIRED
+STEP_UP_REQUIRED
+PASSWORD_CHANGE_REQUIRED
+PASSWORD_REUSED
+LAST_OWNER
+INVALID_IP_RULE
 ```

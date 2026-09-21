@@ -112,22 +112,14 @@ class SubscriptionController {
     private final SubscriptionService subscriptions;
     private final PlanEntitlementService entitlements;
     private final StoreAccessService access;
-    private final StoreRepository stores;
-    private final AdminUserRepository admins;
     private final java.time.Clock clock;
 
     SubscriptionController(SubscriptionService subscriptions, PlanEntitlementService entitlements,
-                           StoreAccessService access, StoreRepository stores, AdminUserRepository admins,
-                           java.time.Clock clock) {
+                           StoreAccessService access, java.time.Clock clock) {
         this.subscriptions = subscriptions;
         this.entitlements = entitlements;
         this.access = access;
-        this.stores = stores;
-        this.admins = admins;
         this.clock = clock;
-    }
-
-    record PlanChange(@NotNull Plan plan, @Size(max = 200) String note) {
     }
 
     @GetMapping
@@ -137,21 +129,19 @@ class SubscriptionController {
     }
 
     /**
-     * 등급 변경은 운영자 전용이다.
+     * 이 경로는 닫혀 있다. 요금제 변경은 `PUT /api/system/stores/{storeId}/plan` 하나뿐이다.
      *
-     * 멤버십만 확인하면 가입한 사람이 스스로 PRO로 올려 유료 기능과 운영자 API 키로 나가는 AI
-     * 호출을 전부 열 수 있다. 결제가 붙기 전까지 이 문은 운영자만 연다.
+     * 예전에는 여기서도 바꿀 수 있었고, 운영자 콘솔 토큰인지까지 확인했다. 그런데 그 확인은
+     * "콘솔 문으로 들어온 토큰인가"만 볼 뿐이라 콘솔이 실제로 요구하는 것들(콘솔 권한 등급,
+     * 재인증, 살아 있는 세션, 계정 중지·IP 제한, 임시 비밀번호 변경, 그리고 감사 기록)을 전부
+     * 건너뛴다. 조회 권한만 있는 계정이나 방금 세션이 끊긴 토큰으로도 등급이 바뀌었다.
+     *
+     * 같은 일을 하는 문이 둘이면 약한 쪽이 곧 그 기능의 보안 수준이 된다. 그래서 하나로 줄인다.
      */
     @PutMapping
-    ApiResponse<?> change(@PathVariable Long storeId, @Valid @RequestBody PlanChange body, Authentication auth) {
-        Long adminId = (Long) auth.getPrincipal();
-        // 운영자 확인이 먼저다. 멤버십을 먼저 보면 운영자는 어느 매장의 멤버도 아니라서 자기가
-        // 만들어야 할 변경을 스스로 막게 된다. 실제로 그렇게 되어 아무도 등급을 못 바꿨다.
-        subscriptions.requireOperator(admins.findById(adminId).orElse(null));
-        Store store = stores.findById(storeId)
-                .orElseThrow(() -> new AppException("STORE_NOT_FOUND", "매장을 찾을 수 없습니다."));
-        StoreSubscription saved = subscriptions.changePlan(store, body.plan(), body.note());
-        return ApiResponse.ok(view(storeId, saved.plan));
+    ApiResponse<?> change() {
+        throw new AppException("OPERATOR_CONSOLE_REQUIRED",
+                "요금제 변경은 운영자 콘솔에서만 할 수 있습니다.", org.springframework.http.HttpStatus.FORBIDDEN);
     }
 
     /** 요금제 안내에 쓰는 정적 목록. 화면이 가격과 포함 기능을 서버와 같은 값으로 보게 한다. */
