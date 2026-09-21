@@ -1,10 +1,10 @@
 export const LEGAL_INFO = {
   operatorName: "소담랩스",
   serviceName: "Yut Review",
-  representative: "[출시 전 입력: 대표자명]",
-  businessRegistrationNumber: "[출시 전 입력: 사업자등록번호]",
+  representative: "이호영",
+  businessRegistrationNumber: "358-23-02207",
   mailOrderRegistrationNumber: "[출시 전 입력: 통신판매업 신고번호]",
-  businessAddress: "[출시 전 입력: 사업장 주소]",
+  businessAddress: "경기도 고양시 덕양구 화정로 53-1, 709 - 가1호(화정동)",
   customerServiceEmail: "[출시 전 입력: 고객센터 이메일]",
   customerServicePhone: "[출시 전 입력: 고객센터 전화번호]",
   privacyOfficer: "[출시 전 입력: 개인정보 보호책임자]",
