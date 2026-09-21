@@ -8,10 +8,17 @@ import java.util.Map;
 import org.springframework.web.bind.annotation.*;
 
 @RestController @RequestMapping("/api/public") class PublicController {
-    /** 상태 조회 + 회수 티켓 발급의 IP 상한. */
-    static final int STATE_LOOKUPS_PER_IP_PER_MINUTE=20;
-    private final StoreAccessService access;private final PhoneService phones;private final ParticipationService participation;private final GameService games;private final CouponService coupons;private final PrizeRepository prizes;private final GameConfigService gameConfig;private final CouponRecoveryService recovery;private final ClientIpResolver clientIps;private final RateLimitService rateLimits;
-    PublicController(StoreAccessService access,PhoneService phones,ParticipationService participation,GameService games,CouponService coupons,PrizeRepository prizes,GameConfigService gameConfig,CouponRecoveryService recovery,ClientIpResolver clientIps,RateLimitService rateLimits){this.access=access;this.phones=phones;this.participation=participation;this.games=games;this.coupons=coupons;this.prizes=prizes;this.gameConfig=gameConfig;this.recovery=recovery;this.clientIps=clientIps;this.rateLimits=rateLimits;}
+    /**
+     * 상태 조회 + 회수 티켓 발급의 IP 상한.
+     *
+     * 게임 생성(IP 분당 10)보다 훨씬 넉넉해야 한다. 한국 모바일 손님은 상당수가 통신사 NAT 뒤라
+     * 한 IP에 여러 명이 뭉치고, 게임 한 번에 이 호출이 최소 한 번씩 붙는다. 실제로 분당 20으로
+     * 두고 돌렸더니 정상 흐름이 막혔다. 여기서 막는 것은 손님이 아니라 회수 티켓 행을 쌓는 반복 호출이다.
+     */
+    static final int STATE_LOOKUPS_PER_IP_PER_MINUTE=60;
+    private final StoreAccessService access;private final PhoneService phones;private final ParticipationService participation;private final GameService games;private final CouponService coupons;private final PrizeRepository prizes;private final GameConfigService gameConfig;private final CouponRecoveryService recovery;private final ClientIpResolver clientIps;private final RateLimitService rateLimits;private final int stateLookupsPerIpPerMinute;
+    PublicController(StoreAccessService access,PhoneService phones,ParticipationService participation,GameService games,CouponService coupons,PrizeRepository prizes,GameConfigService gameConfig,CouponRecoveryService recovery,ClientIpResolver clientIps,RateLimitService rateLimits,
+        @org.springframework.beans.factory.annotation.Value("${app.limits.state-lookup-per-ip-per-minute:"+STATE_LOOKUPS_PER_IP_PER_MINUTE+"}") int stateLookupsPerIpPerMinute){this.access=access;this.phones=phones;this.participation=participation;this.games=games;this.coupons=coupons;this.prizes=prizes;this.gameConfig=gameConfig;this.recovery=recovery;this.clientIps=clientIps;this.rateLimits=rateLimits;this.stateLookupsPerIpPerMinute=stateLookupsPerIpPerMinute;}
     record CustomerStateRequest(@NotBlank @Size(max=100) String name,@NotBlank @Size(max=30) String phone,boolean privacyAgreed,@Size(max=20) String privacyConsentVersion){}
     record PinRequest(@Pattern(regexp="\\d{6}") String pin){}
     record RecoverRequest(@NotBlank @Size(max=100) String ticket){}
@@ -27,7 +34,7 @@ import org.springframework.web.bind.annotation.*;
     @PostMapping("/stores/{token}/customer-state") ApiResponse<?> state(@PathVariable String token,@Valid @RequestBody CustomerStateRequest r,HttpServletRequest req){
         // 이 조회가 회수 티켓 행을 만든다. 쓰기가 생긴 공개 엔드포인트라 상한이 필요하다.
         // 손님 한 명이 번호를 잘못 눌러 몇 번 다시 시도하는 것보다는 충분히 넉넉하다.
-        String ip=clientIps.resolve(req);if(!ip.isBlank())rateLimits.check("state-ip:"+ip,STATE_LOOKUPS_PER_IP_PER_MINUTE,java.time.Duration.ofMinutes(1),"RATE_LIMITED","요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.");
+        String ip=clientIps.resolve(req);if(!ip.isBlank())rateLimits.check("state-ip:"+ip,stateLookupsPerIpPerMinute,java.time.Duration.ofMinutes(1),"RATE_LIMITED","요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.");
         LegalConsentPolicy.requireCustomer(r.privacyAgreed,r.privacyConsentVersion);Store s=access.activeQr(token).store;ParticipationService.State x=participation.state(s.id,r.phone);String ticket=x.coupon()==null?"":recovery.issue(s,x.coupon(),x.coupon().phoneHash);return ApiResponse.ok(Map.of("state",x.state(),"nextPlayableDate",x.nextPlayableDate()==null?"":x.nextPlayableDate().toString(),"recoveryTicket",ticket));}
     /** 회수 티켓 1회 사용. 만료·재사용·타 매장은 구분 없이 같은 오류로 막힌다. */
     @PostMapping("/stores/{token}/coupons/recover") ApiResponse<?> recover(@PathVariable String token,@Valid @RequestBody RecoverRequest r){Store s=access.activeQr(token).store;return ApiResponse.ok(couponView(recovery.redeem(s.id,r.ticket()),false));}

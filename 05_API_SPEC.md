@@ -695,7 +695,7 @@ DB 카운터로 세며 Redis를 쓰지 않는다. 한도를 넘으면 429다.
 |---|---|---|---|
 | 매장 회원가입 | IP | 1시간 5회 / 24시간 20회 | `SIGNUP_RATE_LIMITED` |
 | 매장 회원가입 | 사업자등록번호 | 24시간 3회 | `SIGNUP_RATE_LIMITED` |
-| 고객 상태 조회 | IP | 1분 20회 | `RATE_LIMITED` |
+| 고객 상태 조회 | IP | 1분 60회 | `RATE_LIMITED` |
 | 게임 생성 | storeId | 1분 30회 | `GAME_RATE_LIMITED` |
 | 게임 생성 | IP | 1분 10회 | `GAME_RATE_LIMITED` |
 | 게임 생성 | storeId 일일 행 | 1일 2000건 | `STORE_DAILY_LIMIT` |
@@ -705,7 +705,9 @@ DB 카운터로 세며 Redis를 쓰지 않는다. 한도를 넘으면 429다.
 | 직원 PIN | storeId + couponId | 1분 5회 | `STAFF_PIN_RATE_LIMITED` |
 
 고객 상태 조회에 한도가 붙은 이유는 그 호출이 회수 티켓 행을 만들기 때문이다. 읽기처럼 보이지만
-쓰기가 있는 공개 엔드포인트다.
+쓰기가 있는 공개 엔드포인트다. 게임 생성(IP 분당 10)보다 훨씬 넉넉한 것은 한국 모바일 손님 상당수가
+통신사 NAT 뒤라 한 IP에 여러 명이 뭉치기 때문이다. 처음 분당 20으로 두고 부하 테스트를 돌렸더니
+정상 흐름이 막혔다. `app.limits.state-lookup-per-ip-per-minute`로 조정한다.
 
 게임 생성의 세 한도는 `app.limits.game-per-store-per-minute` / `-per-ip-per-minute` /
 `-per-store-per-day`로 조정할 수 있다. 표의 값이 기본값이자 정책이며, 눈에 띄게 붐비는 매장을

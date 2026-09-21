@@ -77,8 +77,23 @@ interface RateCounterRepository extends JpaRepository<RateCounter,Long> {
  * 서버를 통째로 밀어붙이는 것"만 끊는다.
  */
 @Service class RateLimitService {
-    /** 행 수 상한. 넘으면 만료분을 먼저 치우고, 그래도 넘으면 새 bucket을 거절한다(fail closed). */
-    static final long MAX_ROWS=50_000;
+    /**
+     * 행 수 상한. 넘으면 만료분을 먼저 치우고, 그래도 넘으면 새 bucket을 거절한다(fail closed).
+     *
+     * 한 행이 200바이트도 안 되므로 20만 행이라도 수십 MB다. 이 숫자가 빡빡하면 공격이 아니라
+     * 정상 트래픽이 먼저 벽에 닿고, fail closed가 곧 자체 장애가 된다.
+     */
+    static final long MAX_ROWS=200_000;
+    /**
+     * 고객 단위 잠금 행의 수명.
+     *
+     * 잠금은 요청 하나가 끝날 때까지만 필요하다. 처음에 30일로 두었더니 (매장, 전화번호)마다
+     * 행이 한 달을 살아서 `rate_counters`가 고객 수와 1:1로 자랐다. 부하 테스트에서 게임 8,367건에
+     * 잠금 행 8,367개가 쌓였고, 목표 규모(50곳 × 30명/일 × 30일 ≈ 45,000)면 상한에 닿아
+     * 정상 손님 전원이 429를 받는다. 1시간이면 동시 요청을 직렬화하기에 충분하고, 정리 주기(10분)가
+     * 그 뒤를 따라간다. 행이 지워져도 다음 요청이 다시 만든다.
+     */
+    static final Duration LOCK_TTL=Duration.ofHours(1);
     /** 거절 집계용 bucket 접두사와 창. 한도가 아니라 관측값이라 절대 예외를 던지지 않는다. */
     private static final String REJECTION_BUCKET="rejected:";
     private static final Duration REJECTION_WINDOW=Duration.ofHours(24);
@@ -170,11 +185,11 @@ interface RateCounterRepository extends JpaRepository<RateCounter,Long> {
         String key=key("lock:"+bucket);
         if(counters.findForUpdate(key).isPresent())return;
         Instant now=clock.instant();
-        insert(key,now,now.plus(Duration.ofDays(30)));
+        insert(key,now,now.plus(LOCK_TTL));
         counters.findForUpdate(key);
     }
 
-    /** 만료분 정리. 잠금 행은 30일 TTL이라 같은 청소에 함께 쓸려 나가고, 다음 요청이 다시 만든다. */
+    /** 만료분 정리. 잠금 행도 같은 청소에 함께 쓸려 나가고, 다음 요청이 다시 만든다. */
     @Scheduled(fixedDelay=600_000,initialDelay=600_000)
     @Transactional(propagation=Propagation.REQUIRES_NEW)
     void scheduledPurge(){

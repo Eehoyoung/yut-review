@@ -66,9 +66,13 @@ import org.springframework.transaction.annotation.Transactional;
         out.put("recoverySessions",recoverySessions.count());
         out.put("aiChatTurns",chatTurns.count());
         out.put("stores",stores.count());
-        out.put("posterBase64Chars",entityManager
-            .createQuery("select coalesce(sum(length(p.contentBase64)),0) from StorePoster p",Long.class)
-            .getSingleResult());
+        // 네이티브로 둔다. contentBase64는 @Lob이라 HQL의 length()가 PostgreSQL large object
+        // 함수(lo_get)를 부르고, 실제 컬럼은 text라 "function lo_get(text) does not exist"로 죽는다.
+        // H2 PostgreSQL 모드는 이걸 잡지 못했고 실제 PostgreSQL에 붙여서야 드러났다.
+        Object bytes=entityManager
+            .createNativeQuery("select coalesce(sum(length(content_base64)),0) from store_posters")
+            .getSingleResult();
+        out.put("posterBase64Chars",((Number)bytes).longValue());
         return out;
     }
 

@@ -24,6 +24,13 @@ if (!tokens || tokens.length === 0) fail("tokens.json 의 storeTokens 가 비어
 
 const throttled = new Counter("throttled_429");
 const gameCreate = new Trend("game_create_ms", true);
+/**
+ * 번호가 겹쳐 재방문 경로로 샌 횟수.
+ *
+ * 매 반복이 새 번호를 쓰는 시나리오에서 이 값이 크면 한도가 아니라 번호 생성기를 의심해야 한다.
+ * 그 실수는 "전부 통과"처럼 보이기 때문에 세지 않으면 조용히 숨는다.
+ */
+const revisited = new Counter("revisit_path");
 
 /**
  * VU마다 다른 전화번호.
@@ -32,17 +39,20 @@ const gameCreate = new Trend("game_create_ms", true);
  * 전부 COOLDOWN으로 떨어진다. 그러면 측정하는 것이 게임 생성이 아니라 거절 경로가 된다.
  * 실행마다 접두 숫자를 바꿔야 어제 돌린 부하 테스트의 쿨타임에 걸리지 않는다.
  */
-const RUN = __ENV.RUN_ID || String(Date.now()).slice(-3);
+const RUN = String(__ENV.RUN_ID || Date.now()).slice(-2).padStart(2, "0");
 function phone() {
-  const unique = String(__VU * 100000 + __ITER).padStart(5, "0").slice(-5);
-  return `010${RUN}${unique}`;
+  // 자릿수를 구획으로 나눠 쓴다. VU와 ITER를 더한 뒤 끝자리를 자르면 VU 성분이 통째로 날아가
+  // 모든 VU가 같은 번호를 쓴다(실제로 그렇게 짰다가 부하 전체가 쿠폰 회수 경로로 새어 나갔다).
+  const vu = String(__VU % 100).padStart(2, "0");
+  const iter = String(__ITER % 10000).padStart(4, "0");
+  return `010${RUN}${vu}${iter}`; // 010 + 2 + 2 + 4 = 11자리
 }
 
 const CONSENT = { privacyAgreed: true, privacyConsentVersion: __ENV.PRIVACY_VERSION || "2026-09-04" };
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
 /** 한 손님의 정상 흐름. QR → 정보 입력 → 던지기 → 쿠폰. */
-function customerFlow(storeToken) {
+function customerFlow(storeToken, tag) {
   const name = `부하${__VU}`;
   const p = phone();
 
@@ -54,12 +64,13 @@ function customerFlow(storeToken) {
     JSON.stringify({ name, phone: p, ...CONSENT }),
     { headers: JSON_HEADERS },
   );
-  if (state.status === 429) { throttled.add(1, { step: "state" }); return; }
+  if (state.status === 429) { throttled.add(1, { step: "state", store: tag }); return; }
   check(state, { "상태 조회 200": (r) => r.status === 200 });
 
   const body = state.json("data") || {};
   // 이미 쿠폰이 있으면 회수 티켓 경로를 태운다. 실제 재방문 손님이 겪는 흐름이다.
   if (body.state === "HAS_ACTIVE_COUPON" && body.recoveryTicket) {
+    revisited.add(1, { store: tag });
     const recovered = http.post(
       `${BASE}/api/public/stores/${storeToken}/coupons/recover`,
       JSON.stringify({ ticket: body.recoveryTicket }),
@@ -83,7 +94,10 @@ function customerFlow(storeToken) {
   );
   gameCreate.add(created.timings.duration);
   if (created.status === 429) {
-    throttled.add(1, { step: "game", code: created.json("error.code") });
+    throttled.add(1, { step: "game", code: created.json("error.code"), store: tag });
+    // 밀어붙이지 않은 매장이 429를 받으면 그 순간 실패다. 옆 가게 손님이 못 던지면
+    // 방어가 아니라 새로운 장애다. finding #1의 실제 합격 조건이 이 한 줄이다.
+    check(null, { "보호 대상 매장은 차단되지 않는다": () => tag !== "quiet" });
     return;
   }
   if (!check(created, { "게임 생성 200": (r) => r.status === 200 })) return;
@@ -102,10 +116,12 @@ function customerFlow(storeToken) {
 export default function () {
   if (SCENARIO === "quota") {
     // 매장 0번을 의도적으로 밀어붙이는 동안, 매장 1번의 손님은 아무 영향도 받지 않아야 한다.
-    // 그것이 "매장 쿼터와 고객 경험을 분리한다"는 규칙의 실제 합격 조건이다.
-    customerFlow(__VU % 4 === 0 ? tokens[1 % tokens.length] : tokens[0]);
+    // 1/8만 보내는 것은 그 매장이 한도 근처에도 가지 않게 하려는 것이다. 배분이 한도에 걸치면
+    // "보호되는지"가 아니라 "둘 다 한도에 닿는지"를 재게 된다.
+    const quiet = __VU % 8 === 0;
+    customerFlow(quiet ? tokens[1 % tokens.length] : tokens[0], quiet ? "quiet" : "hammered");
   } else {
-    customerFlow(tokens[(__VU + __ITER) % tokens.length]);
+    customerFlow(tokens[(__VU + __ITER) % tokens.length], "mixed");
   }
   sleep(Math.random() * 2);
 }

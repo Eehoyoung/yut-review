@@ -336,7 +336,9 @@ Store B API는 403
 | origin TLS 인증서 설치와 만료 관리 | 미검증 |
 | 운영 secret 주입 경로(HMAC·암호화 키·JWT secret)와 회전 리허설 | 미검증 |
 | 로그·이미지 저장량 상한과 정리 정책의 실제 동작 | 미검증 |
-| 목표 부하에서의 지연·자원·쿼터 경계 동작 | 미검증 (계획: `docs/LOAD_TEST_PLAN.md`) |
+| 쿼터 경계와 매장 간 격리 | **검증** (`docs/load-test/2026-09-22-first-run.md`, 로컬 스택) |
+| 목표 환경(Lightsail 2GB)에서의 지연·처리량·메모리 한도 | 미검증 |
+| 2시간 soak에서의 카운터·디스크 정상 상태 | 미검증 |
 
 운영 배포 전에 각 항목을 실제로 확인하고 결과를 이 표에 남긴다.
 위 여섯 줄 중 앞의 네 줄은 배포 후 `sh scripts/verify-production.sh`로 한 번에 닫힌다

@@ -85,7 +85,16 @@ enum MarketingService { YUT_REVIEW, REVIEW_PILOT, SODAM }
 @Entity @Table(name="store_posters") class StorePoster {
     @Id @GeneratedValue(strategy=GenerationType.IDENTITY) Long id;
     @OneToOne(optional=false) @JoinColumn(name="store_id",nullable=false,unique=true) Store store;
-    @Lob @Column(nullable=false,columnDefinition="text") String contentBase64;
+    /**
+     * base64 PNG를 컬럼에 그대로 담는다.
+     *
+     * `@Lob`을 붙이면 PostgreSQL에서 String이 large object로 매핑돼, 이 컬럼에는 OID 숫자만 들어가고
+     * 실제 바이트는 `pg_largeobject`에 따로 산다. 그 객체는 행을 덮어써도 회수되지 않아서
+     * 안내물을 다시 만들 때마다 수백 KB가 영구히 샌다(실측: 3회 재생성에 +414KB). 매장 정보를
+     * 수정할 때마다 안내물을 다시 만들므로 2GB VM에서 조용히 차오르는 경로였다.
+     * 붙이지 말 것. H2 PostgreSQL 모드는 이 차이를 재현하지 못한다.
+     */
+    @Column(nullable=false,columnDefinition="text") String contentBase64;
     @Column(nullable=false,length=500) String publicOrigin;
     @Column(nullable=false) Instant createdAt; @Column(nullable=false) Instant updatedAt;
 }

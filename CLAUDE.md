@@ -216,6 +216,13 @@ docker compose --env-file .env.field-test --profile field-test up -d   # Cloudfl
 - 승인 전 매장에서 포스터를 만들지 말 것. 익명 요청 하나로 큰 PNG를 계속 쌓는 길이 다시 열린다.
 - 백엔드는 `app.trusted-proxies` 안의 peer가 보낸 `X-Real-IP`만 믿는다. 무조건 믿던 예전 코드로
   되돌리지 말 것. Nginx와 Spring의 client-IP 정책은 항상 같이 움직여야 한다.
+- `RateLimitService.LOCK_TTL`을 늘리지 말 것. 잠금 행은 (매장, 전화번호)마다 생겨서, 수명이 길면
+  `rate_counters`가 고객 수와 1:1로 자라고 `MAX_ROWS`에 닿는 순간 정상 손님 전원이 429를 받는다.
+  처음에 30일로 뒀다가 부하 테스트에서 게임 8,367건에 잠금 행 8,367개가 쌓이는 것을 보고 1시간으로 줄였다.
+- `StorePoster.contentBase64`에 `@Lob`을 붙이지 말 것. PostgreSQL에서 large object로 매핑돼
+  컬럼에는 OID만 들어가고, 안내물을 다시 만들 때마다 회수되지 않는 수백 KB가 샌다(실측 3회에 +414KB).
+  H2 PostgreSQL 모드는 이 차이를 재현하지 못한다.
+- 부하 테스트 1차 결과와 거기서 나온 버그 4건은 `docs/load-test/2026-09-22-first-run.md`에 있다.
 
 ### `PHONE_HMAC_SECRET` 형식이 바뀌었다
 

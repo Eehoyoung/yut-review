@@ -169,6 +169,8 @@ class SecurityRemediationTest {
         assertEquals(3, ((Map<?, ?>) snapshot.get("limits")).get("gamePerStorePerMinute"));
         Map<?, ?> storage = (Map<?, ?>) snapshot.get("storage");
         assertTrue(((Number) storage.get("gamePlays")).longValue() >= 2);
+        // 안내물 용량은 실제 PostgreSQL에서 lo_get(text) 오류로 500이 났던 자리다. 호출되는지만이라도 본다.
+        assertTrue(((Number) storage.get("posterBase64Chars")).longValue() >= 0);
         assertTrue(((Number) ((Map<?, ?>) snapshot.get("counters")).get("rows")).longValue() > 0);
 
         @SuppressWarnings("unchecked")
@@ -198,6 +200,22 @@ class SecurityRemediationTest {
                 .setParameter("past", clock.instant().minusSeconds(1)).executeUpdate());
         rateLimits.scheduledPurge();
         assertEquals(0, counters.count());
+    }
+
+    @Test void customerLockRowsExpireSoTheCounterTableCannotGrowWithCustomers() {
+        // 잠금 행이 (매장, 전화번호)마다 오래 살면 rate_counters가 고객 수와 1:1로 자란다.
+        // 부하 테스트에서 게임 8,367건에 잠금 행 8,367개가 쌓였고, 30일 TTL이면 목표 규모에서
+        // 상한에 닿아 정상 손님 전원이 429를 받는다. 수명은 요청 하나 길이면 충분하다.
+        assertTrue(RateLimitService.LOCK_TTL.compareTo(Duration.ofHours(6)) <= 0,
+                "잠금 행 수명은 짧아야 한다. 길면 카운터 테이블이 고객 수만큼 자란다");
+
+        games.create(qr, "잠금", "01061110001", "lock-ttl-1");
+        Instant ceiling = clock.instant().plus(RateLimitService.LOCK_TTL).plusSeconds(60);
+        List<Instant> lockExpiries = tx.execute(status -> entityManager.createQuery(
+                "select c.expiresAt from RateCounter c where c.bucket like 'lock:%'", Instant.class).getResultList());
+        assertFalse(lockExpiries.isEmpty(), "고객 단위 잠금 행이 만들어져야 한다");
+        assertTrue(lockExpiries.stream().allMatch(e -> e.isBefore(ceiling)),
+                "잠금 행이 LOCK_TTL보다 오래 살면 안 된다");
     }
 
     @Test void signupIsThrottledPerIpAndPerBusinessNumber() {
@@ -351,6 +369,23 @@ class SecurityRemediationTest {
 
         assertEquals(2, chatHistory.clear(store.id));
         assertTrue(chatHistory.recent(store.id).isEmpty());
+    }
+
+    // ---------------------------------------------------------------- 저장량 (finding 1/5의 디스크 쪽)
+
+    @Test void posterIsStoredInlineSoItCannotLeakLargeObjects() throws Exception {
+        // @Lob이 붙으면 PostgreSQL에서 이 컬럼에 OID만 들어가고 실제 바이트는 pg_largeobject에
+        // 따로 산다. 그 객체는 행을 덮어써도 회수되지 않아 안내물을 다시 만들 때마다 수백 KB가
+        // 영구히 샌다(실측: 3회 재생성에 +414KB). 매장 정보를 고칠 때마다 안내물을 다시 만드니
+        // 2GB VM에서 조용히 차오르는 경로였다.
+        //
+        // H2 PostgreSQL 모드는 이 차이를 재현하지 못해 동작 테스트로는 잡히지 않는다.
+        // 그래서 어노테이션 자체를 잠근다.
+        assertNull(StorePoster.class.getDeclaredField("contentBase64").getAnnotation(jakarta.persistence.Lob.class),
+                "StorePoster.contentBase64에 @Lob을 붙이지 말 것 (Monitoring.java 주석 참고)");
+        assertEquals("text",
+                StorePoster.class.getDeclaredField("contentBase64")
+                        .getAnnotation(jakarta.persistence.Column.class).columnDefinition());
     }
 
     // ---------------------------------------------------------------- finding 8: CSV 수식 주입
