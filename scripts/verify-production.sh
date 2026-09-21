@@ -60,11 +60,29 @@ fi
 
 # Cloudflare SSL mode가 Full (strict)인지는 origin 쪽에서만 확인된다.
 # ORIGIN_IP를 주면 Cloudflare를 우회해 origin 인증서를 직접 본다.
+#
+# 여기서 공인 CA 신뢰 저장소로 검증하면 안 된다. 권장 구성인 Cloudflare Origin Certificate는
+# 공인 CA가 서명하지 않아 curl 기본 검증이 항상 "unable to get local issuer certificate"로 죽는다.
+# Full (strict)가 보는 것은 공인 신뢰가 아니라 "Cloudflare Origin CA 또는 공인 CA로 검증되는가"다.
+# 그래서 Origin CA 루트를 받아 그것으로 한 번 더 본다.
+CF_ORIGIN_ROOT_URL=https://developers.cloudflare.com/ssl/static/origin_ca_rsa_root.pem
 if [ -n "${ORIGIN_IP:-}" ]; then
   if curl -sS -o /dev/null --max-time 15 --resolve "$HOST:443:$ORIGIN_IP" "https://$HOST/"; then
-    ok "origin($ORIGIN_IP)이 유효한 TLS로 직접 응답합니다 → Full (strict) 가능"
+    ok "origin($ORIGIN_IP)이 공인 CA 인증서로 직접 응답합니다 (Full strict 가능)"
   else
-    bad "origin($ORIGIN_IP) 직접 TLS 연결 실패. Full (strict)에서 522/526이 납니다"
+    CF_ROOT=$(mktemp)
+    if curl -sS --max-time 15 -o "$CF_ROOT" "$CF_ORIGIN_ROOT_URL" 2>/dev/null &&
+       curl -sS -o /dev/null --max-time 15 --cacert "$CF_ROOT"             --resolve "$HOST:443:$ORIGIN_IP" "https://$HOST/"; then
+      ok "origin($ORIGIN_IP)이 Cloudflare Origin CA 인증서로 직접 응답합니다 (Full strict 가능)"
+    else
+      # 신뢰 검증을 빼고도 붙는지 본다. 붙으면 인증서 문제, 안 붙으면 리스너/방화벽 문제다.
+      if curl -sSk -o /dev/null --max-time 15 --resolve "$HOST:443:$ORIGIN_IP" "https://$HOST/"; then
+        bad "origin($ORIGIN_IP)의 TLS는 붙지만 어느 CA로도 검증되지 않습니다. Full (strict)에서 526이 납니다"
+      else
+        bad "origin($ORIGIN_IP) 443에 연결되지 않습니다. 방화벽이나 nginx 리스너를 보세요 (522)"
+      fi
+    fi
+    rm -f "$CF_ROOT"
   fi
 else
   warn "ORIGIN_IP를 주지 않아 origin 인증서를 직접 확인하지 못했습니다 (Full strict 미확인)"
