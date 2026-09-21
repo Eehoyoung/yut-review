@@ -10,12 +10,12 @@ import org.springframework.web.bind.annotation.*;
 @RestController @RequestMapping("/api/public") class PublicController {
     private final StoreAccessService access;private final PhoneService phones;private final ParticipationService participation;private final GameService games;private final CouponService coupons;private final PrizeRepository prizes;private final GameConfigService gameConfig;
     PublicController(StoreAccessService access,PhoneService phones,ParticipationService participation,GameService games,CouponService coupons,PrizeRepository prizes,GameConfigService gameConfig){this.access=access;this.phones=phones;this.participation=participation;this.games=games;this.coupons=coupons;this.prizes=prizes;this.gameConfig=gameConfig;}
-    record CustomerStateRequest(@NotBlank @Size(max=100) String name,@NotBlank @Size(max=30) String phone,boolean privacyAgreed){}
+    record CustomerStateRequest(@NotBlank @Size(max=100) String name,@NotBlank @Size(max=30) String phone,boolean privacyAgreed,boolean ageConfirmed){}
     record PinRequest(@Pattern(regexp="\\d{6}") String pin){}
-    record GameRequest(@NotBlank @Size(max=100) String storeToken,@NotBlank @Size(max=100) String name,@NotBlank @Size(max=30) String phone,@NotBlank @Size(max=100) String idempotencyKey){}
+    record GameRequest(@NotBlank @Size(max=100) String storeToken,@NotBlank @Size(max=100) String name,@NotBlank @Size(max=30) String phone,@NotBlank @Size(max=100) String idempotencyKey,boolean privacyAgreed,boolean ageConfirmed){}
     @GetMapping("/stores/by-token/{token}") ApiResponse<?> store(@PathVariable String token){Store s=access.activeQr(token).store;return ApiResponse.ok(Map.of("name",s.name,"naverPlaceUrl",s.naverPlaceUrl==null?"":s.naverPlaceUrl,"prizes",publicPrizes(s.id)));}
-    @PostMapping("/stores/{token}/customer-state") ApiResponse<?> state(@PathVariable String token,@Valid @RequestBody CustomerStateRequest r){if(!r.privacyAgreed)throw new AppException("PRIVACY_CONSENT_REQUIRED","개인정보 수집에 동의해 주세요.");Store s=access.activeQr(token).store;ParticipationService.State x=participation.state(s.id,r.phone);return ApiResponse.ok(Map.of("state",x.state(),"nextPlayableDate",x.nextPlayableDate()==null?"":x.nextPlayableDate().toString(),"couponToken",x.coupon()==null?"":x.coupon().couponToken));}
-    @PostMapping("/games") ApiResponse<?> create(@Valid @RequestBody GameRequest r){GamePlay g=games.create(r.storeToken,r.name,r.phone,r.idempotencyKey);return ApiResponse.ok(Map.of("playId",g.publicId,"animationSeed",g.animationSeed,"animationProfile","STANDARD"));}
+    @PostMapping("/stores/{token}/customer-state") ApiResponse<?> state(@PathVariable String token,@Valid @RequestBody CustomerStateRequest r){requireParticipationConsent(r.privacyAgreed,r.ageConfirmed);Store s=access.activeQr(token).store;ParticipationService.State x=participation.state(s.id,r.phone);return ApiResponse.ok(Map.of("state",x.state(),"nextPlayableDate",x.nextPlayableDate()==null?"":x.nextPlayableDate().toString(),"couponToken",x.coupon()==null?"":x.coupon().couponToken));}
+    @PostMapping("/games") ApiResponse<?> create(@Valid @RequestBody GameRequest r){requireParticipationConsent(r.privacyAgreed,r.ageConfirmed);GamePlay g=games.create(r.storeToken,r.name,r.phone,r.idempotencyKey);return ApiResponse.ok(Map.of("playId",g.publicId,"animationSeed",g.animationSeed,"animationProfile","STANDARD"));}
     @PostMapping("/games/{playId}/reveal") ApiResponse<?> reveal(@PathVariable String playId){return ApiResponse.ok(couponView(games.reveal(playId),true));}
     @GetMapping("/coupons/{token}") ApiResponse<?> coupon(@PathVariable String token){return ApiResponse.ok(couponView(coupons.get(token),false));}
     @PostMapping("/coupons/{token}/redeem") ApiResponse<?> redeem(@PathVariable String token,@Valid @RequestBody PinRequest r,HttpServletRequest req){return ApiResponse.ok(couponView(coupons.redeem(token,r.pin,clientIp(req)),false));}
@@ -36,4 +36,5 @@ import org.springframework.web.bind.annotation.*;
         return view;
     }
     private String clientIp(HttpServletRequest r){String proxied=r.getHeader("X-Real-IP");return proxied==null||proxied.isBlank()?r.getRemoteAddr():proxied;}
+    private void requireParticipationConsent(boolean privacyAgreed,boolean ageConfirmed){if(!privacyAgreed)throw new AppException("PRIVACY_CONSENT_REQUIRED","개인정보 수집에 동의해 주세요.");if(!ageConfirmed)throw new AppException("AGE_CONFIRMATION_REQUIRED","만 14세 이상만 참여할 수 있습니다.");}
 }

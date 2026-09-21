@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { FormEvent, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
@@ -11,10 +12,11 @@ import type { CustomerState, GameCreated } from "@/types/api";
  * 입력 검증. 첫 번째 문제와 그 칸의 id를 함께 돌려준다.
  * 문구는 무엇이 부족한지까지 말한다. "확인해 주세요"는 무엇을 고쳐야 하는지 알려주지 않는다.
  */
-function problem(name: string, phone: string, agreed: boolean): { id: string; message: string } | null {
+function problem(name: string, phone: string, agreed: boolean, ageConfirmed: boolean): { id: string; message: string } | null {
   if (!name.trim()) return { id: "name", message: "이름을 입력해 주세요." };
   if (!isPhone(phone)) return { id: "phone", message: `휴대폰 번호 ${PHONE_LENGTH}자리를 입력해 주세요.` };
   if (!agreed) return { id: "agree", message: "개인정보 수집에 동의해 주세요." };
+  if (!ageConfirmed) return { id: "age-confirmed", message: "만 14세 이상인지 확인해 주세요." };
   return null;
 }
 
@@ -26,6 +28,7 @@ export default function Identify() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [agreed, setAgreed] = useState(false);
+  const [ageConfirmed, setAgeConfirmed] = useState(false);
   // 제출을 눌러 본 뒤에만 이유를 말한다. 이름을 치는 중에 아직 오지도 않은
   // 전화번호 칸을 지적하면 손님에게는 잔소리로 읽힌다.
   const [tried, setTried] = useState(false);
@@ -36,12 +39,19 @@ export default function Identify() {
     mutationFn: async () => {
       const state = await api<CustomerState>(`/public/stores/${encodeURIComponent(token)}/customer-state`, {
         method: "POST",
-        body: JSON.stringify({ name, phone, privacyAgreed: agreed }),
+        body: JSON.stringify({ name, phone, privacyAgreed: agreed, ageConfirmed }),
       });
       if (state.state !== "CAN_PLAY") return { state };
       const game = await api<GameCreated>("/public/games", {
         method: "POST",
-        body: JSON.stringify({ storeToken: token, name, phone, idempotencyKey: idempotencyKey.current }),
+        body: JSON.stringify({
+          storeToken: token,
+          name,
+          phone,
+          idempotencyKey: idempotencyKey.current,
+          privacyAgreed: agreed,
+          ageConfirmed,
+        }),
       });
       return { state, game };
     },
@@ -57,7 +67,7 @@ export default function Identify() {
   });
 
   const cooldown = mutation.data?.state.state === "COOLDOWN" ? mutation.data.state : undefined;
-  const blocked = problem(name, phone, agreed);
+  const blocked = problem(name, phone, agreed, ageConfirmed);
 
   return (
     <main className="screen has-bar">
@@ -112,10 +122,32 @@ export default function Identify() {
             <small className="hint">010으로 시작하는 숫자 11자리</small>
           </div>
           <hr className="hair" />
-          <label className="check">
-            <input id="agree" type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} required />
-            <span>참여 확인 및 쿠폰 제공을 위한 개인정보 수집·이용에 동의합니다.</span>
-          </label>
+          <div className="stack">
+            <p className="lead"><strong>[필수] 이벤트 참여 개인정보 수집·이용</strong></p>
+            <ul className="lead">
+              <li>수집항목: 이름, 휴대전화번호</li>
+              <li>이용목적: 참여확인, 중복·재참여 제한, 게임·쿠폰 발급·조회·사용</li>
+              <li>보유기간: 참여일 기준 120일. 단, 유효한 미사용 쿠폰이 있으면 해당 쿠폰의 활성 상태가 끝날 때까지 파기를 유예합니다.</li>
+              <li>동의를 거부할 수 있으나, 거부하면 이벤트 참여와 쿠폰 제공이 어렵습니다.</li>
+            </ul>
+            <label className="check">
+              <input id="agree" type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} required />
+              <span>위 개인정보 수집·이용에 동의합니다.</span>
+            </label>
+            <label className="check">
+              <input
+                id="age-confirmed"
+                type="checkbox"
+                checked={ageConfirmed}
+                onChange={(e) => setAgeConfirmed(e.target.checked)}
+                required
+              />
+              <span>만 14세 이상입니다.</span>
+            </label>
+            <small className="hint">
+              자세한 내용은 <Link href="/legal/privacy" target="_blank">개인정보 처리방침</Link>에서 확인할 수 있어요.
+            </small>
+          </div>
         </div>
 
         {cooldown && (
