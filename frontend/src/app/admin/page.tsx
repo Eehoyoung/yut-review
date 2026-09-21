@@ -46,7 +46,7 @@ export default function Stores() {
       <header className="admin-head">
         <h1>내 매장</h1>
         <div className="sheet-actions">{me.data?.role === "SYSTEM_ADMIN" && (
-          <Link className="btn ghost btn-inline" href="/admin/operator">매장 심사</Link>
+          <Link className="btn ghost btn-inline" href="/admin/operator">운영자 콘솔</Link>
         )}<Link className="btn ghost btn-inline" href="/admin/marketing-consents">문자 수신 설정</Link>{!adding && (
           <button className="btn secondary btn-inline" onClick={() => setAdding(true)}>
             매장 추가

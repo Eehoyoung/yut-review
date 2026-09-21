@@ -49,3 +49,9 @@ app:
     store-phone: ${BOOTSTRAP_STORE_PHONE:0200000000}
     naver-place-url: ${FIELD_TEST_NAVER_PLACE_URL:}
     staff-pin: ${FIELD_TEST_STAFF_PIN:}
+  # 첫 운영자 한 명. app.bootstrap과 달리 매장을 만들지 않는다.
+  # 운영자가 한 명이라도 있으면 무시되므로 값이 남아 있어도 계정이 되돌아오지 않는다.
+  operator-bootstrap:
+    email: ${OPERATOR_BOOTSTRAP_EMAIL:}
+    password: ${OPERATOR_BOOTSTRAP_PASSWORD:}
+    name: ${OPERATOR_BOOTSTRAP_NAME:소담랩스 운영자}

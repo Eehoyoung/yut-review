@@ -11,6 +11,8 @@ import org.springframework.data.repository.query.Param;
 interface AdminUserRepository extends JpaRepository<AdminUser,Long> {
     Optional<AdminUser> findByEmail(String email);
     boolean existsByEmail(String email);
+    long countByRole(AdminRole role);
+    Page<AdminUser> findByEmailContainingIgnoreCaseOrNameContainingIgnoreCase(String email,String name,Pageable pageable);
 }
 interface MarketingConsentEventRepository extends JpaRepository<MarketingConsentEvent,Long> {
     Optional<MarketingConsentEvent> findFirstByAdminIdAndServiceOrderByChangedAtDescIdDesc(Long adminId,MarketingService service);

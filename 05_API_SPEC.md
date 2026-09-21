@@ -360,7 +360,41 @@ POST /api/admin/operator/stores/{storeId}/review-again
 POST /api/admin/operator/stores/{storeId}/ownership
 GET  /api/admin/operator/stores/{storeId}/approval-events
 POST /api/admin/operator/phone-hash/rehash
+GET  /api/admin/operator/admins?q=&page=0&size=20
+POST /api/admin/operator/admins
+POST /api/admin/operator/admins/{adminId}/grant
+POST /api/admin/operator/admins/{adminId}/revoke
+GET  /api/admin/operator/audit
 ```
+
+### 계정 — `/api/admin/operator/admins`
+
+목록은 `{id, email, name, role, storeCount, createdAt}`만 내려간다. `passwordHash`는 어떤 경로로도
+나가지 않는다. `q`는 이메일과 이름을 대소문자 무시로 부분 일치시킨다.
+
+`POST /admins`는 `{email, name, password, passwordConfirm, note?}`를 받아 `SYSTEM_ADMIN`을 만든다.
+**매장은 만들지 않는다** — 운영자가 어느 매장의 멤버가 되면 자기 매장을 스스로 심사할 수 있다.
+비밀번호 규칙은 일반 가입과 같다(영문+숫자 10자 이상, `WEAK_PASSWORD`/`PASSWORD_MISMATCH`).
+
+`grant`/`revoke`는 `{note?}`를 받고 `{..., changed}`를 돌려준다. 이미 그 역할이면 `changed:false`이고
+기록도 남기지 않는다(아무 일도 일어나지 않았기 때문이다).
+
+회수는 두 경우에 막힌다.
+
+| 코드 | 언제 |
+|---|---|
+| `OPERATOR_SELF_REVOKE` | 자기 자신의 운영자 권한을 회수하려 할 때 |
+| `OPERATOR_LAST_ONE` | 남은 운영자가 한 명일 때 |
+
+둘 다 승인할 사람이 아무도 없는 상태를 막는다. 그 상태가 되면 운영자를 다시 만드는 API도
+운영자만 쓸 수 있어서 DB를 직접 고쳐야 한다.
+
+### 활동 기록 — `GET /api/admin/operator/audit`
+
+매장 심사(`store_approval_events`)와 계정 변경(`operator_audit_events`)을 시간순으로 합쳐
+최근 200건까지 준다. 한 줄은 `{kind, action, actor, target, storeId?, note, createdAt}`이며
+`kind`는 `STORE` 또는 `ACCOUNT`다. `target`은 매장이면 매장명, 계정이면 **사건 시점의 이메일**이다
+(계정이 지워져도 누구였는지가 남아야 한다).
 
 ### 자원 현황 — `GET /api/admin/operator/monitoring`
 

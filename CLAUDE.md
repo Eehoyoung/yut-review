@@ -240,6 +240,49 @@ Base64로 디코딩해 32바이트 이상이어야 하고, 아니면 **기동하
 
 DB를 버려도 되는 로컬이라면 `docker compose down -v` 후 새 키로 올리는 쪽이 빠르다.
 
+## 운영자 콘솔 (2026-09-22)
+
+`/admin/operator` 아래 네 화면이다. `OperatorFrame.tsx`가 공통 껍데기이며 `AdminFrame`과 합치지
+말 것(저쪽은 `storeId`가 반드시 있고 이쪽은 없다. 합치면 선택값이 되고 그 선택값을 잊은 화면이
+다른 매장을 가리킨다).
+
+| 경로 | 화면 |
+|---|---|
+| `/admin/operator` | 매장 심사 큐 (승인·거부·재심사·소유권 이전) |
+| `/admin/operator/accounts` | 관리자 계정 목록, 운영자 권한 부여·회수, 운영자 신설 |
+| `/admin/operator/resources` | 자원 현황 + 전화번호 해시 재계산 |
+| `/admin/operator/audit` | 매장 심사와 계정 변경을 합친 활동 기록 |
+
+- `Operators.java` — `OperatorAuditEvent`(append-only), `OperatorAccountService`,
+  `OperatorAccountController`, `OperatorBootstrap`.
+- 계정 사건을 `store_approval_events`에 끼워 넣지 말 것. 그쪽은 `store_id`가 NOT NULL이라
+  매장 없는 사건을 표현할 수 없고, 억지로 매장을 붙이면 그 매장의 이력이 거짓이 된다.
+- 감사 기록은 대상 이메일을 **사건 시점 값으로 동결**한다. FK만 두면 계정이 지워졌을 때
+  "누구였는지"가 사라진다. 쿠폰이 상품명을 동결하는 것과 같은 이유다.
+- 운영자 계정 신설은 **매장을 만들지 않는다.** 운영자가 어느 매장의 멤버가 되면 자기 매장을
+  스스로 심사할 수 있고, 그 순간 승인 절차가 형식이 된다.
+- 잠금 방지 두 가지를 없애지 말 것: 자기 자신 회수 금지(`OPERATOR_SELF_REVOKE`),
+  마지막 운영자 회수 금지(`OPERATOR_LAST_ONE`). 둘 다 승인할 사람이 아무도 없는 상태를 만들고,
+  그 상태를 되돌릴 API가 없어서 DB를 직접 고쳐야 한다.
+- 활동 피드는 두 테이블을 메모리에서 합친다. UNION 뷰나 공통 상위 테이블을 만들지 말 것.
+  각각 200건 상한이고 운영자 동작은 하루 수십 건 규모다.
+- 테스트: `OperatorAccountTest.java` (신설·멱등 부여/회수·잠금 방지 두 경로·검색과 해시 비노출).
+
+### 첫 운영자 주입
+
+운영자를 만드는 API는 운영자만 쓸 수 있어서 첫 한 명은 밖에서 넣는다. `Bootstrap`을 쓰지 않는
+이유는 그쪽이 매장까지 만들기 때문이다.
+
+```bash
+# .env.production 에 한시적으로 넣고 재기동한다.
+OPERATOR_BOOTSTRAP_EMAIL=operator@sodamlabs.kr
+OPERATOR_BOOTSTRAP_PASSWORD=<영문+숫자 10자 이상>
+```
+
+운영자가 **한 명이라도 있으면 아무 일도 하지 않는다.** 이메일이 아니라 역할 수로 보기 때문에,
+운영자가 권한을 잃은 뒤 재기동에서 조용히 되돌아오는 일이 없다. 값은 로그에 찍지 않는다.
+계정이 만들어지면 두 변수를 지우고 재기동한다. 이후 운영자는 화면에서 만든다.
+
 ## 스키마 변경
 
 마이그레이션 도구가 없고 `ddl-auto=update`는 컬럼 타입 변경과 NOT NULL 제거를 못 한다.

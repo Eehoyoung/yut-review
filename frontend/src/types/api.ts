@@ -223,6 +223,35 @@ export interface OperatorMonitoring {
   busiestStores: { storeId: number; name: string; playsToday: number; dailyLimit: number; usedPercent: number }[];
 }
 
+/** 관리자 계정. 비밀번호 해시는 서버가 내려보내지 않는다. */
+export interface OperatorAdmin {
+  id: number;
+  email: string;
+  name: string;
+  role: "SYSTEM_ADMIN" | "STORE_ADMIN";
+  /** 이 계정이 속한 매장 수. 운영자는 0이어야 정상이다. */
+  storeCount: number;
+  createdAt: string;
+}
+
+/** 매장 심사와 계정 변경을 시간순으로 합친 활동 피드의 한 줄. */
+export interface OperatorAuditEntry {
+  kind: "STORE" | "ACCOUNT";
+  action:
+    | "APPROVE"
+    | "REJECT"
+    | "REVIEW_AGAIN"
+    | "OWNERSHIP_CHANGE"
+    | "OPERATOR_CREATED"
+    | "OPERATOR_GRANTED"
+    | "OPERATOR_REVOKED";
+  actor: string | null;
+  target: string | null;
+  storeId?: number | null;
+  note: string | null;
+  createdAt: string;
+}
+
 export interface ApprovalEvent {
   action: "APPROVE" | "REJECT" | "REVIEW_AGAIN" | "OWNERSHIP_CHANGE";
   actorEmail: string;

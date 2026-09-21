@@ -35,6 +35,8 @@ class StoreApprovalEvent {
 
 interface StoreApprovalEventRepository extends JpaRepository<StoreApprovalEvent,Long> {
     List<StoreApprovalEvent> findByStoreIdOrderByCreatedAtDescIdDesc(Long storeId);
+    /** 운영자 활동 피드용. 상한을 쿼리에 박아 화면 하나가 전체 이력을 끌어오지 못하게 한다. */
+    List<StoreApprovalEvent> findTop200ByOrderByCreatedAtDescIdDesc();
     Optional<StoreApprovalEvent> findFirstByStoreIdAndActionOrderByCreatedAtDescIdDesc(Long storeId,StoreApprovalAction action);
 }
 

@@ -1,10 +1,9 @@
 "use client";
-import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ActivityPager } from "@/features/admin/ActivityTable";
 import { STORE_STATUS_LABEL, STORE_STATUS_TONE } from "@/features/admin/labels";
-import { ResourceMonitor } from "@/features/admin/ResourceMonitor";
+import { OperatorFrame } from "@/features/admin/OperatorFrame";
 import { Dialog } from "@/features/ui/Dialog";
 import { formatBusinessNumber, formatPhone } from "@/features/normalize";
 import { api, errorMessage } from "@/lib/api";
@@ -32,13 +31,12 @@ const ACTION_LABEL: Record<ApprovalEvent["action"], string> = {
 };
 
 type ActionResult = { id: number; status?: StoreStatus; changed?: boolean; ownerEmail?: string };
-type Sheet = { kind: "approve" | "reject" | "ownership"; store: OperatorStore } | { kind: "rehash" };
+type Sheet = { kind: "approve" | "reject" | "ownership"; store: OperatorStore };
 
 const SHEET_TITLE: Record<Sheet["kind"], string> = {
   approve: "매장을 승인할까요?",
   reject: "승인 거부",
   ownership: "소유권 이전",
-  rehash: "전화번호 해시 재계산",
 };
 
 /** 감사 로그. 접혀 있을 때는 요청하지 않으려고 부모가 열린 행에서만 렌더한다. */
@@ -126,14 +124,6 @@ export default function OperatorQueue() {
     },
   });
 
-  const rehash = useMutation({
-    mutationFn: () => api<{ scanned: number; rehashed: number }>("/admin/operator/phone-hash/rehash", { method: "POST" }),
-    onSuccess: (d) => {
-      setFlash(`${d.scanned}건을 확인해 ${d.rehashed}건을 다시 계산했습니다.`);
-      closeSheet();
-    },
-  });
-
   // 값을 받아야 하는 동작은 무엇이 비었는지 문장으로 말한다. 버튼을 비활성화하지 않는다.
   const blocked =
     sheet?.kind === "reject" && !value.trim()
@@ -148,10 +138,6 @@ export default function OperatorQueue() {
     event.preventDefault();
     if (!sheet) return;
     setTried(true);
-    if (sheet.kind === "rehash") {
-      rehash.mutate();
-      return;
-    }
     if (blocked) {
       document.getElementById("sheet-input")?.focus();
       return;
@@ -162,17 +148,7 @@ export default function OperatorQueue() {
   };
 
   return (
-    <main className="admin-shell">
-      <header className="admin-head">
-        <div>
-          <p className="brand">소담랩스 운영자</p>
-          <h1>매장 심사</h1>
-        </div>
-        <Link className="btn ghost btn-inline" href="/admin">
-          내 매장
-        </Link>
-      </header>
-
+    <OperatorFrame title="매장 심사">
       <dl className="stats" aria-label="심사 현황">
         <div>
           <dt>승인 대기</dt>
@@ -188,7 +164,6 @@ export default function OperatorQueue() {
         </div>
       </dl>
 
-      <ResourceMonitor />
 
       {flash && (
         <p className="success" role="status">
@@ -302,19 +277,11 @@ export default function OperatorQueue() {
 
       <ActivityPager page={page} totalPages={stores.data?.totalPages ?? 0} onChange={setPage} />
 
-      <section className="panel stack">
-        <h2>위험 작업</h2>
-        <p className="lead">전화번호 해시를 새 HMAC 키로 다시 계산합니다. 키 회전 중에만 1회 실행합니다.</p>
-        <button type="button" className="btn secondary" onClick={() => setSheet({ kind: "rehash" })}>
-          전화번호 해시 재계산
-        </button>
-      </section>
-
       <Dialog open={sheet !== undefined} onClose={closeSheet} labelledBy="sheet-title">
         <form className="stack" onSubmit={submitSheet}>
           <h2 id="sheet-title">{sheet ? SHEET_TITLE[sheet.kind] : ""}</h2>
 
-          {sheet && sheet.kind !== "rehash" && (
+          {sheet && (
             <p className="lead">
               {sheet.store.name} · {formatBusinessNumber(sheet.store.businessNumber)}
             </p>
@@ -360,20 +327,14 @@ export default function OperatorQueue() {
             </div>
           )}
 
-          {sheet?.kind === "rehash" && (
-            <p className="error">
-              HMAC 키 회전 중에만 1회 실행하세요. 이전 키를 지운 뒤에 실행하면 기존 쿨타임 조회가 어긋납니다.
-            </p>
-          )}
-
           {tried && blocked && (
             <p className="notice" role="status">
               {blocked}
             </p>
           )}
-          {(act.isError || rehash.isError) && (
+          {act.isError && (
             <p className="error" role="alert">
-              {errorMessage(act.error ?? rehash.error)}
+              {errorMessage(act.error)}
             </p>
           )}
 
@@ -381,12 +342,12 @@ export default function OperatorQueue() {
             <button type="button" className="btn ghost" onClick={closeSheet}>
               취소
             </button>
-            <button className="btn" disabled={act.isPending || rehash.isPending}>
-              {act.isPending || rehash.isPending ? "처리 중" : "실행"}
+            <button className="btn" disabled={act.isPending}>
+              {act.isPending ? "처리 중" : "실행"}
             </button>
           </div>
         </form>
       </Dialog>
-    </main>
+    </OperatorFrame>
   );
 }
