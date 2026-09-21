@@ -79,6 +79,8 @@ final class Inputs {
 @Service class GameConfigService {
     /** One row of a store's game configuration: how likely a throw is, and which prize rank it awards. */
     record Setting(YutResult yutResult,int weight,int prizeRank){}
+    record PrizeSetting(int rank,String name,String description,RedeemPolicy redeemPolicy){}
+    record EventConfiguration(List<StoreOutcome> outcomes,List<Prize> prizes){}
     private static final int[] DEFAULT_WEIGHTS={325,325,125,125,100},DEFAULT_RANKS={3,3,2,2,1};
     private final StoreOutcomeRepository outcomes;private final PrizeRepository prizes;private final Clock clock;
     GameConfigService(StoreOutcomeRepository outcomes,PrizeRepository prizes,Clock clock){this.outcomes=outcomes;this.prizes=prizes;this.clock=clock;}
@@ -132,8 +134,26 @@ final class Inputs {
         return saved;
     }
 
+    /** 상품과 확률을 하나의 문서로 검증하고 저장한다. 기존 쿠폰 snapshot은 건드리지 않는다. */
+    @Transactional EventConfiguration saveEventConfiguration(Store store,List<Setting> settings,List<PrizeSetting> prizeSettings){
+        validate(settings);
+        int rankCount=settings.stream().mapToInt(Setting::prizeRank).max().orElseThrow();
+        Map<Integer,PrizeSetting> requested=validatePrizes(prizeSettings,rankCount);
+        List<StoreOutcome> saved=save(store,settings);
+        Instant now=clock.instant();
+        List<Prize> configured=new ArrayList<>();
+        for(int rank=1;rank<=rankCount;rank++){
+            PrizeSetting setting=requested.get(rank);
+            Prize prize=prizes.findByStoreIdAndRank(store.id,rank).orElseThrow();
+            prize.name=setting.name().trim();prize.description=setting.description()==null?null:setting.description().trim();
+            prize.redeemPolicy=setting.redeemPolicy();prize.active=true;prize.updatedAt=now;
+            configured.add(prizes.save(prize));
+        }
+        return new EventConfiguration(saved,configured);
+    }
+
     static void validate(List<Setting> settings){
-        if(settings==null||settings.size()!=YutResult.values().length||settings.stream().map(Setting::yutResult).distinct().count()!=YutResult.values().length)
+        if(settings==null||settings.size()!=YutResult.values().length||settings.stream().anyMatch(Objects::isNull)||settings.stream().anyMatch(st->st.yutResult()==null)||settings.stream().map(Setting::yutResult).distinct().count()!=YutResult.values().length)
             throw new AppException("INVALID_REQUEST","윷 결과 5개의 설정을 모두 보내주세요.");
         if(settings.stream().anyMatch(st->st.weight()<0||st.weight()>StoreOutcome.MAX_WEIGHT))
             throw new AppException("INVALID_WEIGHT","가중치는 0에서 "+StoreOutcome.MAX_WEIGHT+" 사이여야 합니다.");
@@ -143,20 +163,38 @@ final class Inputs {
         if(ranks.length>StoreOutcome.MAX_RANK)throw new AppException("INVALID_RANK_SEQUENCE","등급은 최대 "+StoreOutcome.MAX_RANK+"개까지 설정할 수 있습니다.");
         for(int i=0;i<ranks.length;i++)if(ranks[i]!=i+1)throw new AppException("INVALID_RANK_SEQUENCE","등급은 1등부터 빠짐없이 이어져야 합니다.");
     }
+
+    private static Map<Integer,PrizeSetting> validatePrizes(List<PrizeSetting> settings,int rankCount){
+        if(settings==null||settings.size()!=rankCount)throw new AppException("INVALID_REQUEST","사용하는 상품 등급 1등부터 "+rankCount+"등까지 모두 보내주세요.");
+        Map<Integer,PrizeSetting> byRank=new HashMap<>();
+        for(PrizeSetting setting:settings){
+            if(setting==null||setting.rank()<1||setting.rank()>rankCount||byRank.put(setting.rank(),setting)!=null)
+                throw new AppException("INVALID_REQUEST","상품 등급은 1등부터 빠짐없이 한 번씩 보내주세요.");
+            if(setting.name()==null||setting.name().isBlank()||setting.name().length()>100)
+                throw new AppException("INVALID_REQUEST","상품명은 1자에서 100자까지 입력해 주세요.");
+            if(setting.description()!=null&&setting.description().length()>500)
+                throw new AppException("INVALID_REQUEST","상품 설명은 500자까지 입력해 주세요.");
+            if(setting.redeemPolicy()==null)throw new AppException("INVALID_REQUEST","상품 사용 정책을 선택해 주세요.");
+        }
+        return byRank;
+    }
 }
 @Service class AdminSignupService {
-    record Request(String password,String passwordConfirm,String email,String ownerName,String phone,String storeName,String businessNumber){}
+    record Request(String password,String passwordConfirm,String email,String ownerName,String phone,String storeName,String businessNumber,boolean termsAgreed,String termsVersion,boolean privacyAgreed,String privacyVersion){
+        Request(String password,String passwordConfirm,String email,String ownerName,String phone,String storeName,String businessNumber){this(password,passwordConfirm,email,ownerName,phone,storeName,businessNumber,true,LegalConsentPolicy.TERMS_VERSION,true,LegalConsentPolicy.ADMIN_PRIVACY_VERSION);}
+    }
     private final AdminUserRepository admins;private final StoreRepository stores;private final StoreProvisioningService provisioning;private final PasswordEncoder encoder;private final Clock clock;
     AdminSignupService(AdminUserRepository admins,StoreRepository stores,StoreProvisioningService provisioning,PasswordEncoder encoder,Clock clock){this.admins=admins;this.stores=stores;this.provisioning=provisioning;this.encoder=encoder;this.clock=clock;}
     @Transactional StoreProvisioningService.Provisioned signUp(Request r){return signUp(r,"http://localhost:8088");}
     @Transactional StoreProvisioningService.Provisioned signUp(Request r,String publicOrigin){
+        LegalConsentPolicy.requireAdmin(r.termsAgreed,r.termsVersion,r.privacyAgreed,r.privacyVersion);
         String email=Inputs.email(r.email),owner=Inputs.required(r.ownerName,"대표자 이름을 입력해 주세요."),
             storeName=Inputs.required(r.storeName,"매장 상호명을 입력해 주세요."),
             phone=Inputs.phone(r.phone),business=Inputs.businessNumber(r.businessNumber);
         Inputs.password(r.password,r.passwordConfirm);
         if(admins.existsByEmail(email))throw new AppException("DUPLICATE_EMAIL","이미 가입된 이메일입니다.");
         if(stores.existsByBusinessNumber(business))throw new AppException("DUPLICATE_BUSINESS_NUMBER","이미 등록된 사업자등록번호입니다.");
-        AdminUser a=new AdminUser();a.email=email;a.passwordHash=encoder.encode(r.password);a.name=owner;a.phone=phone;a.role=AdminRole.STORE_ADMIN;a.createdAt=clock.instant();admins.save(a);
+        Instant now=clock.instant();AdminUser a=new AdminUser();a.email=email;a.passwordHash=encoder.encode(r.password);a.name=owner;a.phone=phone;a.role=AdminRole.STORE_ADMIN;a.termsVersion=r.termsVersion;a.termsAgreedAt=now;a.privacyVersion=r.privacyVersion;a.privacyAgreedAt=now;a.createdAt=now;admins.save(a);
         return provisioning.provision(a,storeName,phone,null,business,null,null,publicOrigin);
     }
 }
@@ -249,8 +287,9 @@ interface NotificationService { void couponIssued(Coupon coupon); }
 @Service class GameService {
     private final StoreAccessService access;private final StoreRepository stores;private final PhoneService phones;private final ParticipationService participation;private final GameResultGenerator generator;private final GameConfigService config;private final StoreEventSettingsService eventSettings;private final GameRepository games;private final PrizeRepository prizes;private final CouponRepository coupons;private final Clock clock;private final NotificationService notifications;
     GameService(StoreAccessService access,StoreRepository stores,PhoneService phones,ParticipationService participation,GameResultGenerator generator,GameConfigService config,StoreEventSettingsService eventSettings,GameRepository games,PrizeRepository prizes,CouponRepository coupons,Clock clock,NotificationService notifications){this.access=access;this.stores=stores;this.phones=phones;this.participation=participation;this.generator=generator;this.config=config;this.eventSettings=eventSettings;this.games=games;this.prizes=prizes;this.coupons=coupons;this.clock=clock;this.notifications=notifications;}
-    @Transactional GamePlay create(String token,String name,String phone,String idem){if(idem==null||idem.isBlank())throw new AppException("INVALID_REQUEST","idempotencyKey가 필요합니다.");StoreQrCode qr=access.activeQr(token);stores.findForUpdate(qr.store.id).orElseThrow(); // ponytail: store-wide lock is enough for single-instance MVP; narrow to customer-key locks if throughput matters.
-        String normalized=phones.normalize(phone);Optional<GamePlay> existing=games.findByIdempotencyKey(idem);if(existing.isPresent()){GamePlay g=existing.get();if(!g.store.id.equals(qr.store.id)||!g.phoneHash.equals(phones.hash(normalized)))throw new AppException("GAME_ALREADY_CREATED","이미 다른 게임에 사용된 요청 키입니다.");return g;}ParticipationService.State state=participation.state(qr.store.id,phone);if(state.state().equals("HAS_ACTIVE_COUPON"))throw new AppException("ACTIVE_COUPON_EXISTS","사용 가능한 쿠폰이 있습니다.");if(state.state().equals("COOLDOWN"))throw new AppException("PARTICIPATION_COOLDOWN",state.nextPlayableDate()+"부터 다시 참여하실 수 있습니다.");List<StoreOutcome> outcomes=config.load(qr.store.id);YutResult result=generator.generate(outcomes);int rank=outcomes.stream().filter(o->o.yutResult==result).mapToInt(o->o.prizeRank).findFirst().orElseThrow();Prize prize=prizes.findByStoreIdAndRank(qr.store.id,rank).filter(p->p.active).orElseThrow(()->new AppException("PRIZE_NOT_CONFIGURED","활성 상품이 설정되지 않았습니다."));Instant now=clock.instant();GamePlay g=new GamePlay();g.publicId=UUID.randomUUID().toString();g.store=qr.store;g.qrCode=qr;g.customerNameEncrypted=phones.encrypt(name.trim());g.phoneHash=phones.hash(normalized);g.phoneEncrypted=phones.encrypt(normalized);g.phoneLast4=normalized.substring(7);g.yutResult=result;g.prizeRank=rank;g.status=GameStatus.CREATED;g.animationSeed="seed_"+Tokens.random();g.idempotencyKey=idem;g.playedDate=LocalDate.now(clock);g.playedAt=now;games.save(g);Coupon c=new Coupon();c.store=qr.store;c.gamePlay=g;c.prize=prize;c.couponToken="cp_"+Tokens.random();c.phoneHash=g.phoneHash;c.prizeNameSnapshot=prize.name;c.prizeDescriptionSnapshot=prize.description;c.prizeRankSnapshot=rank;c.redeemPolicySnapshot=prize.redeemPolicy;c.status=CouponStatus.ISSUED;c.issuedAt=now;ZoneId zone=clock.getZone();LocalDate issued=g.playedDate;c.validFrom=prize.redeemPolicy==RedeemPolicy.NEXT_DAY?issued.plusDays(1).atStartOfDay(zone).toInstant():now;
+    @Transactional GamePlay create(String token,String name,String phone,String idem){return create(token,name,phone,idem,true,LegalConsentPolicy.CUSTOMER_PRIVACY_VERSION);}
+    @Transactional GamePlay create(String token,String name,String phone,String idem,boolean privacyAgreed,String privacyVersion){LegalConsentPolicy.requireCustomer(privacyAgreed,privacyVersion);if(idem==null||idem.isBlank())throw new AppException("INVALID_REQUEST","idempotencyKey가 필요합니다.");StoreQrCode qr=access.activeQr(token);stores.findForUpdate(qr.store.id).orElseThrow(); // ponytail: store-wide lock is enough for single-instance MVP; narrow to customer-key locks if throughput matters.
+        String normalized=phones.normalize(phone);Optional<GamePlay> existing=games.findByIdempotencyKey(idem);if(existing.isPresent()){GamePlay g=existing.get();if(!g.store.id.equals(qr.store.id)||!g.phoneHash.equals(phones.hash(normalized)))throw new AppException("GAME_ALREADY_CREATED","이미 다른 게임에 사용된 요청 키입니다.");return g;}ParticipationService.State state=participation.state(qr.store.id,phone);if(state.state().equals("HAS_ACTIVE_COUPON"))throw new AppException("ACTIVE_COUPON_EXISTS","사용 가능한 쿠폰이 있습니다.");if(state.state().equals("COOLDOWN"))throw new AppException("PARTICIPATION_COOLDOWN",state.nextPlayableDate()+"부터 다시 참여하실 수 있습니다.");List<StoreOutcome> outcomes=config.load(qr.store.id);YutResult result=generator.generate(outcomes);int rank=outcomes.stream().filter(o->o.yutResult==result).mapToInt(o->o.prizeRank).findFirst().orElseThrow();Prize prize=prizes.findByStoreIdAndRank(qr.store.id,rank).filter(p->p.active).orElseThrow(()->new AppException("PRIZE_NOT_CONFIGURED","활성 상품이 설정되지 않았습니다."));Instant now=clock.instant();GamePlay g=new GamePlay();g.publicId=UUID.randomUUID().toString();g.store=qr.store;g.qrCode=qr;g.customerNameEncrypted=phones.encrypt(name.trim());g.phoneHash=phones.hash(normalized);g.phoneEncrypted=phones.encrypt(normalized);g.phoneLast4=normalized.substring(7);g.yutResult=result;g.prizeRank=rank;g.status=GameStatus.CREATED;g.animationSeed="seed_"+Tokens.random();g.idempotencyKey=idem;g.privacyConsentVersion=privacyVersion;g.privacyConsentedAt=now;g.playedDate=LocalDate.now(clock);g.playedAt=now;games.save(g);Coupon c=new Coupon();c.store=qr.store;c.gamePlay=g;c.prize=prize;c.couponToken="cp_"+Tokens.random();c.phoneHash=g.phoneHash;c.prizeNameSnapshot=prize.name;c.prizeDescriptionSnapshot=prize.description;c.prizeRankSnapshot=rank;c.redeemPolicySnapshot=prize.redeemPolicy;c.status=CouponStatus.ISSUED;c.issuedAt=now;ZoneId zone=clock.getZone();LocalDate issued=g.playedDate;c.validFrom=prize.redeemPolicy==RedeemPolicy.NEXT_DAY?issued.plusDays(1).atStartOfDay(zone).toInstant():now;
         // 발급 시점의 매장 설정으로 한 번 계산하고 끝낸다. 나중에 사장이 기한을 바꿔도 이 쿠폰은 그대로다.
         c.expiresAt=StoreEventSettingsService.expiresAt(c.validFrom,eventSettings.couponValidityDays(qr.store.id),zone);coupons.save(c);notifications.couponIssued(c);return g;}
     @Transactional Coupon reveal(String playId){GamePlay g=games.findByPublicId(playId).orElseThrow(()->new AppException("GAME_NOT_FOUND","게임을 찾을 수 없습니다.",org.springframework.http.HttpStatus.NOT_FOUND));if(g.status==GameStatus.CREATED){g.status=GameStatus.REVEALED;g.revealedAt=clock.instant();}return coupons.findByGamePlayId(g.id).orElseThrow();}

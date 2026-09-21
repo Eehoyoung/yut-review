@@ -49,6 +49,18 @@ docker compose --env-file .env.field-test --profile field-test up -d   # Cloudfl
   기존 볼륨을 유지한 채 값을 바꾸지 말 것.
 - 접근 경로는 Nginx 단일 오리진 `http://localhost:8088`뿐이다. postgres/backend/frontend는 호스트 포트를 열지 않는다.
 
+## 프로덕션 도메인 (2026-09-21 확정)
+
+- 서비스: Yut Review, canonical origin: `https://yut.sodamlabs.kr`
+- 운영사: 소담랩스 / 대표자: 이호영 / 사업자등록번호: `358-23-02207`
+- 운영은 `SPRING_PROFILES_ACTIVE=prod`, `APP_PUBLIC_ORIGIN=https://yut.sodamlabs.kr`를 사용한다.
+- production에서는 QR 안내물 origin을 요청 Host가 아니라 위 canonical origin으로 고정한다.
+- 브라우저 API와 로그인 이동은 동일 origin 상대경로를 유지하며 CORS를 새로 열지 않는다.
+- 인증은 cookie가 아닌 `sessionStorage` Bearer JWT다. production Spring session cookie만 방어적으로
+  `Secure`, `SameSite=Strict`이고, Nginx는 HTTP→HTTPS, HSTS와 기존 CSP를 적용한다.
+- 개발/field-test의 localhost 및 Quick Tunnel 동작은 유지한다. 운영 Nginx 예시는 `nginx/production.conf`,
+  환경 변수 예시는 `.env.production.example`이다.
+
 ## 알려진 제약
 
 - PIN·로그인 시도 제한은 인메모리 `ConcurrentHashMap` 기반이라 단일 인스턴스 전제다.

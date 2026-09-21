@@ -1,11 +1,13 @@
 "use client";
 import { FormEvent, useRef, useState } from "react";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
 import { api, errorMessage } from "@/lib/api";
 import { useSession } from "@/lib/session";
 import { PHONE_LENGTH, isPhone, onlyDigits } from "@/features/normalize";
 import type { CustomerState, GameCreated } from "@/types/api";
+import { CUSTOMER_PRIVACY_VERSION } from "@/lib/legal";
 
 /**
  * 입력 검증. 첫 번째 문제와 그 칸의 id를 함께 돌려준다.
@@ -36,12 +38,12 @@ export default function Identify() {
     mutationFn: async () => {
       const state = await api<CustomerState>(`/public/stores/${encodeURIComponent(token)}/customer-state`, {
         method: "POST",
-        body: JSON.stringify({ name, phone, privacyAgreed: agreed }),
+        body: JSON.stringify({ name, phone, privacyAgreed: agreed, privacyConsentVersion: CUSTOMER_PRIVACY_VERSION }),
       });
       if (state.state !== "CAN_PLAY") return { state };
       const game = await api<GameCreated>("/public/games", {
         method: "POST",
-        body: JSON.stringify({ storeToken: token, name, phone, idempotencyKey: idempotencyKey.current }),
+        body: JSON.stringify({ storeToken: token, name, phone, idempotencyKey: idempotencyKey.current, privacyAgreed: agreed, privacyConsentVersion: CUSTOMER_PRIVACY_VERSION }),
       });
       return { state, game };
     },
@@ -114,8 +116,15 @@ export default function Identify() {
           <hr className="hair" />
           <label className="check">
             <input id="agree" type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} required />
-            <span>참여 확인 및 쿠폰 제공을 위한 개인정보 수집·이용에 동의합니다.</span>
+            <span><b>[필수]</b> 개인정보 수집·이용에 동의합니다.</span>
           </label>
+          <div className="consent-summary" aria-describedby="agree">
+            <p><b>수집:</b> 이름, 휴대폰 번호, 참여·게임·쿠폰 정보</p>
+            <p><b>목적:</b> 참여 제한 확인, 게임·쿠폰 제공 및 사용 처리</p>
+            <p><b>보유:</b> 참여일 포함 120일. 유효한 미사용 쿠폰은 만료 후 익명화</p>
+            <p>동의를 거부할 수 있으나 이벤트에는 참여할 수 없습니다.</p>
+            <Link href="/legal/customer-privacy" target="_blank">개인정보 수집·이용 안내 전문</Link>
+          </div>
         </div>
 
         {cooldown && (

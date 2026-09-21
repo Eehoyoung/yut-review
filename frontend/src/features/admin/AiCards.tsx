@@ -284,7 +284,7 @@ export function AiEventCopyDialog({ storeId }: { storeId: string }) {
         <AiUsageBadge status={status.data} feature="AI_EVENT_COPY" />
       </div>
       <p className="lead">
-        매장 안내물 문구를 만듭니다. 별점이나 긍정적인 리뷰를 참여 조건으로 넣지 않습니다.
+        방문 감사, 신메뉴, 재방문 이벤트에 쓸 안내 문구를 만듭니다. 리뷰나 별점은 참여 조건으로 만들지 않습니다.
       </p>
 
       {run.data && (

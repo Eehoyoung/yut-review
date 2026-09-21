@@ -1,0 +1,23 @@
+import type { Metadata } from "next";
+import { ADMIN_PRIVACY_VERSION, legalOperator } from "@/lib/legal";
+
+export const metadata: Metadata = { title: "개인정보처리방침 | 윷리뷰" };
+export const dynamic = "force-dynamic";
+
+export default function PrivacyPage() {
+  return (
+    <main className="legal-page">
+      <header><p className="brand">윷리뷰</p><h1>개인정보처리방침</h1><p className="lead">시행일 및 버전: {ADMIN_PRIVACY_VERSION}</p></header>
+      <section><h2>1. 처리 목적과 항목</h2><p>회사는 서비스 가입·인증, 매장 운영, 고객 참여·쿠폰 제공, 보안과 문의 처리를 위해 필요한 최소한의 개인정보를 처리합니다.</p><ul><li>매장 관리자: 대표자 이름, 휴대폰 번호, 이메일, 비밀번호 해시, 매장명, 사업자등록번호, 선택 입력한 주소</li><li>이벤트 고객: 이름, 휴대폰 번호, 참여 매장, 게임 결과, 당첨 상품·쿠폰 상태, 참여·사용 시각</li><li>보안 처리 정보: 접속 IP, 로그인 및 직원 PIN 실패 정보. 부정 이용 방지 목적에 필요한 범위에서 일시 처리됩니다.</li></ul></section>
+      <section><h2>2. 처리 및 보유 기간</h2><ul><li>매장 관리자 정보: 서비스 이용 중 보유하며 탈퇴·계약 종료 또는 삭제 요청 처리 후 지체 없이 파기합니다. 관계 법령상 보존 의무가 있으면 해당 기간만 분리 보관합니다.</li><li>이벤트 고객 개인정보: 참여일을 포함해 120일간 보유한 뒤 복구 불가능하게 익명화합니다. 아직 유효한 미사용 쿠폰이 연결된 경우 쿠폰 만료 후 처리합니다.</li><li>매장, 결과, 상품 등급, 참여일과 쿠폰 상태 등 개인을 식별하지 않는 집계 정보는 서비스 통계 목적으로 유지될 수 있습니다.</li></ul></section>
+      <section><h2>3. 개인정보의 제공</h2><p>회사는 정보주체의 별도 동의나 법적 근거 없이 개인정보를 제3자에게 제공하지 않습니다. 이벤트 고객 정보는 해당 이벤트 운영 매장의 쿠폰 확인·사용 처리 권한이 있는 관리자에게만 표시됩니다.</p></section>
+      <section><h2>4. 처리 위탁과 국외 이전</h2><p>회사는 인프라·결제 등 외부 서비스를 실제 도입하기 전에 수탁자, 위탁 업무, 보유 기간과 국외 이전 사항을 이 방침에 공개합니다. 고객의 이름·전화번호·쿠폰 토큰·직원 PIN은 AI 모델에 보내지 않습니다.</p></section>
+      <section><h2>5. 파기 절차와 방법</h2><p>보유 기간이 끝나거나 목적이 달성된 개인정보는 지체 없이 파기합니다. 전자 파일은 복구할 수 없도록 삭제하거나 식별값을 익명값으로 덮어쓰며, 종이 문서는 분쇄 또는 소각합니다.</p></section>
+      <section><h2>6. 정보주체의 권리</h2><p>정보주체는 개인정보 열람, 정정·삭제, 처리정지와 동의 철회를 요청할 수 있습니다. 본인 확인 후 법정 기한 안에 처리하며, 법령상 제한 사유가 있으면 그 이유를 안내합니다.</p></section>
+      <section><h2>7. 안전성 확보 조치</h2><p>전화번호 조회값은 HMAC-SHA256, 이름과 전화번호 원문은 AES-256-GCM으로 보호하고 비밀번호와 직원 PIN은 단방향 해시로 저장합니다. 매장별 권한 분리, 접근 통제, 전송구간 암호화, 요청 제한과 로그 내 민감정보 제거를 적용합니다.</p></section>
+      <section><h2>8. 쿠키와 자동수집 장치</h2><p>현재 서비스는 광고 목적의 추적 쿠키를 사용하지 않습니다. 관리자 로그인 정보는 브라우저 세션 저장소에 보관되며 브라우저를 닫거나 로그아웃하면 삭제됩니다. 도입 내용이 바뀌면 이 방침을 먼저 갱신합니다.</p></section>
+      <section><h2>9. 개인정보 보호 문의</h2><dl className="legal-facts"><div><dt>개인정보처리자</dt><dd>{legalOperator.businessName}</dd></div><div><dt>개인정보 보호 담당</dt><dd>{legalOperator.representative}</dd></div><div><dt>이메일</dt><dd>{legalOperator.email}</dd></div><div><dt>전화</dt><dd>{legalOperator.phone}</dd></div></dl><p>권리 침해 상담은 개인정보침해 신고센터(118), 개인정보 분쟁조정위원회, 경찰청 등 관계 기관에도 요청할 수 있습니다.</p></section>
+      <section><h2>10. 변경 안내</h2><p>이 방침의 내용이 바뀌면 시행일 전에 서비스 화면으로 알립니다. 수집 목적이나 제공 대상 등 중요한 변경은 관계 법령에 따라 별도 동의를 받습니다.</p></section>
+    </main>
+  );
+}

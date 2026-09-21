@@ -51,6 +51,7 @@ class AnalyticsService {
         out.put("results", results);
         out.put("plan", subscriptions.planOf(storeId).name());
         out.put("advancedAvailable", entitlements.has(subscriptions.planOf(storeId), Entitlement.ADVANCED_ANALYTICS));
+        out.put("csvExports", availableExports(storeId));
         return out;
     }
 

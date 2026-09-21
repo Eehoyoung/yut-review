@@ -87,12 +87,30 @@ export interface Summary {
 export interface DetailedAnalytics {
   window: { from: string; to: string; clampedByPlanRetention: boolean };
   summary: { plays: number; couponsIssued: number; couponsRedeemed: number; redemptionRatePercent: number };
+  comparedToPrevious?: {
+    current: AnalyticsPeriod;
+    previous: AnalyticsPeriod | null;
+    note?: string;
+    playsChange?: number;
+    playsChangePercent?: number | null;
+  };
   hourly: { playsByHour: Record<string, number> };
   weekday: { playsByWeekday: Record<string, number> };
   prizePerformance: {
-    prizes: { rank: number; prizeName: string; issued: number; redeemed: number; redemptionRatePercent: number }[];
+    prizes: { prizeRank: number; prizeName: string; issued: number; redeemed: number; redemptionRatePercent: number }[];
   };
   repeat: { uniqueParticipants: number; repeatParticipants: number; repeatRatePercent: number };
+}
+
+export interface AnalyticsPeriod {
+  from: string;
+  to: string;
+  days: number;
+  plays: number;
+  couponsIssued: number;
+  couponsRedeemed: number;
+  redemptionRatePercent: number;
+  couponsByStatus: Record<string, number>;
 }
 
 export interface AiChatAnswer {
@@ -143,7 +161,8 @@ export interface StoreSummary {
   businessNumber?: string;
   publicToken?: string;
   naverPlaceUrl?: string;
-  active?: boolean;
+  posterTagline?: string;
+  status?: "ACTIVE" | "INACTIVE";
   prizes?: PublicPrize[];
 }
 

@@ -1,5 +1,6 @@
 .env
 .env.field-test
+.env.production
 backend/.gradle/
 backend/build/
 frontend/.next/

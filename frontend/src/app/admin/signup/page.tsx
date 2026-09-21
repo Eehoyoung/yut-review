@@ -4,6 +4,7 @@ import { FormEvent, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { api, errorMessage } from "@/lib/api";
 import { BUSINESS_NUMBER_LENGTH, PHONE_LENGTH, onlyDigits } from "@/features/normalize";
+import { ADMIN_PRIVACY_VERSION, TERMS_VERSION } from "@/lib/legal";
 
 type SignUpResult = { storeId: number; storeName: string; staffPin: string; storeToken: string; posterReady: boolean };
 
@@ -58,13 +59,15 @@ const hasFinalConsonant = (word: string) => {
  * id가 필요한 이유: 칸이 일곱 개라 안내 문구만 띄우면 정작 그 칸이 화면 밖에 있다.
  * 무엇이 문제인지 말하는 것과 거기로 데려다주는 것은 다른 일이다.
  */
-function problem(form: Record<string, string>): { id: string; message: string } | null {
+function problem(form: Record<string, string>, termsAgreed: boolean, privacyAgreed: boolean): { id: string; message: string } | null {
   for (const f of FIELDS) {
     const value = (form[f.key] ?? "").trim();
     if (!value) return { id: f.key, message: `${f.label}${hasFinalConsonant(f.label) ? "을" : "를"} 입력해 주세요.` };
     if (f.digits && value.length !== f.digits)
       return { id: f.key, message: `${f.label}${hasFinalConsonant(f.label) ? "은" : "는"} 숫자 ${f.digits}자리로 입력해 주세요.` };
   }
+  if (!termsAgreed) return { id: "termsAgreed", message: "서비스 이용약관에 동의해 주세요." };
+  if (!privacyAgreed) return { id: "privacyAgreed", message: "개인정보 수집·이용에 동의해 주세요." };
   return null;
 }
 
@@ -74,8 +77,10 @@ export default function SignUp() {
   // 제출을 눌러 본 뒤에만 이유를 말한다. 폼을 열자마자, 또는 두 번째 칸을 치는 중에
   // 아직 오지도 않은 칸을 지적하면 잔소리가 된다.
   const [tried, setTried] = useState(false);
+  const [termsAgreed, setTermsAgreed] = useState(false);
+  const [privacyAgreed, setPrivacyAgreed] = useState(false);
   const signUp = useMutation({
-    mutationFn: () => api<SignUpResult>("/admin/auth/signup", { method: "POST", body: JSON.stringify(form) }),
+    mutationFn: () => api<SignUpResult>("/admin/auth/signup", { method: "POST", body: JSON.stringify({ ...form, termsAgreed, privacyAgreed, termsVersion: TERMS_VERSION, privacyVersion: ADMIN_PRIVACY_VERSION }) }),
     onSuccess: setDone,
   });
 
@@ -99,7 +104,7 @@ export default function SignUp() {
       </main>
     );
 
-  const blocked = problem(form);
+  const blocked = problem(form, termsAgreed, privacyAgreed);
 
   return (
     <main className="screen">
@@ -141,6 +146,21 @@ export default function SignUp() {
             {f.hint && <small className="hint">{f.hint}</small>}
           </div>
         ))}
+        <hr className="hair" />
+        <label className="check">
+          <input id="termsAgreed" type="checkbox" checked={termsAgreed} onChange={(e) => setTermsAgreed(e.target.checked)} required />
+          <span><b>[필수]</b> <Link href="/legal/terms" target="_blank">서비스 이용약관</Link>에 동의합니다.</span>
+        </label>
+        <label className="check">
+          <input id="privacyAgreed" type="checkbox" checked={privacyAgreed} onChange={(e) => setPrivacyAgreed(e.target.checked)} required />
+          <span><b>[필수]</b> <Link href="/legal/privacy" target="_blank">개인정보 수집·이용 및 처리방침</Link>에 동의합니다.</span>
+        </label>
+        <div className="consent-summary">
+          <p><b>수집:</b> 대표자 이름, 연락처, 이메일, 매장명, 사업자등록번호</p>
+          <p><b>목적:</b> 회원가입, 로그인, 매장 운영과 고객 지원</p>
+          <p><b>보유:</b> 서비스 이용 중 및 관계 법령상 보존 기간</p>
+          <p>동의를 거부할 수 있으나 회원가입은 할 수 없습니다.</p>
+        </div>
         {tried && blocked && (
           <p className="notice" role="status">
             {blocked.message}

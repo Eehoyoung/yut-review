@@ -68,6 +68,7 @@ const friendly: Record<string, string> = {
   STORE_NOT_FOUND: "매장을 찾을 수 없습니다.", STORE_INACTIVE: "현재 이벤트를 운영하지 않는 매장입니다.",
   QR_TOKEN_INVALID: "QR 코드를 확인해 주세요.", QR_TOKEN_REVOKED: "사용이 중지된 QR입니다.",
   INVALID_PHONE: "휴대폰 번호를 확인해 주세요.", PRIVACY_CONSENT_REQUIRED: "개인정보 수집에 동의해 주세요.",
+  TERMS_CONSENT_REQUIRED: "서비스 이용약관에 동의해 주세요.",
   STAFF_PIN_INVALID: "직원 PIN이 맞지 않아요. 다시 확인해 주세요.", STAFF_PIN_RATE_LIMITED: "잠시 후 PIN을 다시 입력해 주세요.",
   COUPON_NOT_YET_VALID: "아직 사용할 수 없는 쿠폰입니다.", COUPON_EXPIRED: "사용 기간이 지난 쿠폰입니다.",
   COUPON_ALREADY_REDEEMED: "이미 사용한 쿠폰입니다.", COUPON_NOT_ACTIVE: "사용할 수 없는 쿠폰입니다.",

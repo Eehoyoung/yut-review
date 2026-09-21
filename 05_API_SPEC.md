@@ -34,6 +34,7 @@ Response:
 ```json
 {
   "name": "홍대포차",
+  "posterTagline": "QR을 찍고 윷을 던져 보세요",
   "naverPlaceUrl": "https://naver.me/xxxx",
   "prizes": [
     { "rank": 1, "name": "삼겹살 1인분", "description": "1테이블 1회", "odds": 10.0 },
@@ -42,6 +43,10 @@ Response:
   ]
 }
 ```
+
+`posterTagline`은 매장이 설정한 공개 이벤트 안내 문구다. 값이 없으면 빈 문자열이다.
+`naverPlaceUrl`도 선택값이며 빈 문자열일 수 있다. 링크가 있어도 네이버 방문이나 리뷰 작성은
+게임 참여와 혜택의 조건이 아니다.
 
 `odds`는 그 등급으로 이어지는 결과들의 가중치 합을 전체 합으로 나눈 백분율이며
 소수 첫째 자리에서 반올림한다. 서버에서만 계산한다.
@@ -57,7 +62,8 @@ Request:
 {
   "name": "홍길동",
   "phone": "01012345678",
-  "privacyAgreed": true
+  "privacyAgreed": true,
+  "privacyConsentVersion": "2026-09-21"
 }
 ```
 
@@ -86,7 +92,9 @@ Request:
   "storeToken": "qR7...",
   "name": "홍길동",
   "phone": "01012345678",
-  "idempotencyKey": "uuid"
+  "idempotencyKey": "uuid",
+  "privacyAgreed": true,
+  "privacyConsentVersion": "2026-09-21"
 }
 ```
 Response:
@@ -98,6 +106,9 @@ Response:
 }
 ```
 당첨 결과는 이 응답에서 노출하지 않는다.
+
+서버는 현재 고객 개인정보 동의 버전을 검증하고 참여 기록에 동의 버전과 시각을 저장한다.
+`customer-state`를 먼저 호출했더라도 게임 생성 요청에서 다시 검증하므로 직접 API 호출로 우회할 수 없다.
 
 ## 결과 공개
 ```http
@@ -154,7 +165,11 @@ Request:
   "passwordConfirm": "secret1234",
   "email": "owner@example.com",
   "storeName": "홍대포차",
-  "businessNumber": "1234567890"
+  "businessNumber": "1234567890",
+  "termsAgreed": true,
+  "termsVersion": "2026-09-21",
+  "privacyAgreed": true,
+  "privacyVersion": "2026-09-21"
 }
 ```
 Response:
@@ -169,6 +184,9 @@ Response:
 ```
 가입과 동시에 `STORE_ADMIN` 계정, 매장, OWNER 멤버십, QR 토큰, 기본 3등급 상품과
 기본 가중치 설정이 생성된다. `staffPin`은 이 응답에서 한 번만 반환한다.
+
+서버는 현재 이용약관과 개인정보 동의 버전을 각각 검증하고 동의 시각·버전을 계정에 저장한다.
+동의가 없거나 구버전이면 `TERMS_CONSENT_REQUIRED` / `PRIVACY_CONSENT_REQUIRED`로 거부한다.
 
 `phone`은 숫자만 남겨 `010` + 8자리, `businessNumber`는 숫자 10자리여야 한다.
 `010-1234-5678`이나 `123-45-67890`처럼 구분자가 섞여 있어도 서버가 숫자만 남겨 정규화한다.
@@ -256,6 +274,54 @@ Response / Request:
 이미 발급된 쿠폰은 설정 변경의 영향을 받지 않는다. 등급·상품명·설명·사용정책은
 발급 시점에 쿠폰에 동결된다.
 
+## 상품·확률 원자 저장
+
+```http
+PUT /api/admin/stores/{storeId}/event-configuration
+```
+
+관리자 상품 설정 화면은 결과별 가중치와 사용 중인 모든 상품을 이 요청 하나로 저장한다.
+
+Request:
+
+```json
+{
+  "outcomes": [
+    { "yutResult": "DO",   "weight": 325, "prizeRank": 3 },
+    { "yutResult": "GAE",  "weight": 325, "prizeRank": 3 },
+    { "yutResult": "GEOL", "weight": 125, "prizeRank": 2 },
+    { "yutResult": "YUT",  "weight": 125, "prizeRank": 2 },
+    { "yutResult": "MO",   "weight": 100, "prizeRank": 1 }
+  ],
+  "prizes": [
+    { "rank": 1, "name": "삼겹살 1인분", "description": "1테이블 1회", "redeemPolicy": "ANYTIME" },
+    { "rank": 2, "name": "계란찜 무료", "description": "", "redeemPolicy": "NEXT_DAY" },
+    { "rank": 3, "name": "음료 1캔", "description": "", "redeemPolicy": "SAME_DAY" }
+  ]
+}
+```
+
+`outcomes`는 물리 결과 5개를 정확히 한 번씩 포함해야 한다. `prizes`는 결과에서 사용하는 연속 등급
+`1..N`을 정확히 한 번씩 모두 포함한다. `active`는 클라이언트가 보내지 않는다. 문서에 포함된 상품은
+활성화되고, 더 이상 사용하지 않는 기존 상위 등급은 삭제하지 않고 비활성화된다.
+
+Response:
+
+```json
+{
+  "rankCount": 3,
+  "outcomes": [
+    { "yutResult": "DO", "weight": 325, "prizeRank": 3, "odds": 32.5 }
+  ],
+  "prizes": [
+    { "rank": 1, "name": "삼겹살 1인분", "description": "1테이블 1회", "redeemPolicy": "ANYTIME", "active": true }
+  ]
+}
+```
+
+서버는 결과와 상품 전체를 먼저 검증한 뒤 하나의 트랜잭션으로 반영한다. 검증 또는 저장 중 하나라도
+실패하면 전부 롤백한다. 이미 발급된 쿠폰의 상품·등급·사용정책 스냅샷은 바뀌지 않는다.
+
 ## QR 조회/재발급
 ```http
 GET  /api/admin/stores/{storeId}/qr-codes
@@ -296,6 +362,8 @@ GET /api/admin/stores/{storeId}/coupons?page=0&size=50
 ```
 
 `page`는 0부터 시작하고 `size` 기본값은 50, 허용 범위는 1~100이다. `issuedAt DESC`로 DB에서 페이지 조회한다.
+
+쿠폰 목록의 각 행은 연결된 참여 기록의 `customerName`, `phoneLast4`와 쿠폰의 `token`, `prizeName`, `status`, `issuedAt`, `expiresAt`을 포함한다. 이름은 인증된 매장 관리자에게만 복호화해 제공한다.
 
 두 목록의 `data` 형식:
 
@@ -372,6 +440,10 @@ phoneLast4·쿠폰 토큰·직원 PIN은 어떤 기능에서도 전달되지 않
 GET /api/admin/stores/{storeId}/analytics/summary
 ```
 
+응답에는 `todayPlays`, `totalPlays`, `issuedCoupons`, `redeemedCoupons`, `results`, `plan`,
+`advancedAvailable`와 현재 요금제에서 허용된 CSV 종류인 `csvExports`가 포함된다.
+상세 통계의 `prizePerformance.prizes`는 등급을 `prizeRank`로 반환한다.
+
 # Error Code
 ```text
 STORE_NOT_FOUND
@@ -380,6 +452,7 @@ QR_TOKEN_INVALID
 QR_TOKEN_REVOKED
 INVALID_PHONE
 PRIVACY_CONSENT_REQUIRED
+TERMS_CONSENT_REQUIRED
 ACTIVE_COUPON_EXISTS
 PARTICIPATION_COOLDOWN
 STAFF_PIN_INVALID

@@ -16,7 +16,7 @@ import org.springframework.stereotype.Service;
  */
 @Service
 class AiPromptService {
-    static final String EVENT_COPY_VERSION = "AI_EVENT_COPY:v1";
+    static final String EVENT_COPY_VERSION = "AI_EVENT_COPY:v2";
     static final String REPORT_VERSION = "AI_REPORT:v1";
     static final String IMPROVEMENT_VERSION = "AI_IMPROVEMENT:v1";
     static final String CHAT_VERSION = "AI_CHAT:v1";
@@ -33,11 +33,11 @@ class AiPromptService {
     String systemPrompt(AiFeature feature) {
         return switch (feature) {
             case AI_EVENT_COPY -> join(
-                    "당신은 소담의 오프라인 매장 리뷰 이벤트 카피라이터다.",
+                    "당신은 소담의 오프라인 매장 이벤트 카피라이터다.",
                     "주어진 실제 매장/상품/확률 정보만 사용한다.",
                     "없는 혜택과 확률을 만들지 않는다.",
-                    "별점 5점, 좋은 리뷰, 긍정 리뷰, 특정 긍정 키워드를 혜택 조건으로 요구하거나 암시하지 않는다.",
-                    "리뷰 내용과 별점에 관계없이 참여 가능하다는 원칙을 지킨다.",
+                    "리뷰, 별점, 특정 문구 또는 외부 링크 방문을 혜택 조건으로 요구하거나 암시하지 않는다.",
+                    "리뷰 없이 참여 가능한 매장 자체 이벤트를 기본으로 쓰고 네이버 링크는 선택 동선으로만 다룬다.",
                     "짧고 실제 매장/A6 안내물에 바로 쓸 수 있는 한국어 문구를 만든다.",
                     "응답은 지정 JSON schema만 반환한다.");
             case AI_REPORT -> join(

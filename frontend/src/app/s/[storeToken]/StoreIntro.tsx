@@ -42,16 +42,13 @@ export default function StoreIntro({ initialData }: { initialData?: StoreSummary
     );
 
   const prizes = store.data.prizes ?? [];
+  const headline = store.data.posterTagline?.trim() || "윷 한 판 던지고 오늘의 상품을 받아가세요";
 
   return (
     <main className="screen has-bar intro">
       <header className="stack">
         <p className="brand">{store.data.name}</p>
-        <h1>
-          윷 한 판 던지고
-          <br />
-          상품 받아가세요
-        </h1>
+        <h1>{headline}</h1>
       </header>
 
       <YutFan />
@@ -66,6 +63,8 @@ export default function StoreIntro({ initialData }: { initialData?: StoreSummary
           </li>
         ))}
       </ol>
+
+      <p className="lead">이름과 전화번호만 입력하면 바로 참여할 수 있어요.</p>
 
       <section className="panel" aria-labelledby="prize-heading">
         <div className="row" style={{ marginBottom: "var(--s3)" }}>
@@ -92,19 +91,15 @@ export default function StoreIntro({ initialData }: { initialData?: StoreSummary
         </div>
       </section>
 
-      <p className="lead">
-        네이버 리뷰를 작성한 뒤 직원에게 보여 주세요.
-      </p>
-
       <div className="actionbar">
         <div className="inner">
           {store.data.naverPlaceUrl && (
             <a className="btn ghost" target="_blank" rel="noreferrer" href={store.data.naverPlaceUrl}>
-              리뷰 쓰기
+              네이버에서 매장 보기 · 선택
             </a>
           )}
           <Link className="btn wood" href={`/s/${token}/identify`}>
-            참여하기
+            이벤트 참여하기
           </Link>
         </div>
       </div>

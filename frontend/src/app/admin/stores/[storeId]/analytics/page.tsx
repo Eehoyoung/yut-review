@@ -7,6 +7,7 @@ import { AdminFrame } from "@/features/admin/AdminFrame";
 import { HourlyBars, WeekdayBars } from "@/features/admin/HourlyBars";
 import { api, downloadWithAuth, errorMessage } from "@/lib/api";
 import { YUT_LABEL, labelOf, rankLabel } from "@/features/labels";
+import { comparisonCopy } from "@/features/admin/analytics-comparison";
 import type { DetailedAnalytics, Summary } from "@/types/api";
 
 /** 사장이 실제로 고르는 기간. 임의 날짜 선택은 이 화면에서 아직 필요하지 않다. */
@@ -61,6 +62,9 @@ export default function AnalyticsPage() {
 
   const issued = summary.data.issuedCoupons + summary.data.redeemedCoupons;
   const rate = issued ? Math.round((summary.data.redeemedCoupons / issued) * 100) : 0;
+  const comparison = detailed.data?.comparedToPrevious
+    ? comparisonCopy(detailed.data.comparedToPrevious)
+    : undefined;
 
   return (
     <AdminFrame title="통계">
@@ -124,6 +128,29 @@ export default function AnalyticsPage() {
 
           {detailed.data && (
             <>
+              {comparison && (
+                <section className="panel stack" aria-labelledby="comparison-title">
+                  <div>
+                    <h2 id="comparison-title">직전 같은 기간과 비교</h2>
+                    <p className="lead">선택한 {days}일과 바로 앞 {days}일을 비교합니다.</p>
+                  </div>
+                  {comparison.note ? (
+                    <p className="notice">{comparison.note}</p>
+                  ) : (
+                    <div className="list">
+                      <div className="list-item">
+                        <span className="lead">참여 변화</span>
+                        <span className="name">{comparison.plays}</span>
+                      </div>
+                      <div className="list-item">
+                        <span className="lead">쿠폰 사용률 변화</span>
+                        <span className="name">{comparison.redemptionRate}</span>
+                      </div>
+                    </div>
+                  )}
+                </section>
+              )}
+
               <section className="panel stack">
                 <div className="row">
                   <h2>시간대별 참여</h2>
@@ -140,9 +167,9 @@ export default function AnalyticsPage() {
                 <h2>상품별 사용률</h2>
                 <div className="list">
                   {detailed.data.prizePerformance.prizes.map((p) => (
-                    <div className="list-item" key={p.rank}>
+                    <div className="list-item" key={p.prizeRank}>
                       <span className="name">
-                        {rankLabel(p.rank)} {p.prizeName}
+                        {rankLabel(p.prizeRank)} {p.prizeName}
                       </span>
                       <span className="lead">
                         {p.redeemed}/{p.issued} · {p.redemptionRatePercent}%

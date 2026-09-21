@@ -218,6 +218,43 @@ a {
   color: var(--ink);
 }
 
+.legal-footer {
+  position: relative;
+  width: min(100%, 1080px);
+  margin: 0 auto;
+  padding: var(--s4) var(--s4) calc(var(--s5) + var(--safe-b));
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--s2) var(--s4);
+  border-top: 1px solid var(--line-soft);
+  color: var(--ink-muted);
+  font-size: var(--t-sm);
+}
+
+.legal-footer nav { display: flex; flex-wrap: wrap; gap: var(--s3); }
+.legal-footer a { color: var(--ink-2); }
+
+.legal-page {
+  position: relative;
+  width: min(100%, 760px);
+  margin: 0 auto;
+  padding: var(--s6) var(--s4) var(--s7);
+  display: grid;
+  gap: var(--s6);
+}
+
+.legal-page header,
+.legal-page section { display: grid; gap: var(--s3); }
+.legal-page section { padding-top: var(--s4); border-top: 1px solid var(--line-soft); }
+.legal-page ul { margin: 0; padding-left: 1.25rem; display: grid; gap: var(--s2); }
+.legal-page p,
+.legal-page li { color: var(--ink-2); }
+.legal-facts { margin: 0; display: grid; gap: var(--s2); }
+.legal-facts div { display: grid; grid-template-columns: minmax(7rem, 10rem) 1fr; gap: var(--s3); }
+.legal-facts dt { color: var(--ink-muted); }
+.legal-facts dd { margin: 0; overflow-wrap: anywhere; }
+
 /* ---------- 레이아웃 ---------- */
 
 .screen {
@@ -550,6 +587,18 @@ form > .success {
   flex: none;
   accent-color: var(--brand);
 }
+
+.consent-summary {
+  display: grid;
+  gap: var(--s1);
+  padding: var(--s3);
+  border-radius: var(--r-md);
+  background: var(--panel-2);
+  color: var(--ink-2);
+  font-size: var(--t-sm);
+}
+
+.consent-summary a { width: fit-content; font-weight: 700; }
 
 /* ---------- 상태 표시 ---------- */
 
@@ -995,6 +1044,49 @@ form > .success {
   font-weight: 800;
   letter-spacing: -0.03em;
   /* 등폭 숫자는 세로로 정렬되는 표에서만 쓴다. 큰 단독 숫자에 쓰면 자간이 헐거워 보인다. */
+}
+
+.launch-pad > div:first-child {
+  display: grid;
+  gap: var(--s1);
+}
+
+.launch-steps {
+  display: grid;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.launch-steps li {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  min-height: 44px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.launch-steps li:first-child {
+  border-top: 0;
+}
+
+.launch-steps b {
+  width: 28px;
+  color: var(--wood-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+.launch-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s3);
+}
+
+@media (max-width: 380px) {
+  .launch-actions {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* PIN은 한 번만 보이는 값이라 또박또박 읽히게 */

@@ -1,0 +1,10 @@
+app:
+  public-origin: ${APP_PUBLIC_ORIGIN:https://yut.sodamlabs.kr}
+
+server:
+  forward-headers-strategy: framework
+  servlet:
+    session:
+      cookie:
+        secure: true
+        same-site: strict

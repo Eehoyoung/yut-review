@@ -3,7 +3,7 @@ import { FormEvent, useEffect, useId, useState } from "react";
 import { useParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AdminFrame } from "@/features/admin/AdminFrame";
-import { ApiClientError, api, errorMessage } from "@/lib/api";
+import { api, errorMessage } from "@/lib/api";
 import type { EventSettings, GameConfig, Prize, RedeemPolicy, YutResult } from "@/types/api";
 import { YUT_LABEL, rankLabel } from "@/features/labels";
 import { onlyDecimal, onlyDigits } from "@/features/normalize";
@@ -244,8 +244,7 @@ export default function Prizes() {
   const save = useMutation({
     mutationFn: async () => {
       const d = draft!;
-      // The ladder has to exist before its prizes can be written, so the config goes first.
-      await api<GameConfig>(`/admin/stores/${id}/game-config`, {
+      await api(`/admin/stores/${id}/event-configuration`, {
         method: "PUT",
         body: JSON.stringify({
           outcomes: YUT_ORDER.map((y) => ({
@@ -253,27 +252,12 @@ export default function Prizes() {
             weight: toTenths(d.outcomes[y].percent),
             prizeRank: d.outcomes[y].prizeRank,
           })),
+          prizes: Array.from({ length: d.ladder }, (_, index) => {
+            const rank = index + 1;
+            return { rank, ...d.prizes[rank] };
+          }),
         }),
       });
-      let successRank = 0;
-      for (let rank = 1; rank <= d.ladder; rank++) {
-        try {
-          await api<Prize>(`/admin/stores/${id}/prizes/${rank}`, {
-            method: "PUT",
-            body: JSON.stringify({ ...d.prizes[rank], active: true }),
-          });
-          successRank = rank;
-        } catch {
-          // errorMessage()는 ApiClientError가 아니면 문구를 버리고 "잠시 후 다시 시도해주세요."로 덮는다.
-          // 어디까지 저장됐는지가 이 화면에서 사장이 알아야 할 전부라, 그 문구가 살아남는 형태로 던진다.
-          throw new ApiClientError(
-            "PRIZE_PARTIAL_SAVE",
-            successRank > 0
-              ? `확률 설정은 저장됐지만 ${rankLabel(successRank + 1)}부터는 저장하지 못했습니다. 다시 저장해 주세요.`
-              : "확률 설정은 저장됐지만 상품은 저장하지 못했습니다. 다시 저장해 주세요.",
-          );
-        }
-      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["game-config", id] });

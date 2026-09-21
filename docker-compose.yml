@@ -17,17 +17,18 @@ services:
   backend:
     build: ./backend
     environment:
-      SPRING_PROFILES_ACTIVE: field-test
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-field-test}
+      APP_PUBLIC_ORIGIN: ${APP_PUBLIC_ORIGIN:-}
       DB_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-yut_review}
       DB_USERNAME: ${DB_USERNAME:-yut}
       DB_PASSWORD: ${DB_PASSWORD:-local-yut-password}
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in env file}
       PHONE_HMAC_SECRET: ${PHONE_HMAC_SECRET:?set PHONE_HMAC_SECRET in env file}
       PHONE_ENCRYPTION_KEY: ${PHONE_ENCRYPTION_KEY:?set PHONE_ENCRYPTION_KEY in env file}
-      FIELD_TEST_BOOTSTRAP_ENABLED: "true"
-      FIELD_TEST_ADMIN_EMAIL: ${FIELD_TEST_ADMIN_EMAIL:?set FIELD_TEST_ADMIN_EMAIL in env file}
-      FIELD_TEST_ADMIN_PASSWORD: ${FIELD_TEST_ADMIN_PASSWORD:?set FIELD_TEST_ADMIN_PASSWORD in env file}
-      FIELD_TEST_STAFF_PIN: ${FIELD_TEST_STAFF_PIN:?set FIELD_TEST_STAFF_PIN in env file}
+      FIELD_TEST_BOOTSTRAP_ENABLED: ${FIELD_TEST_BOOTSTRAP_ENABLED:-true}
+      FIELD_TEST_ADMIN_EMAIL: ${FIELD_TEST_ADMIN_EMAIL:-}
+      FIELD_TEST_ADMIN_PASSWORD: ${FIELD_TEST_ADMIN_PASSWORD:-}
+      FIELD_TEST_STAFF_PIN: ${FIELD_TEST_STAFF_PIN:-}
       FIELD_TEST_NAVER_PLACE_URL: ${FIELD_TEST_NAVER_PLACE_URL:-https://map.naver.com/}
       TZ: Asia/Seoul
     depends_on:
@@ -45,6 +46,12 @@ services:
       HOSTNAME: 0.0.0.0
       PORT: 3000
       INTERNAL_API_BASE: http://backend:8080
+      NEXT_PUBLIC_LEGAL_BUSINESS_NAME: ${LEGAL_BUSINESS_NAME:-윷리뷰 운영자}
+      NEXT_PUBLIC_LEGAL_REPRESENTATIVE: ${LEGAL_REPRESENTATIVE:-사업자등록 완료 후 공개}
+      NEXT_PUBLIC_LEGAL_BUSINESS_NUMBER: ${LEGAL_BUSINESS_NUMBER:-사업자등록 완료 후 공개}
+      NEXT_PUBLIC_LEGAL_ADDRESS: ${LEGAL_ADDRESS:-사업자등록 완료 후 공개}
+      NEXT_PUBLIC_LEGAL_EMAIL: ${LEGAL_EMAIL:-사업자등록 완료 후 공개}
+      NEXT_PUBLIC_LEGAL_PHONE: ${LEGAL_PHONE:-사업자등록 완료 후 공개}
     depends_on:
       backend:
         condition: service_healthy

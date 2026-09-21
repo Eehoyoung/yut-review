@@ -39,6 +39,8 @@ enum AiFeature { AI_EVENT_COPY, AI_REPORT, AI_IMPROVEMENT, AI_CHAT }
     @Column(nullable=false) String passwordHash;
     @Column(nullable=false) String name;
     @Enumerated(EnumType.STRING) @Column(nullable=false) AdminRole role;
+    String termsVersion; Instant termsAgreedAt;
+    String privacyVersion; Instant privacyAgreedAt;
     @Column(nullable=false) Instant createdAt;
 }
 @Entity @Table(name="stores",uniqueConstraints=@UniqueConstraint(columnNames="business_number")) class Store {
@@ -162,6 +164,7 @@ enum AiFeature { AI_EVENT_COPY, AI_REPORT, AI_IMPROVEMENT, AI_CHAT }
     @Column(name="prize_rank",nullable=false) int prizeRank;
     @Enumerated(EnumType.STRING) @Column(nullable=false) GameStatus status;
     @Column(nullable=false) String animationSeed; @Column(nullable=false,unique=true) String idempotencyKey;
+    String privacyConsentVersion; Instant privacyConsentedAt;
     @Column(nullable=false) LocalDate playedDate; @Column(nullable=false) Instant playedAt; Instant revealedAt;
 }
 @Entity @Table(name="coupons", indexes={@Index(columnList="store_id,phone_hash,status"),@Index(columnList="store_id,status"),@Index(columnList="store_id,issued_at")}) class Coupon {

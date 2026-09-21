@@ -87,8 +87,8 @@ export default function Stores() {
                 <span className="name">{s.name}</span>
                 {s.businessNumber && <small className="hint">{formatBusinessNumber(s.businessNumber)}</small>}
               </span>
-              <span className="pill" data-tone={s.active === false ? "off" : "ok"}>
-                {s.active === false ? "운영 중지" : "운영 중"}
+              <span className="pill" data-tone={s.status === "INACTIVE" ? "off" : "ok"}>
+                {s.status === "INACTIVE" ? "운영 중지" : "운영 중"}
               </span>
             </Link>
           ))}

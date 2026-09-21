@@ -639,3 +639,25 @@ Before declaring the end-to-end MVP goal complete, attempt practical field-test 
 7. no external paid infrastructure is required for this test profile.
 
 If actual Cloudflare connectivity cannot be exercised in the current Codex environment, do not fake success. Validate the Compose/cloudflared configuration statically, document the exact command, and report external tunnel execution as the remaining local-environment check.
+
+---
+
+## 15. Production Domain
+
+The production identity is fixed unless the user explicitly changes it:
+
+- Service: Yut Review
+- Canonical origin: `https://yut.sodamlabs.kr`
+- Operator: 소담랩스
+- Representative: 이호영
+- Business registration number: `358-23-02207`
+
+Production-only rules:
+
+- Use the `prod` Spring profile and `APP_PUBLIC_ORIGIN=https://yut.sodamlabs.kr`.
+- Generate absolute customer/QR/poster URLs from the configured canonical origin, not an untrusted request Host.
+- Keep browser API calls and redirects same-origin; do not enable broad CORS.
+- Redirect HTTP to the canonical HTTPS origin and retain HSTS, CSP, frame, MIME-sniffing, referrer and permissions headers.
+- Authentication remains a Bearer JWT stored in `sessionStorage`; do not introduce an authentication cookie merely for domain configuration.
+- Keep localhost and Quick Tunnel behavior available only for development/field-test environments.
+- Never commit production secrets, private keys, or certificates.

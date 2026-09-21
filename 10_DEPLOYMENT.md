@@ -47,6 +47,28 @@ NEXT_PUBLIC_ASSET_CDN_URL=
 ## HTTPS
 전화번호와 직원 PIN이 전송되므로 운영환경 HTTPS 필수.
 
+## Production origin (확정)
+
+- 서비스: Yut Review
+- canonical origin: `https://yut.sodamlabs.kr`
+- 운영사: 소담랩스
+- 대표자: 이호영
+- 사업자등록번호: `358-23-02207`
+
+운영에서는 `SPRING_PROFILES_ACTIVE=prod`와 `APP_PUBLIC_ORIGIN=https://yut.sodamlabs.kr`를 사용한다.
+`application-prod.yml`이 QR/안내물의 절대 URL을 이 origin으로 고정하므로 요청의 Host 헤더를 운영 URL로
+신뢰하지 않는다. 브라우저 API와 redirect는 동일 origin 상대경로(`/api`, `/admin/login`)를 유지한다.
+
+운영 Nginx 예시는 `nginx/production.conf`다. 인증서를 `/etc/nginx/certs/fullchain.pem`과
+`/etc/nginx/certs/privkey.pem`에 read-only로 제공한 뒤 사용한다. 이 설정은 HTTP를 canonical HTTPS로
+308 redirect하고 HSTS 및 기존 CSP/security headers를 적용한다. TLS 종단을 별도 로드밸런서에서 한다면
+동일한 redirect/host 규칙을 그 계층에 적용하고 Nginx에는 검증된 `X-Forwarded-Proto/Host`만 전달한다.
+
+현재 인증은 쿠키가 아니라 브라우저 `sessionStorage`의 Bearer JWT다. 따라서 인증 cookie domain을 만들지
+않으며 CORS도 열지 않는다. Spring의 production 세션 cookie 기본값만 `Secure`/`SameSite=Strict`로 방어 설정한다.
+
+환경 변수 시작점은 `.env.production.example`이며 실제 비밀값과 인증서는 커밋하지 않는다.
+
 ## S3 / CDN
 저장 대상:
 - yut.glb

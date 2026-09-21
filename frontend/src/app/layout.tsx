@@ -5,8 +5,9 @@ import type { Metadata, Viewport } from "next";
 import "pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css";
 import "./globals.css";
 import { Providers } from "./providers";
+import { LegalFooter } from "@/components/LegalFooter";
 
-export const metadata: Metadata = { title: "윷 리뷰 이벤트", description: "리뷰 쓰고 윷 한 판" };
+export const metadata: Metadata = { title: "매장 윷 이벤트", description: "매장 QR로 참여하는 오늘의 윷 이벤트" };
 // 노치/홈 인디케이터가 있는 폰에서 화면 끝까지 쓰되, 안전영역만큼 콘텐츠를 띄운다.
 export const viewport: Viewport = {
   width: "device-width",
@@ -15,5 +16,5 @@ export const viewport: Viewport = {
   themeColor: "#f4f7f5",
 };
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="ko"><body><Providers>{children}</Providers></body></html>;
+  return <html lang="ko"><body><Providers>{children}<LegalFooter /></Providers></body></html>;
 }

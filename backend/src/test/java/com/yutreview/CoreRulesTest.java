@@ -16,13 +16,18 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.http.MediaType;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.transaction.annotation.Transactional;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@SpringBootTest @Transactional class CoreRulesTest {
+@SpringBootTest @AutoConfigureMockMvc @Transactional class CoreRulesTest {
     @Autowired StoreRepository stores; @Autowired QrRepository qrs; @Autowired PrizeRepository prizes; @Autowired GameRepository gameRepository;
     @Autowired PasswordEncoder encoder; @Autowired GameService games; @Autowired EntityManager entityManager;
-    @Autowired CouponRepository coupons; @Autowired AdminSignupService signup; @Autowired AdminUserRepository admins; @Autowired MembershipRepository memberships; @Autowired StorePosterRepository posters; @Autowired StorePosterService posterService; @Autowired CouponService couponService; @Autowired ParticipationService participation; @Autowired PhoneService personalData; @Autowired GameConfigService config; @Autowired StoreOutcomeRepository outcomes; @Autowired PrivacyCleanupService privacyCleanup;
+    @Autowired CouponRepository coupons; @Autowired AdminSignupService signup; @Autowired AdminUserRepository admins; @Autowired MembershipRepository memberships; @Autowired StorePosterRepository posters; @Autowired StorePosterService posterService; @Autowired CouponService couponService; @Autowired ParticipationService participation; @Autowired PhoneService personalData; @Autowired GameConfigService config; @Autowired StoreOutcomeRepository outcomes; @Autowired PrivacyCleanupService privacyCleanup; @Autowired MockMvc mvc; @Autowired JwtService jwt;
     Store store; String qr;
     @BeforeEach void setup(){Instant now=Instant.now();store=new Store();store.name="test";store.phone="0200000000";store.staffPinHash=encoder.encode("123456");store.status=StoreStatus.ACTIVE;store.createdAt=now;store.updatedAt=now;stores.save(store);StoreQrCode q=new StoreQrCode();q.store=store;q.publicToken="qr-"+System.nanoTime();q.status=QrStatus.ACTIVE;q.createdAt=now;qrs.save(q);qr=q.publicToken;config.save(store,GameConfigService.defaults());}
     /** Weights indexed by YutResult.ordinal, mapped one rank per outcome so the awarded rank identifies the throw. */
@@ -64,7 +69,35 @@ import org.springframework.transaction.annotation.Transactional;
         assertEquals(25.0,GameConfigService.odds(loaded,o->o.prizeRank==2));
         assertEquals(10.0,GameConfigService.odds(loaded,o->o.prizeRank==1));
         assertEquals(5,outcomes.findByStoreId(store.id).size());}
+    @Test void eventConfigurationSavesPrizesAndOutcomesAtomically(){
+        List<GameConfigService.Setting> twoRanks=settings(new int[]{400,300,200,100,0},new int[]{2,2,1,1,1});
+        String oldName=prizes.findByStoreIdAndRank(store.id,1).orElseThrow().name;
+        assertEquals("INVALID_REQUEST",assertThrows(AppException.class,()->config.saveEventConfiguration(store,twoRanks,List.of(new GameConfigService.PrizeSetting(1,"1등","",RedeemPolicy.ANYTIME)))).code);
+        assertEquals(oldName,prizes.findByStoreIdAndRank(store.id,1).orElseThrow().name);
+        assertArrayEquals(new int[]{325,325,125,125,100},config.load(store.id).stream().mapToInt(o->o.weight).toArray());
+        GameConfigService.EventConfiguration saved=config.saveEventConfiguration(store,twoRanks,List.of(
+            new GameConfigService.PrizeSetting(2,"음료","1캔",RedeemPolicy.SAME_DAY),
+            new GameConfigService.PrizeSetting(1,"식사권","다음 방문",RedeemPolicy.NEXT_DAY)));
+        assertEquals(2,GameConfigService.rankCount(saved.outcomes()));assertEquals(List.of("식사권","음료"),saved.prizes().stream().map(p->p.name).toList());
+        assertFalse(prizes.findByStoreIdAndRank(store.id,3).orElseThrow().active);}
+    @Test void eventConfigurationEndpointChecksMembershipAndPublicStoreIncludesTagline() throws Exception {
+        Instant now=Instant.now();AdminUser admin=new AdminUser();admin.email="event-owner@example.com";admin.passwordHash=encoder.encode("secret1234");admin.name="대표";admin.role=AdminRole.STORE_ADMIN;admin.createdAt=now;admins.save(admin);
+        String body="""
+            {"outcomes":[{"yutResult":"DO","weight":400,"prizeRank":2},{"yutResult":"GAE","weight":300,"prizeRank":2},{"yutResult":"GEOL","weight":200,"prizeRank":1},{"yutResult":"YUT","weight":100,"prizeRank":1},{"yutResult":"MO","weight":0,"prizeRank":1}],"prizes":[{"rank":1,"name":"식사권","description":"다음 방문","redeemPolicy":"NEXT_DAY"},{"rank":2,"name":"음료","description":"1캔","redeemPolicy":"SAME_DAY"}]}
+            """;
+        mvc.perform(put("/api/admin/stores/{id}/event-configuration",store.id).header("Authorization","Bearer "+jwt.issue(admin)).contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isForbidden());
+        AdminStoreMembership membership=new AdminStoreMembership();membership.admin=admin;membership.store=store;membership.role=MembershipRole.OWNER;membership.createdAt=now;memberships.save(membership);
+        mvc.perform(put("/api/admin/stores/{id}/event-configuration",store.id).header("Authorization","Bearer "+jwt.issue(admin)).contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isOk()).andExpect(jsonPath("$.data.rankCount").value(2)).andExpect(jsonPath("$.data.prizes[0].name").value("식사권"));
+        mvc.perform(get("/api/public/stores/by-token/{token}",qr)).andExpect(status().isOk()).andExpect(jsonPath("$.data.posterTagline").value(""));
+        store.posterTagline="우리 매장 단골 감사 이벤트";
+        mvc.perform(get("/api/public/stores/by-token/{token}",qr)).andExpect(status().isOk()).andExpect(jsonPath("$.data.posterTagline").value("우리 매장 단골 감사 이벤트"));}
     @Test void oneGameOneCouponAndIdempotentReveal(){GamePlay first=games.create(qr,"홍길동","010-1234-5678","request-1");GamePlay retry=games.create(qr,"홍길동","01012345678","request-1");assertEquals(first.id,retry.id);Coupon a=games.reveal(first.publicId);Coupon b=games.reveal(first.publicId);assertEquals(a.id,b.id);assertEquals(1,coupons.findByStoreIdOrderByIssuedAtDesc(store.id,PageRequest.of(0,50)).getTotalElements());}
+    @Test void gameCreationRequiresCurrentPrivacyConsentAndStoresEvidence(){
+        assertEquals("PRIVACY_CONSENT_REQUIRED",assertThrows(AppException.class,()->games.create(qr,"손님","01012345678","consent-off",false,LegalConsentPolicy.CUSTOMER_PRIVACY_VERSION)).code);
+        assertEquals("PRIVACY_CONSENT_REQUIRED",assertThrows(AppException.class,()->games.create(qr,"손님","01012345678","consent-old",true,"2026-01-01")).code);
+        GamePlay game=games.create(qr,"손님","01012345678","consent-ok",true,LegalConsentPolicy.CUSTOMER_PRIVACY_VERSION);
+        assertEquals(LegalConsentPolicy.CUSTOMER_PRIVACY_VERSION,game.privacyConsentVersion);assertNotNull(game.privacyConsentedAt);
+    }
     @Test void activeCouponPrecedesCooldownAndRedeemsOnce(){GamePlay game=games.create(qr,"홍길동","01012345678","request-2");assertEquals("HAS_ACTIVE_COUPON",participation.state(store.id,"01012345678").state());Coupon c=games.reveal(game.publicId);assertEquals(CouponStatus.REDEEMED,couponService.redeem(c.couponToken,"123456","127.0.0.2").status);AppException e=assertThrows(AppException.class,()->couponService.redeem(c.couponToken,"123456","127.0.0.2"));assertEquals("COUPON_ALREADY_REDEEMED",e.code);assertEquals("COOLDOWN",participation.state(store.id,"01012345678").state());game.playedDate=LocalDate.now().minusDays(2);assertEquals("CAN_PLAY",participation.state(store.id,"01012345678").state());}
     @Test void nextDayExpiryAndPinAreEnforced(){prizes.findByStoreIdOrderByRank(store.id).forEach(p->p.redeemPolicy=RedeemPolicy.NEXT_DAY);Coupon c=games.reveal(games.create(qr,"A","01055556666","request-5").publicId);assertEquals("COUPON_NOT_YET_VALID",assertThrows(AppException.class,()->couponService.redeem(c.couponToken,"123456","127.0.0.4")).code);c.validFrom=Instant.now().minusSeconds(1);assertEquals("STAFF_PIN_INVALID",assertThrows(AppException.class,()->couponService.redeem(c.couponToken,"654321","127.0.0.4")).code);c.expiresAt=Instant.now().minusSeconds(1);assertEquals("COUPON_EXPIRED",assertThrows(AppException.class,()->couponService.redeem(c.couponToken,"123456","127.0.0.4")).code);}
     @Test void participationIsPerStoreAndInactiveStoreIsBlocked(){Instant now=Instant.now();Store other=new Store();other.name="other";other.phone="0200000001";other.staffPinHash=encoder.encode("654321");other.status=StoreStatus.ACTIVE;other.createdAt=now;other.updatedAt=now;stores.save(other);games.create(qr,"A","01088889999","request-6");assertEquals("HAS_ACTIVE_COUPON",participation.state(store.id,"01088889999").state());assertEquals("CAN_PLAY",participation.state(other.id,"01088889999").state());store.status=StoreStatus.INACTIVE;assertEquals("STORE_INACTIVE",assertThrows(AppException.class,()->games.create(qr,"B","01077778888","request-inactive")).code);}
@@ -74,6 +107,7 @@ import org.springframework.transaction.annotation.Transactional;
         assertEquals("3등 상품",prizes.findByStoreIdAndRank(p.store().id,3).orElseThrow().name);
         assertEquals(3,GameConfigService.rankCount(config.load(p.store().id)));
         AdminUser owner=admins.findByEmail("owner@test.com").orElseThrow();assertEquals(AdminRole.STORE_ADMIN,owner.role);assertEquals("1234567890",p.store().businessNumber);
+        assertEquals(LegalConsentPolicy.TERMS_VERSION,owner.termsVersion);assertNotNull(owner.termsAgreedAt);assertEquals(LegalConsentPolicy.ADMIN_PRIVACY_VERSION,owner.privacyVersion);assertNotNull(owner.privacyAgreedAt);
         assertEquals("01022223333",owner.phone,"전화번호는 숫자만 남긴다");
         assertTrue(memberships.existsByAdminIdAndStoreId(owner.id,p.store().id));
         StorePoster poster=posters.findByStoreId(p.store().id).orElseThrow();byte[] png=posterService.bytes(poster);var image=ImageIO.read(new ByteArrayInputStream(png));
@@ -83,6 +117,12 @@ import org.springframework.transaction.annotation.Transactional;
         assertEquals("DUPLICATE_BUSINESS_NUMBER",assertThrows(AppException.class,()->signup.signUp(new AdminSignupService.Request("secret1234","secret1234","other@test.com","김대표","01022223334","다른상회","1234567890"))).code);
         assertEquals("PASSWORD_MISMATCH",assertThrows(AppException.class,()->signup.signUp(new AdminSignupService.Request("secret1234","secret9999","new@test.com","김대표","01022223334","다른상회","1234567892"))).code);
         assertEquals("WEAK_PASSWORD",assertThrows(AppException.class,()->signup.signUp(new AdminSignupService.Request("short","short","new2@test.com","김대표","01022223334","다른상회","1234567893"))).code);}
+    @Test void signupRequiresSeparateCurrentConsents(){
+        var noTerms=new AdminSignupService.Request("secret1234","secret1234","legal1@test.com","김대표","01022223334","동의상회1","1234567801",false,LegalConsentPolicy.TERMS_VERSION,true,LegalConsentPolicy.ADMIN_PRIVACY_VERSION);
+        assertEquals("TERMS_CONSENT_REQUIRED",assertThrows(AppException.class,()->signup.signUp(noTerms)).code);
+        var oldPrivacy=new AdminSignupService.Request("secret1234","secret1234","legal2@test.com","김대표","01022223334","동의상회2","1234567802",true,LegalConsentPolicy.TERMS_VERSION,true,"2026-01-01");
+        assertEquals("PRIVACY_CONSENT_REQUIRED",assertThrows(AppException.class,()->signup.signUp(oldPrivacy)).code);
+    }
     @Test void handWrittenInputIsNormalizedAndBadInputIsRejected(){
         assertEquals("01012345678",Inputs.phone("010-1234-5678"));
         assertEquals("01012345678",Inputs.phone(" 010 1234 5678 "));
@@ -105,4 +145,9 @@ import org.springframework.transaction.annotation.Transactional;
     @Test void adminListsUseDatabasePagination(){Instant base=Instant.now();for(int i=0;i<55;i++){GamePlay g=games.create(qr,"고객"+i,String.format("010%08d",i),"page-"+i);g.playedAt=base.minusSeconds(i);games.reveal(g.publicId).issuedAt=g.playedAt;}
         var first=gameRepository.findByStoreIdOrderByPlayedAtDesc(store.id,PageRequest.of(0,50));var second=gameRepository.findByStoreIdOrderByPlayedAtDesc(store.id,PageRequest.of(1,50));assertEquals(50,first.getNumberOfElements());assertEquals(55,first.getTotalElements());assertEquals(5,second.getNumberOfElements());assertTrue(first.getContent().get(0).playedAt.isAfter(first.getContent().get(49).playedAt));
         var couponPage=coupons.findByStoreIdOrderByIssuedAtDesc(store.id,PageRequest.of(0,50));assertEquals(50,couponPage.getNumberOfElements());assertEquals(55,couponPage.getTotalElements());}
+    @Test void adminCouponListIncludesCustomerIdentity() throws Exception {Instant now=Instant.now();AdminUser admin=new AdminUser();admin.email="coupon-owner@example.com";admin.passwordHash=encoder.encode("secret1234");admin.name="대표";admin.role=AdminRole.STORE_ADMIN;admin.createdAt=now;admins.save(admin);AdminStoreMembership membership=new AdminStoreMembership();membership.admin=admin;membership.store=store;membership.role=MembershipRole.OWNER;membership.createdAt=now;memberships.save(membership);games.create(qr,"쿠폰손님","01012345678","coupon-list-customer");
+        mvc.perform(get("/api/admin/stores/{id}/coupons",store.id).header("Authorization","Bearer "+jwt.issue(admin)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.content[0].customerName").value("쿠폰손님"))
+            .andExpect(jsonPath("$.data.content[0].phoneLast4").value("5678"));}
 }
