@@ -188,6 +188,31 @@ Response:
 서버는 현재 이용약관과 개인정보 동의 버전을 각각 검증하고 동의 시각·버전을 계정에 저장한다.
 동의가 없거나 구버전이면 `TERMS_CONSENT_REQUIRED` / `PRIVACY_CONSENT_REQUIRED`로 거부한다.
 
+광고성 문자 선택값 `yutReviewMarketing`, `reviewPilotMarketing`, `sodamMarketing`은 모두 선택이며
+생략 시 `false`다. 하나라도 동의하면 `marketingVersion`이 현재 동의문 버전이어야 한다. 가입 성공 여부나
+서비스 권한에 영향을 주지 않고 서비스별 최초 선택 이력으로 저장한다.
+
+## 광고성 문자 수신동의
+```http
+GET /api/admin/marketing-consents
+```
+
+인증한 관리자 본인의 `YUT_REVIEW`, `REVIEW_PILOT`, `SODAM` 최신 동의 상태를 반환한다.
+
+```http
+PUT /api/admin/marketing-consents
+Content-Type: application/json
+
+{
+  "service": "YUT_REVIEW",
+  "agreed": false,
+  "version": "2026-09-21"
+}
+```
+
+동의와 철회는 append-only 이벤트로 저장한다. 현재 버전이 아니면
+`MARKETING_CONSENT_VERSION_INVALID`로 거부하며, 한 서비스의 선택은 다른 서비스 상태를 바꾸지 않는다.
+
 `phone`은 숫자만 남겨 `010` + 8자리, `businessNumber`는 숫자 10자리여야 한다.
 `010-1234-5678`이나 `123-45-67890`처럼 구분자가 섞여 있어도 서버가 숫자만 남겨 정규화한다.
 자릿수가 맞지 않으면 잘라내지 않고 `INVALID_PHONE` / `INVALID_BUSINESS_NUMBER`로 거부한다.

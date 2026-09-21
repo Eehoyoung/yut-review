@@ -180,11 +180,12 @@ final class Inputs {
     }
 }
 @Service class AdminSignupService {
-    record Request(String password,String passwordConfirm,String email,String ownerName,String phone,String storeName,String businessNumber,boolean termsAgreed,String termsVersion,boolean privacyAgreed,String privacyVersion){
-        Request(String password,String passwordConfirm,String email,String ownerName,String phone,String storeName,String businessNumber){this(password,passwordConfirm,email,ownerName,phone,storeName,businessNumber,true,LegalConsentPolicy.TERMS_VERSION,true,LegalConsentPolicy.ADMIN_PRIVACY_VERSION);}
+    record Request(String password,String passwordConfirm,String email,String ownerName,String phone,String storeName,String businessNumber,boolean termsAgreed,String termsVersion,boolean privacyAgreed,String privacyVersion,String marketingVersion,boolean yutReviewMarketing,boolean reviewPilotMarketing,boolean sodamMarketing){
+        Request(String password,String passwordConfirm,String email,String ownerName,String phone,String storeName,String businessNumber){this(password,passwordConfirm,email,ownerName,phone,storeName,businessNumber,true,LegalConsentPolicy.TERMS_VERSION,true,LegalConsentPolicy.ADMIN_PRIVACY_VERSION,LegalConsentPolicy.MARKETING_SMS_VERSION,false,false,false);}
+        Request(String password,String passwordConfirm,String email,String ownerName,String phone,String storeName,String businessNumber,boolean termsAgreed,String termsVersion,boolean privacyAgreed,String privacyVersion){this(password,passwordConfirm,email,ownerName,phone,storeName,businessNumber,termsAgreed,termsVersion,privacyAgreed,privacyVersion,LegalConsentPolicy.MARKETING_SMS_VERSION,false,false,false);}
     }
-    private final AdminUserRepository admins;private final StoreRepository stores;private final StoreProvisioningService provisioning;private final PasswordEncoder encoder;private final Clock clock;
-    AdminSignupService(AdminUserRepository admins,StoreRepository stores,StoreProvisioningService provisioning,PasswordEncoder encoder,Clock clock){this.admins=admins;this.stores=stores;this.provisioning=provisioning;this.encoder=encoder;this.clock=clock;}
+    private final AdminUserRepository admins;private final StoreRepository stores;private final StoreProvisioningService provisioning;private final PasswordEncoder encoder;private final Clock clock;private final MarketingConsentService marketingConsents;
+    AdminSignupService(AdminUserRepository admins,StoreRepository stores,StoreProvisioningService provisioning,PasswordEncoder encoder,Clock clock,MarketingConsentService marketingConsents){this.admins=admins;this.stores=stores;this.provisioning=provisioning;this.encoder=encoder;this.clock=clock;this.marketingConsents=marketingConsents;}
     @Transactional StoreProvisioningService.Provisioned signUp(Request r){return signUp(r,"http://localhost:8088");}
     @Transactional StoreProvisioningService.Provisioned signUp(Request r,String publicOrigin){
         LegalConsentPolicy.requireAdmin(r.termsAgreed,r.termsVersion,r.privacyAgreed,r.privacyVersion);
@@ -195,6 +196,7 @@ final class Inputs {
         if(admins.existsByEmail(email))throw new AppException("DUPLICATE_EMAIL","이미 가입된 이메일입니다.");
         if(stores.existsByBusinessNumber(business))throw new AppException("DUPLICATE_BUSINESS_NUMBER","이미 등록된 사업자등록번호입니다.");
         Instant now=clock.instant();AdminUser a=new AdminUser();a.email=email;a.passwordHash=encoder.encode(r.password);a.name=owner;a.phone=phone;a.role=AdminRole.STORE_ADMIN;a.termsVersion=r.termsVersion;a.termsAgreedAt=now;a.privacyVersion=r.privacyVersion;a.privacyAgreedAt=now;a.createdAt=now;admins.save(a);
+        marketingConsents.recordInitial(a,Map.of(MarketingService.YUT_REVIEW,r.yutReviewMarketing,MarketingService.REVIEW_PILOT,r.reviewPilotMarketing,MarketingService.SODAM,r.sodamMarketing),r.marketingVersion);
         return provisioning.provision(a,storeName,phone,null,business,null,null,publicOrigin);
     }
 }

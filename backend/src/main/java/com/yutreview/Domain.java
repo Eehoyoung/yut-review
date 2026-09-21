@@ -31,6 +31,7 @@ enum SubscriptionStatus { ACTIVE, CANCELLED }
 enum Entitlement { BASIC_ANALYTICS, ADVANCED_ANALYTICS, CSV_EXPORT, BRANDING }
 /** 과금·쿼터 단위가 되는 AI 기능. */
 enum AiFeature { AI_EVENT_COPY, AI_REPORT, AI_IMPROVEMENT, AI_CHAT }
+enum MarketingService { YUT_REVIEW, REVIEW_PILOT, SODAM }
 
 @Entity @Table(name="admin_users") class AdminUser {
     @Id @GeneratedValue(strategy=GenerationType.IDENTITY) Long id;
@@ -59,6 +60,16 @@ enum AiFeature { AI_EVENT_COPY, AI_REPORT, AI_IMPROVEMENT, AI_CHAT }
     @ManyToOne(optional=false) @JoinColumn(name="store_id") Store store;
     @Enumerated(EnumType.STRING) @Column(nullable=false) MembershipRole role;
     @Column(nullable=false) Instant createdAt;
+}
+/** Append-only proof of each service-specific advertising SMS consent or withdrawal. */
+@Entity @Table(name="marketing_consent_events",indexes=@Index(name="idx_marketing_consent_latest",columnList="admin_user_id,service,changed_at")) class MarketingConsentEvent {
+    @Id @GeneratedValue(strategy=GenerationType.IDENTITY) Long id;
+    @ManyToOne(optional=false) @JoinColumn(name="admin_user_id",nullable=false) AdminUser admin;
+    @Enumerated(EnumType.STRING) @Column(nullable=false,length=30) MarketingService service;
+    @Column(nullable=false) boolean agreed;
+    @Column(nullable=false,length=20) String consentVersion;
+    @Column(nullable=false,length=30) String source;
+    @Column(name="changed_at",nullable=false) Instant changedAt;
 }
 @Entity @Table(name="store_qr_codes") class StoreQrCode {
     @Id @GeneratedValue(strategy=GenerationType.IDENTITY) Long id;

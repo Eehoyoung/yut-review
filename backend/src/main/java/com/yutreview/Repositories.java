@@ -12,6 +12,10 @@ interface AdminUserRepository extends JpaRepository<AdminUser,Long> {
     Optional<AdminUser> findByEmail(String email);
     boolean existsByEmail(String email);
 }
+interface MarketingConsentEventRepository extends JpaRepository<MarketingConsentEvent,Long> {
+    Optional<MarketingConsentEvent> findFirstByAdminIdAndServiceOrderByChangedAtDescIdDesc(Long adminId,MarketingService service);
+    List<MarketingConsentEvent> findByAdminIdOrderByChangedAtDescIdDesc(Long adminId);
+}
 interface StoreRepository extends JpaRepository<Store,Long> {
     boolean existsByBusinessNumber(String businessNumber);
     @Lock(LockModeType.PESSIMISTIC_WRITE) @Query("select s from Store s where s.id=:id") Optional<Store> findForUpdate(@Param("id") Long id);

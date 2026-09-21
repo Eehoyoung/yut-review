@@ -61,6 +61,16 @@ docker compose --env-file .env.field-test --profile field-test up -d   # Cloudfl
 - 개발/field-test의 localhost 및 Quick Tunnel 동작은 유지한다. 운영 Nginx 예시는 `nginx/production.conf`,
   환경 변수 예시는 `.env.production.example`이다.
 
+## 광고성 문자 수신동의 (2026-09-21)
+
+- 소담랩스 서비스 3개는 `YUT_REVIEW`(윷리뷰), `REVIEW_PILOT`(리뷰파일럿), `SODAM`(소담)이다.
+- 관리자 가입에서 서비스별 선택 체크박스를 기본 해제로 표시한다. 전부 거부해도 가입과 기능에 영향이 없다.
+- `marketing_consent_events`는 동의·거부·철회를 append-only로 남긴다. 발송 가능 여부는 서비스별 최신
+  이벤트만 보며 다른 서비스 동의를 재사용하지 않는다.
+- 로그인 후 `/admin/marketing-consents`에서 즉시 변경·철회한다. 동의문 정본은 `/legal/marketing`이다.
+- 실제 SMS 발송 연동은 아직 없다. 향후 발송기는 최신 동의 확인, `(광고)`, 소담랩스, 무료 수신거부,
+  야간 전송 제한을 서버에서 강제해야 한다.
+
 ## 알려진 제약
 
 - PIN·로그인 시도 제한은 인메모리 `ConcurrentHashMap` 기반이라 단일 인스턴스 전제다.

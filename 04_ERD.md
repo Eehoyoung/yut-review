@@ -4,6 +4,7 @@
 ```mermaid
 erDiagram
     ADMIN_USERS ||--o{ ADMIN_STORE_MEMBERSHIPS : manages
+    ADMIN_USERS ||--o{ MARKETING_CONSENT_EVENTS : changes
     STORES ||--o{ ADMIN_STORE_MEMBERSHIPS : managed_by
     STORES ||--o{ STORE_QR_CODES : has
     STORES ||--|| STORE_POSTERS : has
@@ -26,6 +27,22 @@ erDiagram
 | phone | VARCHAR(30) | 대표 연락처 |
 | role | VARCHAR(30) | SYSTEM_ADMIN / STORE_ADMIN |
 | created_at | DATETIME | |
+
+## `marketing_consent_events`
+서비스별 광고성 문자 수신동의와 철회를 덮어쓰지 않고 변경 이벤트로 보존한다. 발송 대상 판단은
+`admin_user_id + service`의 최신 이벤트만 사용한다.
+
+| Column | Type | Note |
+|---|---|---|
+| id | BIGINT | PK |
+| admin_user_id | BIGINT | FK |
+| service | VARCHAR(30) | YUT_REVIEW / REVIEW_PILOT / SODAM |
+| agreed | BOOLEAN | true=동의, false=거부·철회 |
+| consent_version | VARCHAR(20) | 표시한 동의문 버전 |
+| source | VARCHAR(30) | SIGNUP / SETTINGS |
+| changed_at | DATETIME | 선택 시각 |
+
+인덱스: `(admin_user_id, service, changed_at)`
 
 ## `stores`
 | Column | Type | Note |

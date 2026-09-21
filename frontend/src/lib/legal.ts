@@ -1,6 +1,13 @@
 export const TERMS_VERSION = "2026-09-21";
 export const ADMIN_PRIVACY_VERSION = "2026-09-21";
 export const CUSTOMER_PRIVACY_VERSION = "2026-09-21";
+export const MARKETING_SMS_VERSION = "2026-09-21";
+
+export const marketingServices = [
+  { key: "yutReviewMarketing", service: "YUT_REVIEW", name: "윷리뷰", description: "매장 이벤트 운영 기능, 이용 혜택과 프로모션" },
+  { key: "reviewPilotMarketing", service: "REVIEW_PILOT", name: "리뷰파일럿", description: "리뷰 운영 자동화 기능, 이용 혜택과 프로모션" },
+  { key: "sodamMarketing", service: "SODAM", name: "소담", description: "소상공인 매장·근무 운영 기능, 이용 혜택과 프로모션" },
+] as const;
 
 export const legalOperator = {
   serviceName: "윷리뷰",

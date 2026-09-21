@@ -661,3 +661,24 @@ Production-only rules:
 - Authentication remains a Bearer JWT stored in `sessionStorage`; do not introduce an authentication cookie merely for domain configuration.
 - Keep localhost and Quick Tunnel behavior available only for development/field-test environments.
 - Never commit production secrets, private keys, or certificates.
+
+---
+
+## 16. Advertising SMS Consent
+
+Sodam Labs operates three services for service-specific promotional SMS consent:
+
+- `YUT_REVIEW` — 윷리뷰
+- `REVIEW_PILOT` — 리뷰파일럿
+- `SODAM` — 소담
+
+Locked consent rules unless the user explicitly changes them:
+
+- Each service is a separate optional checkbox and is unchecked by default.
+- Refusal or withdrawal must never block signup, plans, or product features.
+- Store consent and withdrawal as append-only evidence including service, choice, text version, source and timestamp.
+- Sending eligibility is determined only by the latest affirmative event for the exact service.
+- A consent for one service never authorizes advertising for another service.
+- Provide an authenticated self-service withdrawal path and exclude withdrawn users before any send.
+- Actual advertising messages must identify advertising and the sender and provide a free opt-out method. Do not send from 21:00 to 08:00 without separate night-time consent.
+- Consent storage does not authorize or implement an SMS vendor. Keep delivery integration outside the game/coupon domains.

@@ -4,7 +4,7 @@ import { FormEvent, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { api, errorMessage } from "@/lib/api";
 import { BUSINESS_NUMBER_LENGTH, PHONE_LENGTH, onlyDigits } from "@/features/normalize";
-import { ADMIN_PRIVACY_VERSION, TERMS_VERSION } from "@/lib/legal";
+import { ADMIN_PRIVACY_VERSION, MARKETING_SMS_VERSION, TERMS_VERSION, marketingServices } from "@/lib/legal";
 
 type SignUpResult = { storeId: number; storeName: string; staffPin: string; storeToken: string; posterReady: boolean };
 
@@ -79,8 +79,9 @@ export default function SignUp() {
   const [tried, setTried] = useState(false);
   const [termsAgreed, setTermsAgreed] = useState(false);
   const [privacyAgreed, setPrivacyAgreed] = useState(false);
+  const [marketing, setMarketing] = useState<Record<string, boolean>>({});
   const signUp = useMutation({
-    mutationFn: () => api<SignUpResult>("/admin/auth/signup", { method: "POST", body: JSON.stringify({ ...form, termsAgreed, privacyAgreed, termsVersion: TERMS_VERSION, privacyVersion: ADMIN_PRIVACY_VERSION }) }),
+    mutationFn: () => api<SignUpResult>("/admin/auth/signup", { method: "POST", body: JSON.stringify({ ...form, termsAgreed, privacyAgreed, termsVersion: TERMS_VERSION, privacyVersion: ADMIN_PRIVACY_VERSION, ...marketing, marketingVersion: MARKETING_SMS_VERSION }) }),
     onSuccess: setDone,
   });
 
@@ -161,6 +162,17 @@ export default function SignUp() {
           <p><b>보유:</b> 서비스 이용 중 및 관계 법령상 보존 기간</p>
           <p>동의를 거부할 수 있으나 회원가입은 할 수 없습니다.</p>
         </div>
+        <fieldset className="consent-summary">
+          <legend><b>광고성 문자 수신 선택</b></legend>
+          <p>소담랩스가 대표 연락처를 아래 서비스의 광고·혜택 안내에 이용하는 데 서비스별로 선택 동의합니다. 동의하지 않아도 가입과 서비스 이용에 불이익이 없습니다.</p>
+          {marketingServices.map((item) => (
+            <label className="check" key={item.service}>
+              <input type="checkbox" checked={Boolean(marketing[item.key])} onChange={(e) => setMarketing({ ...marketing, [item.key]: e.target.checked })} />
+              <span><b>[선택]</b> {item.name} 광고성 문자 수신 동의 <small className="hint">— {item.description}</small></span>
+            </label>
+          ))}
+          <p><Link href="/legal/marketing" target="_blank">수집·이용 목적, 보유기간과 철회 방법 자세히 보기</Link></p>
+        </fieldset>
         {tried && blocked && (
           <p className="notice" role="status">
             {blocked.message}

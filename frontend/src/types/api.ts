@@ -8,6 +8,8 @@ export type YutResult = "DO" | "GAE" | "GEOL" | "YUT" | "MO";
 
 export type Plan = "BASIC" | "STANDARD" | "PRO";
 export type AiFeature = "AI_EVENT_COPY" | "AI_REPORT" | "AI_IMPROVEMENT" | "AI_CHAT";
+export type MarketingService = "YUT_REVIEW" | "REVIEW_PILOT" | "SODAM";
+export interface MarketingConsent { service: MarketingService; serviceName: string; agreed: boolean; version: string; changedAt: string | null }
 
 export interface PlanOption {
   plan: Plan;
