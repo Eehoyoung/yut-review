@@ -67,7 +67,8 @@ fi
 # 그래서 Origin CA 루트를 받아 그것으로 한 번 더 본다.
 CF_ORIGIN_ROOT_URL=https://developers.cloudflare.com/ssl/static/origin_ca_rsa_root.pem
 if [ -n "${ORIGIN_IP:-}" ]; then
-  if curl -sS -o /dev/null --max-time 15 --resolve "$HOST:443:$ORIGIN_IP" "https://$HOST/"; then
+  # 여기서 실패하는 것은 Origin Certificate의 정상 동작이라 stderr를 버린다.
+  if curl -sS -o /dev/null --max-time 15 --resolve "$HOST:443:$ORIGIN_IP" "https://$HOST/" 2>/dev/null; then
     ok "origin($ORIGIN_IP)이 공인 CA 인증서로 직접 응답합니다 (Full strict 가능)"
   else
     CF_ROOT=$(mktemp)
@@ -76,7 +77,7 @@ if [ -n "${ORIGIN_IP:-}" ]; then
       ok "origin($ORIGIN_IP)이 Cloudflare Origin CA 인증서로 직접 응답합니다 (Full strict 가능)"
     else
       # 신뢰 검증을 빼고도 붙는지 본다. 붙으면 인증서 문제, 안 붙으면 리스너/방화벽 문제다.
-      if curl -sSk -o /dev/null --max-time 15 --resolve "$HOST:443:$ORIGIN_IP" "https://$HOST/"; then
+      if curl -sSk -o /dev/null --max-time 15 --resolve "$HOST:443:$ORIGIN_IP" "https://$HOST/" 2>/dev/null; then
         bad "origin($ORIGIN_IP)의 TLS는 붙지만 어느 CA로도 검증되지 않습니다. Full (strict)에서 526이 납니다"
       else
         bad "origin($ORIGIN_IP) 443에 연결되지 않습니다. 방화벽이나 nginx 리스너를 보세요 (522)"
