@@ -6,7 +6,7 @@
 # 새어 나갈 경로가 하나 생긴다.
 #
 #   ssh ubuntu@<lightsail-ip>
-#   cd /opt/yut-review
+#   cd /opt/yutreview
 #   sh scripts/generate-production-secrets.sh
 #   vi .env.production   # DB_PASSWORD 외 사업자 정보 등 나머지 항목을 채운다
 #

@@ -37,7 +37,7 @@ cloudflared (profile: field-test 전용, 운영에 절대 섞지 않는다)
 **서버에서 소스를 빌드하지 않는다.** 이미지는 GitHub Actions가 GHCR에 올리고 Lightsail은 받기만 한다.
 
 ```bash
-cd /opt/yut-review
+cd /opt/yutreview
 git pull
 docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file .env.production pull
 docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file .env.production up -d
@@ -127,7 +127,7 @@ authoritative**이고 Nginx 쪽은 스프링 스레드에 닿기 전 폭주를 �
 
 ```bash
 ssh ubuntu@<lightsail-ip>
-cd /opt/yut-review
+cd /opt/yutreview
 sh scripts/generate-production-secrets.sh        # .env.production 생성, 권한 600
 vi .env.production                                # APP_PUBLIC_ORIGIN, TLS_CERT_DIR, LEGAL_* 채우기
 ```

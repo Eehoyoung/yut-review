@@ -1,0 +1,5 @@
+# Next.js가 정적 파일을 서빙하는 자리. 지금은 비어 있다.
+#
+# 이 파일이 있어야 git이 디렉터리를 남긴다. 없으면 신규 clone에 public/이 없고,
+# Dockerfile의 `COPY --from=build /app/public ./public`이 "not found"로 죽는다.
+# 로컬에만 디렉터리가 있어서 CI에서야 드러났다. 지우지 말 것.
