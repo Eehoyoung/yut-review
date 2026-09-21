@@ -34,10 +34,25 @@ cloudflared (profile: field-test 전용, 운영에 절대 섞지 않는다)
 
 ## 운영 기동
 
+**서버에서 소스를 빌드하지 않는다.** 이미지는 GitHub Actions가 GHCR에 올리고 Lightsail은 받기만 한다.
+
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file .env.production up -d --build
+cd /opt/yut-review
+git pull
+docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file .env.production pull
+docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file .env.production up -d
 ```
 
+`git pull`이 여전히 필요한 것은 nginx 설정과 compose 파일이 이미지가 아니라 bind mount이기 때문이다.
+애플리케이션 코드는 이미지에서 온다.
+
+- **`--build`를 붙이지 않는다.** 2GB VM에서 Gradle 빌드는 운영 컨테이너와 메모리를 다투고 대체로 진다.
+  `docker-compose.prod.yml`이 `build: !reset null`로 base의 build를 지워 둬서 실수로 붙여도 소스를
+  빌드하지는 않는다.
+- 이미지는 `ghcr.io/eehoyoung/yut-review-{backend,frontend}`. 소유자나 태그를 바꾸려면
+  `.env.production`에 `GHCR_OWNER` / `IMAGE_TAG`를 넣는다. 기본은 `latest`다.
+- GHCR 패키지가 private이면 서버에서 먼저 `docker login ghcr.io`를 한 번 해 둔다
+  (read:packages 권한의 PAT). public이면 로그인 없이 받는다.
 - `docker-compose.prod.yml`이 운영 ingress를 **명시적으로 선택**한다. 이 override 없이 뜨면
   base의 field-test 기본값(HTTP 8088 + `nginx/default.conf`)으로 동작한다.
 - `APP_PUBLIC_ORIGIN`과 `TLS_CERT_DIR`는 `:?`로 강제되어 있어 비어 있으면 compose가 뜨지 않는다(fail-closed).
@@ -169,7 +184,7 @@ ORIGIN_IP=<lightsail-고정-IP> sh scripts/verify-production.sh https://yut.soda
 
 1. Lightsail 방화벽 80/443 개방
 2. 인증서 배치 (`TLS_CERT_DIR`), `.env.production` 생성
-3. `docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file .env.production up -d --build`
+3. `... pull && ... up -d` (위 "운영 기동". `--build` 없다)
 4. `ORIGIN_IP=<IP> sh scripts/verify-production.sh https://yut.sodamlabs.kr` → origin 직결 FAIL 0
 5. Cloudflare DNS A 레코드 Proxied로 전환, SSL mode `Full (strict)`
 6. `sh scripts/verify-production.sh https://yut.sodamlabs.kr` → FAIL 0
@@ -220,17 +235,18 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file .env.
 docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file .env.production \
   exec -T postgres pg_dump -U yut yut_review | gzip > backup-$(date +%F-%H%M).sql.gz
 
-# 2) 되돌리기 — 이전 커밋으로 체크아웃 후 재기동
-docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file .env.production down
-git checkout <이전-커밋-또는-태그>
-docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file .env.production up -d --build
+# 2) 되돌리기 — 이전 이미지 태그로 다시 올린다. 빌드하지 않으므로 수십 초다.
+#    태그 목록: https://github.com/Eehoyoung/yut-review/pkgs/container/yut-review-backend
+IMAGE_TAG=sha-<이전-커밋-sha>   docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file .env.production up -d
+#    nginx 설정이나 compose 자체를 되돌려야 하면 소스도 같이 되돌린다.
+#    git checkout <이전-커밋-또는-태그>
 
 # 3) 데이터까지 되돌려야 할 때만 (마지막 수단, 그 사이 데이터는 사라진다)
 gunzip -c backup-YYYY-MM-DD-HHMM.sql.gz | docker compose -f docker-compose.yml \
   -f docker-compose.prod.yml --env-file .env.production exec -T postgres psql -U yut -d yut_review
 ```
 
-- 이미지 태그를 따로 찍어 두면 `--build` 없이 이전 이미지로 바로 되돌릴 수 있다(권장).
+- 모든 이미지에 `sha-<커밋>` 태그가 붙어 있다. 롤백 대상이 어느 커밋인지만 알면 된다.
 - `down -v`는 운영에서 절대 쓰지 않는다. postgres 볼륨이 지워진다.
 - `PHONE_HMAC_SECRET`/`PHONE_ENCRYPTION_KEY`를 바꾼 배포를 롤백할 때는 키도 함께 되돌린다.
   키와 데이터가 어긋나면 복구가 안 된다.
@@ -293,17 +309,27 @@ Retention 7~14 days
 ```
 
 ## CI/CD
+
+`.github/workflows/publish-images.yml` 하나뿐이다. `main` push와 `v*` 태그, 그리고 수동 실행에서
+backend/frontend 이미지를 빌드해 GHCR에 올린다. **서버에 배포하지는 않는다** — Actions에 SSH 키를
+주는 것보다 서버에서 `pull && up -d` 두 줄을 치는 편이 낫다고 판단했다. 배포가 잦아지면 그때 바꾼다.
+
 ```text
-GitHub
+push to main / tag v*
   ↓
-GitHub Actions
+GitHub Actions (matrix: backend, frontend)
   ↓
-Test
+ghcr.io/eehoyoung/yut-review-backend:{latest, sha-<커밋>, v<태그>}
+ghcr.io/eehoyoung/yut-review-frontend:{ ... }
   ↓
-Docker Build
-  ↓
-EC2 Deploy
+(수동) Lightsail 에서 pull && up -d
 ```
+
+- `secrets.GITHUB_TOKEN` + `permissions: packages: write`로 끝난다. 별도 PAT를 만들지 않는다.
+- 플랫폼은 `linux/amd64` 고정이다. **Lightsail을 ARM 플랜으로 만들면 컨테이너가 `exec format error`로
+  뜨지 않는다.** 그때는 워크플로의 `platforms`를 `linux/arm64`로 바꾼다.
+- Gradle/npm 캐시는 `type=gha`에 둔다. 없으면 배포마다 의존성을 전부 다시 받는다.
+- 테스트는 아직 이 워크플로에 없다. 로컬에서 `./gradlew test`와 `npm test`를 돌린 뒤 push한다.
 
 Branch 예:
 ```text

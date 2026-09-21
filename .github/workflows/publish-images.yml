@@ -1,0 +1,61 @@
+# backend/frontend 이미지를 GHCR에 올린다.
+#
+# Lightsail 2GB에서는 소스를 빌드하지 않는다. Gradle 빌드 하나가 운영 컨테이너와 메모리를 다투고,
+# 2GB에서는 대체로 진다. 그래서 빌드는 여기서 하고 서버는 pull만 한다.
+#
+# 서버 쪽 대응 설정은 docker-compose.prod.yml의 `image:` 두 줄이다. 이미지 이름을 바꾸면
+# 두 곳을 같이 바꿔야 한다.
+name: publish-images
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    strategy:
+      # 둘은 서로 의존하지 않는다. 같이 돌려 배포 대기 시간을 반으로 줄인다.
+      matrix:
+        service: [backend, frontend]
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          # 별도 PAT를 만들지 않는다. permissions.packages:write가 이 토큰에 붙는다.
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          # GHCR 경로는 소문자만 받는다. 이 액션이 owner/repo를 알아서 내려 쓴다.
+          images: ghcr.io/${{ github.repository }}-${{ matrix.service }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=ref,event=tag
+            type=sha,format=long
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: ./${{ matrix.service }}
+          # Lightsail x86 인스턴스 기준. ARM 플랜을 쓰면 linux/arm64로 바꾼다.
+          # 틀리면 서버에서 `exec format error`로 뜨지 않는다.
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # 캐시가 없으면 매 배포마다 Gradle이 의존성을 전부 다시 받는다.
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}

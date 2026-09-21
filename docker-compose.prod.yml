@@ -17,9 +17,15 @@
 #
 # 주의 3 — postgres/backend/frontend는 host 포트를 열지 않는다(base에도 ports가 없다).
 #   외부 공개는 nginx의 80/443뿐이며 Lightsail 방화벽도 그 두 개만 연다.
+#
+# 주의 4 — backend/frontend는 여기서 `build`를 지우고 GHCR 이미지를 쓴다. Lightsail 2GB에서 Gradle
+#   빌드를 돌리면 메모리가 모자라 십중팔구 죽고, 죽지 않아도 배포 시간 동안 운영 컨테이너와
+#   메모리를 다툰다. 이미지는 GitHub Actions(.github/workflows/publish-images.yml)가 만든다.
+#   `!reset null`로 base의 build를 지워야 서버에서 `--build`를 실수로 붙여도 소스 빌드로 새지 않는다.
 
 services:
   postgres:
+    restart: unless-stopped
     logging:
       driver: "json-file"
       options:
@@ -32,8 +38,16 @@ services:
           memory: 512m
 
   backend:
+    build: !reset null
+    image: ghcr.io/${GHCR_OWNER:-eehoyoung}/yut-review-backend:${IMAGE_TAG:-latest}
+    restart: unless-stopped
     environment:
       SPRING_PROFILES_ACTIVE: prod
+      # 컨테이너 한도가 768m인데 JVM 기본값(MaxRAMPercentage 25)은 힙을 192MB로 잡는다.
+      # 부하 테스트에서 한도 없이 504MiB를 쓰던 프로세스라 그대로 두면 GC가 계속 돈다.
+      # 60%면 힙 ~460MB, 나머지 ~300MB가 metaspace·스레드·코드캐시 몫이다.
+      # OOM이면 limp 하지 말고 죽는다. restart: unless-stopped가 다시 올린다.
+      JAVA_TOOL_OPTIONS: ${JAVA_TOOL_OPTIONS:--XX:MaxRAMPercentage=60 -XX:+ExitOnOutOfMemoryError}
       FIELD_TEST_BOOTSTRAP_ENABLED: "false"
       APP_PUBLIC_ORIGIN: ${APP_PUBLIC_ORIGIN:?set APP_PUBLIC_ORIGIN}
       # nginx가 넘긴 X-Real-IP를 신뢰할 peer 대역. nginx/cloudflare-real-ip.conf의 real_ip 정책과
@@ -53,6 +67,9 @@ services:
           memory: 768m
 
   frontend:
+    build: !reset null
+    image: ghcr.io/${GHCR_OWNER:-eehoyoung}/yut-review-frontend:${IMAGE_TAG:-latest}
+    restart: unless-stopped
     logging:
       driver: "json-file"
       options:
@@ -65,6 +82,7 @@ services:
           memory: 384m
 
   nginx:
+    restart: unless-stopped
     # ports는 volumes와 달리 target 경로 같은 병합 키가 없어서 그냥 append된다.
     # `!override` 없이 두면 base의 `${APP_PORT:-8088}:80`이 운영에서도 함께 열린다.
     ports: !override

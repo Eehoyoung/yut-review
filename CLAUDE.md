@@ -197,6 +197,10 @@ docker compose --env-file .env.field-test --profile field-test up -d   # Cloudfl
 - `Monitoring.java` + `features/admin/ResourceMonitor.tsx` — 운영자 자원 현황.
   차단 수는 `rate_counters`의 `rejected:{code}` bucket에 24시간 창으로 쌓인다. 별도 테이블을 만들지 말 것.
   거절 기록은 **거절을 만든 트랜잭션 밖에서** 커밋한다. 안에서 쓰면 거절만 정확히 전부 사라진다.
+- 배포: 이미지는 `.github/workflows/publish-images.yml`이 GHCR에 올리고 Lightsail은 `pull`만 한다.
+  **서버에서 `--build`를 붙이지 말 것.** 2GB VM에서 Gradle 빌드가 운영 컨테이너와 메모리를 다툰다.
+  `docker-compose.prod.yml`이 `build: !reset null`로 지워 둬서 붙여도 소스 빌드로 새지는 않는다.
+  워크플로의 `platforms: linux/amd64`와 Lightsail 인스턴스 아키텍처는 항상 같이 움직여야 한다.
 - 운영 스크립트: `scripts/generate-production-secrets.sh`(서버에서 키 생성, 화면에 찍지 않음),
   `scripts/verify-production.sh`(배포 후 TLS/DNS/헤더/fail-closed 점검), `scripts/load-test/`(k6).
   계획과 임계값은 `docs/LOAD_TEST_PLAN.md`.
