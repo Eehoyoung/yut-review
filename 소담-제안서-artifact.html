@@ -1,0 +1,727 @@
+<title>소담 사업 제안서</title>
+<style>
+/* =========================================================================
+   소담 제안서 — flow-first 슬라이드 엔진
+   구조 규칙: 본문은 전부 normal flow(flex/grid). absolute는 페이지 크롬 전용.
+   좌표로 배치하면 글자 길이가 바뀔 때 겹친다.
+
+   색: 제품(DESIGN.md / globals.css)의 시각 체계를 그대로 가져왔다.
+   제안하는 물건과 제안서가 같은 얼굴이어야 한다.
+   대비 실측 — 짙은 하늘 #123F5C 위: 본문 10.37 / 보조 7.21 / 약함 4.80 / 강조 6.21
+              옅은 하늘 #E8F1F8 위: ink 12.95 / ink-2 6.84 / muted 4.75 / terracotta 4.69
+   짙은 하늘 위에서 테라코타(#B34A20)는 2.07:1이라 쓰지 않는다. 강조는 살구빛 #E8B98A.
+   ========================================================================= */
+:root{
+  --stage:1;
+  --font:"Pretendard Variable",Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",system-ui,sans-serif;
+  --stage-green:#123F5C; --stage-green-2:#174A6B;
+  --field:#E8F1F8; --paper:#FFFFFF;
+  --ink:#102A3C; --ink-2:#33566B; --ink-muted:#4C6E84;
+  --terracotta:#B34A20; --terracotta-bright:#D76535;
+  --wood:#8A5320; --wood-strong:#7A4A1C; --wood-light:#E8B98A;
+  --alert:#A32B1C;
+  --rule-light:#CFDEE9; --rule-dark:#2A5877;
+  --on-dark:#F2F8FC; --on-dark-soft:#BFD3E2; --on-dark-muted:#93AEC2;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:#0B1F2E}
+body{font-family:var(--font);padding:36px 0 64px;-webkit-font-smoothing:antialiased}
+.deck{display:grid;gap:40px;justify-content:center}
+.shell{width:calc(1920px * var(--stage));height:calc(1080px * var(--stage));position:relative}
+.slide{position:absolute;inset:0;width:1920px;height:1080px;overflow:hidden;
+  transform-origin:top left;transform:scale(var(--stage));
+  display:flex;flex-direction:column;padding:66px 120px 52px;
+  box-shadow:0 24px 70px rgba(0,0,0,.45);letter-spacing:-.01em}
+.slide h1,.slide h2,.slide h3,.slide p,.slide ul{margin:0}
+.slide ul{list-style:none;padding:0}
+
+/* ---- 두 가지 면 ---- */
+.dark{background:var(--stage-green);color:var(--on-dark)}
+.light{background:var(--field);color:var(--ink)}
+
+/* ---- 크롬 ---- */
+.top{display:flex;align-items:baseline;justify-content:space-between;
+  padding-bottom:20px;margin-bottom:34px;border-bottom:1px solid var(--rule-light)}
+.dark .top{border-bottom-color:var(--rule-dark)}
+.top .bd{font-size:19px;font-weight:800;letter-spacing:.22em}
+.top .bd i{font-style:normal;color:var(--terracotta);margin-left:12px;font-weight:700;letter-spacing:.06em;font-size:15px}
+.dark .top .bd i{color:var(--wood-light)}
+.top .cr{font-size:15px;font-weight:700;letter-spacing:.14em;color:var(--ink-muted)}
+.dark .top .cr{color:var(--on-dark-muted)}
+.foot{margin-top:auto;display:flex;align-items:baseline;justify-content:space-between;
+  padding-top:16px;border-top:1px solid var(--rule-light);
+  font-size:15px;font-weight:600;letter-spacing:.06em;color:var(--ink-muted)}
+.dark .foot{border-top-color:var(--rule-dark);color:var(--on-dark-muted)}
+.foot .num{font-size:17px;font-weight:800;color:var(--wood-strong)}
+.dark .foot .num{color:var(--wood-light)}
+
+/* ---- 타이포 ---- */
+.eye{font-size:16px;font-weight:800;letter-spacing:.16em;color:var(--terracotta);margin-bottom:16px}
+.dark .eye{color:var(--wood-light)}
+.ttl{font-size:56px;font-weight:800;line-height:1.2;letter-spacing:-.028em;margin-bottom:22px;max-width:1560px}
+.ttl em{font-style:normal;color:var(--terracotta)}
+.dark .ttl em{color:var(--wood-light)}
+.sub{font-size:25px;line-height:1.62;color:var(--ink-2);max-width:1280px;margin-bottom:34px}
+.dark .sub{color:var(--on-dark-soft)}
+.small{font-size:18px;line-height:1.55;color:var(--ink-muted)}
+.dark .small{color:var(--on-dark-muted)}
+
+/* ---- 열 ---- */
+.cols{display:grid;gap:0;border-top:1px solid var(--rule-light);margin-top:auto}
+.dark .cols{border-top-color:var(--wood-light)}
+.c3{grid-template-columns:1fr 1fr 1fr}
+.c2{grid-template-columns:1fr 1fr}
+.c4{grid-template-columns:repeat(4,1fr)}
+.col{padding:24px 40px 0;border-right:1px solid var(--rule-light)}
+.dark .col{border-right-color:var(--rule-dark)}
+.col:first-child{padding-left:0}
+.col:last-child{border-right:0}
+.col .n{font-size:28px;font-weight:800;color:var(--wood-strong)}
+.dark .col .n{color:var(--wood-light)}
+.col h3{margin-top:12px;font-size:30px;font-weight:800;line-height:1.25;letter-spacing:-.02em}
+.col p{margin-top:14px;font-size:20px;line-height:1.6;color:var(--ink-2);max-width:450px}
+.dark .col p{color:var(--on-dark-soft)}
+
+/* ---- 원장(표) ---- */
+.led{border-top:2px solid var(--terracotta)}
+.dark .led{border-top-color:var(--wood-light)}
+.led .r{display:grid;padding:13px 0;align-items:baseline;border-bottom:1px solid var(--rule-light);gap:28px}
+.dark .led .r{border-bottom-color:var(--rule-dark)}
+.led .h{border-bottom:1px solid var(--ink);padding:0 0 13px}
+.dark .led .h{border-bottom-color:var(--on-dark-muted)}
+.led .h>div{font-size:14px;font-weight:800;letter-spacing:.14em;color:var(--ink-muted)}
+.dark .led .h>div{color:var(--on-dark-muted)}
+.led .k{font-size:24px;font-weight:700;letter-spacing:-.015em}
+.led .k small{display:block;font-size:17px;font-weight:500;color:var(--ink-muted);margin-top:5px;letter-spacing:0}
+.dark .led .k small{color:var(--on-dark-muted)}
+.led .v{font-size:19px;line-height:1.5;color:var(--ink-2)}
+.dark .led .v{color:var(--on-dark-soft)}
+.led .amt{font-size:30px;font-weight:800;color:var(--wood-strong);letter-spacing:-.02em}
+.dark .led .amt{color:var(--wood-light)}
+.led .r:last-child{border-bottom:0}
+
+/* ---- 결론 띠 ---- */
+.imp{margin-top:auto;padding-top:18px;border-top:1px solid var(--rule-light);
+  display:flex;align-items:baseline;gap:26px}
+.dark .imp{border-top-color:var(--rule-dark)}
+.imp b{font-size:16px;font-weight:800;letter-spacing:.14em;color:var(--terracotta);white-space:nowrap}
+.dark .imp b{color:var(--wood-light)}
+.imp span{font-size:25px;line-height:1.45;font-weight:600}
+.imp ~ .foot{margin-top:34px}
+/* .cols가 이미 auto를 가져갔으면 결론 띠는 고정 간격으로 붙인다. */
+.cols + .imp{margin-top:26px}
+/* 부제 없이 표가 바로 오는 장에서 표의 윗선이 제목 밑줄처럼 보이지 않게 띄운다. */
+.ttl + .led{margin-top:24px}
+
+/* ---- 흐름 단계 ---- */
+.flow{display:flex;align-items:stretch;gap:0;margin-top:8px}
+.step{flex:1;padding:22px 28px 22px 0;border-top:3px solid var(--rule-light);margin-right:30px}
+.dark .step{border-top-color:var(--rule-dark)}
+.step:last-child{margin-right:0;padding-right:0}
+.step.on{border-top-color:var(--terracotta)}
+.dark .step.on{border-top-color:var(--wood-light)}
+.step .t{font-size:14px;font-weight:800;letter-spacing:.14em;color:var(--ink-muted)}
+.dark .step .t{color:var(--on-dark-muted)}
+.step h4{margin:10px 0 0;font-size:27px;font-weight:800;line-height:1.28;letter-spacing:-.02em}
+.step p{margin-top:11px;font-size:19px;line-height:1.52;color:var(--ink-2)}
+.dark .step p{color:var(--on-dark-soft)}
+
+/* ---- 대조 (현행 vs 이 제품) ---- */
+/* 두 판을 남은 높이만큼 늘려 가운데가 비지 않게 한다. 내용은 각 판 위쪽에 붙는다. */
+.vs{display:grid;grid-template-columns:1fr 1fr;gap:56px;margin-top:6px;flex:1;align-items:stretch}
+.box{padding:28px 32px;border:1px solid var(--rule-light);background:var(--paper)}
+.box.bad{border-color:#E8CFCA;background:#FCF4F2}
+.box.good{border-color:#B9D3E4;background:#F7FBFD}
+.box .lbl{font-size:15px;font-weight:800;letter-spacing:.14em;color:var(--ink-muted)}
+.box.bad .lbl{color:var(--alert)}
+.box.good .lbl{color:var(--wood-strong)}
+.box h4{margin:12px 0 0;font-size:31px;font-weight:800;line-height:1.28;letter-spacing:-.02em}
+.box li{margin-top:13px;font-size:20px;line-height:1.55;color:var(--ink-2);padding-left:20px;position:relative}
+.box li::before{content:"";position:absolute;left:0;top:11px;width:7px;height:7px;border-radius:50%;background:var(--wood)}
+.box.bad li::before{background:#D9A79E}
+
+/* ---- 표지 ---- */
+.cover{justify-content:flex-start;padding-top:196px}
+/* auto 여백이 둘이면 남는 공간을 반씩 나눠 가져 가운데가 뜬다. 표지·빅아이디어에서는
+   본문 블록만 auto를 갖고 푸터는 고정 간격으로 붙인다. */
+.cover .foot,.big .foot{margin-top:34px}
+.cover .kicker{font-size:18px;font-weight:800;letter-spacing:.22em;color:var(--wood-light);margin-bottom:36px}
+.cover h1{font-size:92px;font-weight:800;line-height:1.16;letter-spacing:-.035em;max-width:1500px}
+.cover h1 em{font-style:normal;color:var(--wood-light)}
+.cover .line{width:96px;height:3px;background:var(--terracotta-bright);margin:44px 0 36px}
+.cover .who{margin-top:auto;padding-bottom:24px;font-size:22px;line-height:1.85;color:var(--on-dark-soft)}
+.cover .who b{color:var(--on-dark);font-weight:700}
+
+/* ---- 빅 아이디어 ---- */
+.big{justify-content:flex-start;padding-top:150px}
+.big .q{font-size:66px;font-weight:800;line-height:1.34;letter-spacing:-.03em;max-width:1560px}
+.big .q em{font-style:normal;color:var(--wood-light)}
+.big .why{margin-top:auto;display:grid;grid-template-columns:repeat(3,1fr);gap:44px;
+  border-top:1px solid var(--rule-dark);padding-top:28px}
+.big .why h4{font-size:19px;font-weight:800;letter-spacing:.1em;color:var(--wood-light)}
+.big .why p{margin-top:12px;font-size:20px;line-height:1.6;color:var(--on-dark-soft)}
+
+/* ---- 태그 ---- */
+.tag{display:inline-block;font-size:15px;font-weight:800;letter-spacing:.1em;
+  padding:5px 12px;border:1px solid currentColor;color:var(--ink-muted)}
+.tag.warn{color:var(--alert)}
+.tag.ok{color:var(--wood-strong)}
+.dark .tag{color:var(--on-dark-muted)}
+
+
+/* ---- 강조 ----
+   원칙: 문단당 하나. 표에서는 숫자와 결론 칸만. 다 강조하면 강조가 사라진다.
+   밝은 면은 테라코타(4.69:1), 짙은 면은 살구빛(6.21:1). 짙은 면에 테라코타를
+   쓰면 2.07:1이라 읽히지 않는다. 굵기만으로 강조하지 않는 이유는 한글에서
+   700과 800의 차이가 작아 눈에 잡히지 않기 때문이다. */
+.sub b,.col p b,.step p b,.box li b,.led .v b,.big .why p b,.cover .who b,.imp span b{
+  font-weight:700;color:var(--terracotta)}
+.dark .sub b,.dark .col p b,.dark .step p b,.dark .led .v b,.big .why p b,.cover .who b,.dark .imp span b{
+  color:var(--wood-light)}
+/* 손실·중단처럼 상대가 감수해야 하는 것은 다른 색으로. 좋은 소식과 같은 색이면 안 된다. */
+.led .v b.warn,.box li b.warn{color:var(--alert);font-weight:700}
+
+/* ---- 확률 막대 ---- */
+.bars{display:grid;gap:14px;margin-top:6px}
+.bar-row{display:grid;grid-template-columns:70px 1fr 92px;align-items:center;gap:22px}
+.bar-row .nm{font-size:28px;font-weight:800;color:var(--wood-strong)}
+.bar-row .tr{height:26px;background:var(--rule-light)}
+.bar-row .fl{height:100%;background:var(--wood)}
+.bar-row .fl.top{background:var(--terracotta)}
+.bar-row .pc{font-size:23px;font-weight:800;text-align:right}
+
+/* ---- 폰에서 보기 ---- */
+.nowbar,.hint{display:none}
+@media (max-width:900px){
+  body{padding:0}
+  .deck{gap:0}
+  .slide{box-shadow:none}
+  .shell{scroll-snap-align:center}
+  .nowbar{display:flex;position:fixed;right:12px;bottom:12px;z-index:20;
+    align-items:baseline;gap:6px;padding:8px 14px;border-radius:999px;
+    background:rgba(16,42,60,.92);color:#F2F8FC;font-size:13px;font-weight:700;
+    font-variant-numeric:tabular-nums;letter-spacing:.04em}
+  .nowbar b{font-size:16px;color:#E8B98A}
+  .hint{display:flex;position:fixed;left:12px;right:82px;bottom:12px;z-index:20;
+    align-items:center;gap:8px;padding:9px 14px;border-radius:999px;
+    background:rgba(16,42,60,.92);color:#BFD3E2;font-size:12.5px;line-height:1.35;
+    transition:opacity .4s ease}
+  .hint.gone{opacity:0;pointer-events:none}
+  html{scroll-snap-type:y proximity}
+}
+@media (prefers-reduced-motion:reduce){ .hint{transition:none} }
+</style>
+<main class="deck">
+
+<!-- 1 표지 -->
+<section class="shell"><article class="slide dark cover">
+  <div class="kicker">리뷰 이벤트 윷놀이 · 사업 제안</div>
+  <h1>리뷰 이벤트에서 매장이 지는 위험은<br>세 가지입니다. <em>우리는 셋 다 막았습니다.</em></h1>
+  <div class="line"></div>
+  <div class="who">
+    <b>소담</b> · 대표 이호영<br>
+    010-9352-3827 · c65621@gmail.com<br>
+    2026년 9월 · 프랜차이즈 본부 / 다점포 운영사 / 개별 매장
+  </div>
+  <div class="foot"><span>소담 · 리뷰 이벤트 윷놀이</span><span class="num">01</span></div>
+</article></section>
+
+<!-- 2 문제 1 -->
+<section class="shell"><article class="slide light">
+  <div class="top"><div class="bd">소담<i>SODAM</i></div><div class="cr">1. 지금 매장에서 벌어지는 일</div></div>
+  <div class="eye">문제 1</div>
+  <h2 class="ttl">리뷰를 부탁하는 일은 지금 <em>전부 직원 몫</em>입니다.</h2>
+  <p class="sub">그리고 그 부탁이 효과가 있었는지 아무도 세지 않습니다. 매장은 판단할 근거를 못 만든 채 직원의 감정노동만 계속 씁니다.</p>
+  <div class="flow">
+    <div class="step on"><div class="t">1 · 직원</div><h4>"리뷰 남겨주시면<br>서비스 드려요"</h4><p>바쁜 홀에서, 손님 표정을 보며, 매번 직접 말한다.</p></div>
+    <div class="step"><div class="t">2 · 손님</div><h4>썼는지 안 썼는지<br>확인할 방법 없음</h4><p>보여달라고 하기도 어색하다. 직원 재량에 맡겨진다.</p></div>
+    <div class="step"><div class="t">3 · 매장</div><h4>몇 명에게 말했고<br>몇 명이 썼는지 모름</h4><p><b>기록이 남지 않으니</b> 다음 달에 뭘 바꿔야 할지도 모른다.</p></div>
+  </div>
+  <div class="imp"><b>그래서</b><span>이 활동은 <b>비용은 확실하고 성과는 불확실한 상태로</b> 계속 굴러갑니다.</span></div>
+  <div class="foot"><span>1. 지금 매장에서 벌어지는 일</span><span class="num">02</span></div>
+</article></section>
+
+<!-- 3 문제 2 -->
+<section class="shell"><article class="slide light">
+  <div class="top"><div class="bd">소담<i>SODAM</i></div><div class="cr">1. 지금 매장에서 벌어지는 일</div></div>
+  <div class="eye">문제 2</div>
+  <h2 class="ttl">보상을 걸면 매장은 <em>"좋은 리뷰를 걸었다"</em>는 위치에 섭니다.</h2>
+  <p class="sub">구두로 부탁하면 자연스럽게 그쪽으로 흐릅니다. 문제는 그 선을 지키는 책임이 매번 현장 직원 개인에게 떨어진다는 것입니다.</p>
+  <div class="vs">
+    <div class="box bad">
+      <div class="lbl">말로 부탁할 때 흘러가는 경로</div>
+      <h4>선을 긋는 사람이<br>매번 달라집니다</h4>
+      <ul>
+        <li>"리뷰 남겨주시면" → "좋게 남겨주시면" → "별점 5개 주시면"</li>
+        <li>어디까지가 괜찮은지 매장에 기준이 없다</li>
+        <li>사고가 나면 그날 그 말을 한 <b>직원 개인의 판단 문제</b>가 된다</li>
+      </ul>
+    </div>
+    <div class="box good">
+      <div class="lbl">시스템이 대신 그어주면</div>
+      <h4>선이 사람이 아니라<br>구조에 있습니다</h4>
+      <ul>
+        <li>시스템은 별점도 내용도 읽지 않는다. 요구하지도 않는다</li>
+        <li>직원은 리뷰가 <b>있는지만</b> 눈으로 확인한다</li>
+        <li>매장이 그 선을 지켰다는 사실이 동작으로 남는다</li>
+      </ul>
+    </div>
+  </div>
+  <div class="imp"><b>중요</b><span>관련 법·플랫폼 정책의 구체 조항은 이 제안서에서 인용하지 않습니다. 확인 전에 인용하면 저희가 위험을 만드는 것이기 때문입니다.</span></div>
+  <div class="foot"><span>1. 지금 매장에서 벌어지는 일</span><span class="num">03</span></div>
+</article></section>
+
+<!-- 4 문제 3 -->
+<section class="shell"><article class="slide light">
+  <div class="top"><div class="bd">소담<i>SODAM</i></div><div class="cr">1. 지금 매장에서 벌어지는 일</div></div>
+  <div class="eye">문제 3</div>
+  <h2 class="ttl">그리고 손님은 결국 <em>"이거 조작 아니냐"</em>고 묻습니다.</h2>
+  <p class="sub">추첨·룰렛 방식은 결과가 화면 안에서 만들어집니다. 의심할 여지가 구조적으로 남고, 직원에게는 해명할 근거가 없습니다.</p>
+  <div class="vs">
+    <div class="box bad">
+      <div class="lbl">화면에서 결과를 만드는 방식</div>
+      <h4>돌아가는 동안<br>결과가 정해집니다</h4>
+      <ul>
+        <li>연출과 결과가 같은 곳에서 만들어진다</li>
+        <li>손님은 화면 밖에서 무슨 일이 있었는지 알 수 없다</li>
+        <li>"당첨 확률이 몇 %냐"는 질문에 답이 없다</li>
+      </ul>
+    </div>
+    <div class="box good">
+      <div class="lbl">서버가 먼저 정하는 방식</div>
+      <h4>던진 모양이<br>곧 결과입니다</h4>
+      <ul>
+        <li>서버가 보안 난수로 결과를 먼저 확정한다</li>
+        <li>3D는 그 결과대로 멈추는 실행만 골라 재생한다</li>
+        <li><b>착지한 면도 위치도 이후에 바뀌지 않는다</b></li>
+      </ul>
+    </div>
+  </div>
+  <div class="imp"><b>제품 1원칙</b><span>손님이 "이거 조작 아니야?"라고 물을 여지를 남기지 않는 것이 이 제품의 신뢰 그 자체입니다.</span></div>
+  <div class="foot"><span>1. 지금 매장에서 벌어지는 일</span><span class="num">04</span></div>
+</article></section>
+
+<!-- 5 판단 기준 -->
+<section class="shell"><article class="slide dark">
+  <div class="top"><div class="bd">소담<i>SODAM</i></div><div class="cr">2. 이 제안을 평가하는 기준</div></div>
+  <div class="eye">판단 기준</div>
+  <h2 class="ttl">이 제안은 <em>다섯 가지</em>로 평가해 주십시오.</h2>
+  <p class="sub">저희에게 유리한 기준이라서가 아니라, 리뷰 이벤트 도구를 고를 때 실제로 봐야 하는 것이기 때문입니다.</p>
+  <div class="cols c3">
+    <div class="col"><div class="n">01</div><h3>결과 무결성</h3><p>손님이 의심할 여지를 남기는가. 직원이 해명해야 하는가.</p></div>
+    <div class="col"><div class="n">02</div><h3>운영 부담</h3><p>바쁜 홀에서 직원 동선이 몇 번 늘어나는가.</p></div>
+    <div class="col"><div class="n">03</div><h3>개인정보 책임</h3><p>이름·전화번호를 받는다. 사고가 나면 누가 지는가.</p></div>
+  </div>
+  <div class="cols c2" style="margin-top:0;border-top:0">
+    <div class="col" style="border-top:1px solid var(--rule-dark);padding-top:28px"><div class="n">04</div><h3>비용 예측 가능성</h3><p>매장이 늘면 얼마가 되는가. 숨은 비용이 있는가.</p></div>
+    <div class="col" style="border-top:1px solid var(--rule-dark);padding-top:28px"><div class="n">05</div><h3>철회 가능성</h3><p>안 맞으면 어떻게 그만두는가. 그때 손님 쿠폰은 어떻게 되는가.</p></div>
+  </div>
+  <div class="foot"><span>2. 이 제안을 평가하는 기준</span><span class="num">05</span></div>
+</article></section>
+
+<!-- 6 Winning Thesis -->
+<section class="shell"><article class="slide dark big">
+  <div class="eye">핵심 판단</div>
+  <p class="q">저희는 <em>효과를 주장하지 않습니다.</em><br>위험을 없앤 것만 증명합니다.<br>효과는 첫 달 무료로 <em>직접 확인</em>하십시오.</p>
+  <div class="why">
+    <div>
+      <h4>성과 데이터가 없습니다</h4>
+      <p>리뷰 증가율도 매출 효과도 저희에게 검증된 수치가 없습니다. <b>있는 척하는 순간 첫 질문에서 무너집니다.</b></p>
+    </div>
+    <div>
+      <h4>증명할 수 있는 것만 씁니다</h4>
+      <p>결과 무결성, 개인정보 처리, 운영 동선, 비용 구조는 동작과 실측으로 보여드릴 수 있습니다.</p>
+    </div>
+    <div>
+      <h4>검증 비용은 저희가 집니다</h4>
+      <p>첫 달 무료는 "믿어달라"가 아닙니다. <b>근거가 없는 쪽이 비용을 집니다.</b></p>
+    </div>
+  </div>
+  <div class="foot"><span>3. 핵심 판단</span><span class="num">06</span></div>
+</article></section>
+
+<!-- 7 서버 선확정 -->
+<section class="shell"><article class="slide light">
+  <div class="top"><div class="bd">소담<i>SODAM</i></div><div class="cr">4. 세 가지 위험을 어떻게 막았는가</div></div>
+  <div class="eye">위험 1 · 조작 의심</div>
+  <h2 class="ttl">결과는 서버가 먼저 정하고, 화면은 <em>그대로 멈춥니다.</em></h2>
+  <div class="flow">
+    <div class="step on"><div class="t">1 · 서버</div><h4>결과 확정</h4><p>보안 난수로 도·개·걸·윷·모 중 하나를 정하고 저장한다. 클라이언트는 관여하지 않는다.</p></div>
+    <div class="step on"><div class="t">2 · 검증</div><h4>물리 시뮬레이션</h4><p>윷 네 짝을 각각 독립 월드에서 정지할 때까지 굴려, 정지 면이 서버 결과와 일치하는 실행만 채택한다.</p></div>
+    <div class="step on"><div class="t">3 · 화면</div><h4>기록 재생</h4><p>채택된 실행의 매 스텝을 재생만 한다. <b>화면에서는 물리를 돌리지 않는다.</b></p></div>
+    <div class="step on"><div class="t">4 · 결과</div><h4>정지 후 불변</h4><p><b>착지한 면도 위치도 이후에 바뀌지 않는다.</b> 새로고침해도 재추첨되지 않는다.</p></div>
+  </div>
+  <div class="imp"><b>그래서</b><span><b>손님이 던진 모양이 곧 결과입니다.</b> 직원이 해명할 일이 생기지 않습니다.</span></div>
+  <div class="foot"><span>4. 세 가지 위험을 어떻게 막았는가</span><span class="num">07</span></div>
+</article></section>
+
+<!-- 8 확률 공개 -->
+<section class="shell"><article class="slide light">
+  <div class="top"><div class="bd">소담<i>SODAM</i></div><div class="cr">4. 세 가지 위험을 어떻게 막았는가</div></div>
+  <div class="eye">위험 1 · 조작 의심</div>
+  <h2 class="ttl">확률을 <em>손님 화면에 그대로</em> 보여줍니다.</h2>
+  <p class="sub">숨기지 않는 것이 신뢰의 증거입니다. 아래는 기본 설정값이며, 매장이 결과별로 직접 조정합니다.</p>
+  <div class="bars">
+    <div class="bar-row"><span class="nm">도</span><span class="tr"><span class="fl" style="width:32.5%"></span></span><span class="pc">32.5%</span></div>
+    <div class="bar-row"><span class="nm">개</span><span class="tr"><span class="fl" style="width:32.5%"></span></span><span class="pc">32.5%</span></div>
+    <div class="bar-row"><span class="nm">걸</span><span class="tr"><span class="fl" style="width:12.5%"></span></span><span class="pc">12.5%</span></div>
+    <div class="bar-row"><span class="nm">윷</span><span class="tr"><span class="fl" style="width:12.5%"></span></span><span class="pc">12.5%</span></div>
+    <div class="bar-row"><span class="nm">모</span><span class="tr"><span class="fl top" style="width:10%"></span></span><span class="pc">10%</span></div>
+  </div>
+  <div class="imp"><b>설계 규칙</b><span>확률이 0이라 <b>도달할 수 없는 등급은 손님 목록에서 아예 빼둡니다.</b> 받을 수 없는 상품을 확률과 함께 광고하지 않기 위해서입니다.</span></div>
+  <div class="foot"><span>4. 세 가지 위험을 어떻게 막았는가</span><span class="num">08</span></div>
+</article></section>
+
+<!-- 9 직원 동선 -->
+<section class="shell"><article class="slide light">
+  <div class="top"><div class="bd">소담<i>SODAM</i></div><div class="cr">4. 세 가지 위험을 어떻게 막았는가</div></div>
+  <div class="eye">위험 2 · 운영 부담</div>
+  <h2 class="ttl">직원이 손대는 순간은 <em>PIN 한 번</em>뿐입니다.</h2>
+  <p class="sub">게임을 시작할 때는 직원 확인이 없습니다. 쿠폰을 실제로 쓸 때만 매장별 6자리 PIN을 넣습니다.</p>
+  <div class="vs">
+    <div class="box bad">
+      <div class="lbl">현행 · 구두 요청 + 서비스 제공</div>
+      <h4>손님 한 명마다<br>직원이 3~4번 개입</h4>
+      <ul>
+        <li>리뷰 부탁하기</li>
+        <li>썼는지 확인하기 (어색한 순간)</li>
+        <li>서비스 챙겨서 내주기</li>
+        <li>기록은 남지 않음</li>
+      </ul>
+    </div>
+    <div class="box good">
+      <div class="lbl">이 제품</div>
+      <h4>손님 한 명마다<br>직원이 1번 개입</h4>
+      <ul>
+        <li>리뷰 작성 여부만 눈으로 확인 (기존과 동일)</li>
+        <li>게임·쿠폰 발급은 손님 폰에서 자동</li>
+        <li><b>쿠폰 사용 시 PIN 6자리 입력 — 이것 한 번</b></li>
+        <li>참여·발급·사용이 전부 기록으로 남음</li>
+      </ul>
+    </div>
+  </div>
+  <div class="imp"><b>부수 효과</b><span>2일 쿨타임과 미사용 쿠폰 우선 규칙이 서버에 있어, <b>중복 참여를 직원이 막을 필요가 없습니다.</b></span></div>
+  <div class="foot"><span>4. 세 가지 위험을 어떻게 막았는가</span><span class="num">09</span></div>
+</article></section>
+
+<!-- 10 개인정보 -->
+<section class="shell"><article class="slide light">
+  <div class="top"><div class="bd">소담<i>SODAM</i></div><div class="cr">4. 세 가지 위험을 어떻게 막았는가</div></div>
+  <div class="eye">위험 3 · 개인정보 책임</div>
+  <h2 class="ttl">이름과 전화번호는 <em>120일 뒤 자동으로</em> 지워집니다.</h2>
+  <p class="sub">보관 기간이 방침이 아니라 매일 도는 배치로 강제됩니다. 사람이 기억해서 지우는 구조가 아닙니다.</p>
+  <div class="led">
+    <div class="r h" style="grid-template-columns:1.1fr 1fr 2.2fr"><div>항목</div><div>처리</div><div>내용</div></div>
+    <div class="r" style="grid-template-columns:1.1fr 1fr 2.2fr">
+      <div class="k">저장 방식</div><div class="v">암호화</div>
+      <div class="v">이름·전화번호는 AES-256-GCM으로 암호화해 저장합니다. 조회는 복호화 없이 HMAC 해시로만 합니다.</div></div>
+    <div class="r" style="grid-template-columns:1.1fr 1fr 2.2fr">
+      <div class="k">보존 기간</div><div class="v">120일</div>
+      <div class="v">한국 시간 기준 120일째까지 보존하고, <b>121일차부터 매일 새벽 3시 15분에 자동으로</b> 익명화합니다.</div></div>
+    <div class="r" style="grid-template-columns:1.1fr 1fr 2.2fr">
+      <div class="k">파기 대상</div><div class="v">식별 정보</div>
+      <div class="v">이름 암호문, 전화번호 암호문, 전화번호 해시, 끝 4자리를 덮어씁니다.</div></div>
+    <div class="r" style="grid-template-columns:1.1fr 1fr 2.2fr">
+      <div class="k">유지 대상</div><div class="v">비식별 통계</div>
+      <div class="v">매장, 윷 결과, 상품 등급, 참여일, 쿠폰 상태는 남습니다. 통계는 개인을 가리키지 않습니다.</div></div>
+    <div class="r" style="grid-template-columns:1.1fr 1fr 2.2fr">
+      <div class="k">예외</div><div class="v">유효 쿠폰</div>
+      <div class="v">아직 만료되지 않은 미사용 쿠폰은 손님이 쓸 수 있어야 하므로 만료 전까지 제외합니다.</div></div>
+  </div>
+  <div class="imp"><b>확인 필요</b><span>개인정보 처리방침과 수집 동의 문구의 법적 검토는 계약 전 완료 예정입니다. 현재 미완료 사항으로 명시합니다.</span></div>
+  <div class="foot"><span>4. 세 가지 위험을 어떻게 막았는가</span><span class="num">10</span></div>
+</article></section>
+
+<!-- 11 손님 흐름 -->
+<section class="shell"><article class="slide dark">
+  <div class="top"><div class="bd">소담<i>SODAM</i></div><div class="cr">5. 실제로 어떻게 돌아가는가</div></div>
+  <div class="eye">손님</div>
+  <h2 class="ttl">QR을 찍고 <em>30초</em> 안에 끝납니다. 설치도 로그인도 없습니다.</h2>
+  <div class="flow">
+    <div class="step on"><div class="t">01</div><h4>QR 스캔</h4><p>테이블의 매장 전용 QR. 앱 설치 없음.</p></div>
+    <div class="step on"><div class="t">02</div><h4>이름·번호 입력</h4><p>문자 인증 없음. 쿠폰을 찾아드릴 때만 씁니다.</p></div>
+    <div class="step on"><div class="t">03</div><h4>윷 던지기</h4><p>3D 윷이 실제로 굴러 멈춥니다.</p></div>
+    <div class="step on"><div class="t">04</div><h4>결과 확인</h4><p>나온 모양과 받은 상품이 한 화면에.</p></div>
+    <div class="step on"><div class="t">05</div><h4>쿠폰 보관</h4><p>화면을 닫아도 QR로 다시 열립니다.</p></div>
+  </div>
+  <div class="imp"><b>실측</b><span>고객 1회 완주 46 요청 · API 6회 · <b>1.53 MB</b>. 쿠폰만 다시 여는 재접속은 <b>4.4 KB</b>입니다.</span></div>
+  <div class="foot"><span>5. 실제로 어떻게 돌아가는가</span><span class="num">11</span></div>
+</article></section>
+
+<!-- 12 쿠폰 동결 -->
+<section class="shell"><article class="slide light">
+  <div class="top"><div class="bd">소담<i>SODAM</i></div><div class="cr">5. 실제로 어떻게 돌아가는가</div></div>
+  <div class="eye">쿠폰</div>
+  <h2 class="ttl">쿠폰은 발급되는 순간 <em>조건이 얼어붙습니다.</em></h2>
+  <p class="sub">사장이 나중에 확률이나 상품이나 사용 기한을 바꿔도, 손님이 이미 받은 쿠폰은 그대로입니다.</p>
+  <div class="cols c4" style="margin-top:10px">
+    <div class="col"><div class="n">01</div><h3>상품명</h3><p>발급 시점의 이름이 그대로 남습니다.</p></div>
+    <div class="col"><div class="n">02</div><h3>등급</h3><p>등급 수를 3개에서 5개로 바꿔도 안 변합니다.</p></div>
+    <div class="col"><div class="n">03</div><h3>사용 시점</h3><p>당일/다음 날 정책이 발급 때 확정됩니다.</p></div>
+    <div class="col"><div class="n">04</div><h3>만료일</h3><p><b>기한을 90일에서 30일로 줄여도 기존 쿠폰은 90일 그대로입니다.</b></p></div>
+  </div>
+  <div class="imp"><b>왜 중요한가</b><span>설정을 바꿀 때마다 손님 쿠폰이 흔들리면 사장은 설정을 못 만집니다. <b>얼려두었기 때문에 마음 놓고 바꿉니다.</b></span></div>
+  <div class="foot"><span>5. 실제로 어떻게 돌아가는가</span><span class="num">12</span></div>
+</article></section>
+
+<!-- 13 사장 설정 -->
+<section class="shell"><article class="slide light">
+  <div class="top"><div class="bd">소담<i>SODAM</i></div><div class="cr">5. 실제로 어떻게 돌아가는가</div></div>
+  <div class="eye">매장 대표</div>
+  <h2 class="ttl">사장이 정하는 것은 <em>네 가지</em>뿐입니다.</h2>
+  <p class="sub">가입하면 QR과 직원 PIN, 기본 3등급 상품과 기본 확률이 함께 만들어집니다. 아무것도 안 바꿔도 그날 바로 돌아갑니다.</p>
+  <div class="cols c4" style="margin-top:10px">
+    <div class="col"><div class="n">01</div><h3>결과별 확률</h3><p>도·개·걸·윷·모 다섯 결과에 각각 가중치를 줍니다. 합이 100%가 되어야 저장됩니다.</p></div>
+    <div class="col"><div class="n">02</div><h3>상품 등급 수</h3><p>1~5등급. 3/4/5등급 프리셋을 한 번 누르면 결과 배정이 채워집니다.</p></div>
+    <div class="col"><div class="n">03</div><h3>상품 내용</h3><p>등급별 상품명·설명·사용 시점(즉시/당일/다음 날).</p></div>
+    <div class="col"><div class="n">04</div><h3>쿠폰 사용 기한</h3><p>1일~365일. 기본 90일. 바꾸면 그 이후 발급분부터 적용됩니다.</p></div>
+  </div>
+  <div class="imp"><b>설계 규칙</b><span>확률은 등급이 아니라 윷 결과에 붙습니다. 화면에 실제로 떨어지는 것이 다섯 가지라, 결과에 확률을 걸어야 <b>던진 모양과 드리는 상품이 어긋나지 않습니다.</b></span></div>
+  <div class="foot"><span>5. 실제로 어떻게 돌아가는가</span><span class="num">13</span></div>
+</article></section>
+
+<!-- 14 다매장 -->
+<section class="shell"><article class="slide light">
+  <div class="top"><div class="bd">소담<i>SODAM</i></div><div class="cr">6. 어느 쪽이든</div></div>
+  <div class="eye">다매장</div>
+  <h2 class="ttl">계정 하나로 여러 매장을 <em>각각 다르게</em> 운영합니다.</h2>
+  <p class="sub">다매장이 부가 기능이 아니라 기본 구조입니다. 데이터와 권한은 매장 단위로 분리되어 있습니다.</p>
+  <div class="led">
+    <div class="r h" style="grid-template-columns:1fr 1fr 1fr 1.4fr"><div>항목</div><div>강남점 예시</div><div>홍대점 예시</div><div>동작</div></div>
+    <div class="r" style="grid-template-columns:1fr 1fr 1fr 1.4fr">
+      <div class="k">쿠폰 사용 기한</div><div class="amt">30일</div><div class="amt">180일</div>
+      <div class="v">매장마다 다르게 저장되고, <b>한쪽을 바꿔도 다른 쪽은 그대로입니다.</b></div></div>
+    <div class="r" style="grid-template-columns:1fr 1fr 1fr 1.4fr">
+      <div class="k">상품 등급 수</div><div class="amt">3등급</div><div class="amt">5등급</div>
+      <div class="v">상권과 객단가에 따라 매장별로 다르게 갑니다.</div></div>
+    <div class="r" style="grid-template-columns:1fr 1fr 1fr 1.4fr">
+      <div class="k">결과별 확률</div><div class="v">매장 설정</div><div class="v">매장 설정</div>
+      <div class="v">본사가 표준값을 정해두고 매장이 그 안에서 조정하는 운영도 가능합니다.</div></div>
+    <div class="r" style="grid-template-columns:1fr 1fr 1fr 1.4fr">
+      <div class="k">QR · 직원 PIN</div><div class="v">매장 전용</div><div class="v">매장 전용</div>
+      <div class="v">한 매장의 PIN이 다른 매장 쿠폰을 처리할 수 없습니다.</div></div>
+  </div>
+  <div class="imp"><b>상한</b><span>한 계정당 관리 매장 수에는 상한이 있습니다. 그 이상 규모는 계약 시 별도로 협의합니다.</span></div>
+  <div class="foot"><span>6. 어느 쪽이든</span><span class="num">14</span></div>
+</article></section>
+
+<!-- 15 요금제 전등급 게임 동일 -->
+<section class="shell"><article class="slide light">
+  <div class="top"><div class="bd">소담<i>SODAM</i></div><div class="cr">6. 어느 쪽이든</div></div>
+  <div class="eye">요금제 원칙</div>
+  <h2 class="ttl">손님이 겪는 경험은 <em>전 요금제에서 똑같습니다.</em></h2>
+  <p class="sub">등급으로 잠기는 것은 매장 운영을 돕는 기능뿐입니다. 게임·QR·상품·쿠폰·직원 PIN·쿨타임은 어떤 등급에서도 동일합니다.</p>
+  <div class="led">
+    <div class="r h" style="grid-template-columns:1.6fr 1fr 1fr 1fr"><div>기능</div><div>베이직</div><div>스탠다드</div><div>프로</div></div>
+    <div class="r" style="grid-template-columns:1.6fr 1fr 1fr 1fr"><div class="k">윷놀이 게임 · QR 이벤트</div><div class="v">포함</div><div class="v">포함</div><div class="v">포함</div></div>
+    <div class="r" style="grid-template-columns:1.6fr 1fr 1fr 1fr"><div class="k">상품 · 확률 설정</div><div class="v">포함</div><div class="v">포함</div><div class="v">포함</div></div>
+    <div class="r" style="grid-template-columns:1.6fr 1fr 1fr 1fr"><div class="k">쿠폰 발급 · 사용 · 직원 PIN</div><div class="v">포함</div><div class="v">포함</div><div class="v">포함</div></div>
+    <div class="r" style="grid-template-columns:1.6fr 1fr 1fr 1fr"><div class="k">기본 통계</div><div class="v">포함</div><div class="v">포함</div><div class="v">포함</div></div>
+    <div class="r" style="grid-template-columns:1.6fr 1fr 1fr 1fr"><div class="k">상세 분석 · CSV 내보내기</div><div class="v" style="color:var(--ink-muted)">—</div><div class="v">포함</div><div class="v">포함</div></div>
+    <div class="r" style="grid-template-columns:1.6fr 1fr 1fr 1fr"><div class="k">안내 문구 생성 · 운영 리포트</div><div class="v" style="color:var(--ink-muted)">—</div><div class="v">포함</div><div class="v">포함</div></div>
+    <div class="r" style="grid-template-columns:1.6fr 1fr 1fr 1fr"><div class="k">개선 제안 · 매니저 대화 · 주간 리포트</div><div class="v" style="color:var(--ink-muted)">—</div><div class="v" style="color:var(--ink-muted)">—</div><div class="v">포함</div></div>
+  </div>
+  <div class="imp"><b>선언</b><span>손님 경험을 돈으로 잠그지 않습니다. <b>돈을 안 내면 손님이 못 논다는 상황은 만들지 않습니다.</b></span></div>
+  <div class="foot"><span>6. 어느 쪽이든</span><span class="num">15</span></div>
+</article></section>
+
+<!-- 16 대상별 -->
+<section class="shell"><article class="slide dark">
+  <div class="top"><div class="bd">소담<i>SODAM</i></div><div class="cr">6. 어느 쪽이든</div></div>
+  <div class="eye">대상별</div>
+  <h2 class="ttl">어느 쪽이시든, <em>가장 걱정하시는 것</em>부터 답하겠습니다.</h2>
+  <div class="cols c3">
+    <div class="col"><div class="n">본사</div><h3>가맹점이 제각각 이벤트를 돌리는 상황</h3>
+      <p>본사가 표준 확률·상품·기한을 정해 배포하고, 가맹점은 그 안에서 운영합니다. 시스템이 별점을 조건으로 걸지 않으므로 <b>가맹점 한 곳의 사고가 브랜드로 번지는 경로가 줄어듭니다.</b></p></div>
+    <div class="col"><div class="n">다점포</div><h3>매장이 늘수록 확인할 것이 늘어나는 문제</h3>
+      <p>계정 하나로 전 매장을 봅니다. 매장별 설정은 다르게 두면서 확인 동선은 한 곳입니다. 매장을 추가해도 관리 방식이 바뀌지 않습니다.</p></div>
+    <div class="col"><div class="n">개별 매장</div><h3>직원 손이 더 갈까 하는 걱정</h3>
+      <p>가입하면 QR·PIN·기본 상품이 함께 생깁니다. QR을 출력해 테이블에 두면 그날부터 돌아가고, <b>직원이 하는 일은 PIN 한 번뿐입니다.</b></p></div>
+  </div>
+  <div class="foot"><span>6. 어느 쪽이든</span><span class="num">16</span></div>
+</article></section>
+
+<!-- 17 첫 달에 볼 것 -->
+<section class="shell"><article class="slide light">
+  <div class="top"><div class="bd">소담<i>SODAM</i></div><div class="cr">7. 비용과 경계</div></div>
+  <div class="eye">첫 달 측정</div>
+  <h2 class="ttl">첫 달에는 <em>이 네 가지</em>를 보고 판단하시면 됩니다.</h2>
+  <p class="sub">저희가 성과를 주장하지 않기로 했으니, 무엇을 보고 판단할지는 시작 전에 함께 정해야 합니다.</p>
+  <div class="led">
+    <div class="r h" style="grid-template-columns:1.2fr 1.6fr 1.5fr"><div>보는 것</div><div>어디서 확인</div><div>판단 기준</div></div>
+    <div class="r" style="grid-template-columns:1.2fr 1.6fr 1.5fr">
+      <div class="k">참여 수<small>몇 명이 실제로 던졌나</small></div>
+      <div class="v">관리자 화면 · 참여 내역</div><div class="v">시작 전에 목표치를 함께 정합니다. 저희가 임의로 제시하지 않습니다.</div></div>
+    <div class="r" style="grid-template-columns:1.2fr 1.6fr 1.5fr">
+      <div class="k">쿠폰 사용률<small>받은 사람이 실제로 썼나</small></div>
+      <div class="v">관리자 화면 · 쿠폰 내역</div><div class="v">낮으면 상품이나 사용 기한을 조정합니다. 재방문 유인의 실제 신호입니다.</div></div>
+    <div class="r" style="grid-template-columns:1.2fr 1.6fr 1.5fr">
+      <div class="k">네이버 리뷰 수<small>이 이벤트의 목적</small></div>
+      <div class="v">네이버 플레이스 (매장 직접 확인)</div><div class="v">시작일 기준 전월 대비. 저희 시스템은 이 숫자를 읽지 않습니다.</div></div>
+    <div class="r" style="grid-template-columns:1.2fr 1.6fr 1.5fr">
+      <div class="k">직원 체감<small>쓸 만한가</small></div>
+      <div class="v">매장 직원에게 직접 질문</div><div class="v">"손이 더 갔나"에 아니오가 나와야 합니다. <b>여기서 실패하면 나머지는 의미 없습니다.</b></div></div>
+  </div>
+  <div class="imp"><b>정직하게</b><span>리뷰 수 변화에는 계절·상권·다른 마케팅이 섞입니다. <b>저희 효과만 분리해 주장하지 않겠습니다.</b></span></div>
+  <div class="foot"><span>7. 비용과 경계</span><span class="num">17</span></div>
+</article></section>
+
+<!-- 18 요금 -->
+<section class="shell"><article class="slide light">
+  <div class="top"><div class="bd">소담<i>SODAM</i></div><div class="cr">7. 비용과 경계</div></div>
+  <div class="eye">요금</div>
+  <h2 class="ttl">매장당 <em>월 9,900원</em>부터. 숨은 비용은 없습니다.</h2>
+  <div class="led">
+    <div class="r h" style="grid-template-columns:1fr .8fr 2.2fr"><div>요금제</div><div>월 이용료</div><div>포함 범위</div></div>
+    <div class="r" style="grid-template-columns:1fr .8fr 2.2fr">
+      <div class="k">베이직<small>게임을 돌리는 데 필요한 전부</small></div><div class="amt">9,900원</div>
+      <div class="v">윷놀이 게임, QR 이벤트, 상품·확률 설정, 쿠폰 발급/사용, 직원 PIN, 기본 통계</div></div>
+    <div class="r" style="grid-template-columns:1fr .8fr 2.2fr">
+      <div class="k">스탠다드<small>언제 붐비는지 보고 싶을 때</small></div><div class="amt">19,900원</div>
+      <div class="v">베이직 전부 + 시간대·요일·상품별 상세 분석, CSV 내보내기, 안내물 문구, AI 안내 문구·운영 리포트</div></div>
+    <div class="r" style="grid-template-columns:1fr .8fr 2.2fr">
+      <div class="k">프로<small>운영을 맡기고 싶을 때</small></div><div class="amt">29,900원</div>
+      <div class="v">스탠다드 전부 + AI 개선 제안, AI 매니저 대화, 주간 리포트 자동 생성</div></div>
+    <div class="r" style="grid-template-columns:1fr .8fr 2.2fr">
+      <div class="k" style="color:var(--alert)">포함되지 않는 것</div><div class="v">—</div>
+      <div class="v">상품 원가(매장 부담) · 안내물 인쇄비 · 문자/알림톡 발송(현재 미제공) · 부가세 처리 방식(사업자등록 후 확정)</div></div>
+  </div>
+  <div class="imp"><b>결제</b><span>계좌 자동이체. <b class="warn">세금계산서는 사업자등록 완료 후 발행합니다.</b> 현재 신청 예정 단계임을 밝힙니다.</span></div>
+  <div class="foot"><span>7. 비용과 경계</span><span class="num">18</span></div>
+</article></section>
+
+<!-- 19 실측 -->
+<section class="shell"><article class="slide light">
+  <div class="top"><div class="bd">소담<i>SODAM</i></div><div class="cr">7. 비용과 경계</div></div>
+  <div class="eye">확장성 실측</div>
+  <h2 class="ttl">매장이 50개가 되어도 <em>구조가 흔들리지 않습니다.</em></h2>
+  <p class="sub">아래는 추정이 아니라 실제 측정값입니다. 유리하게 다듬지 않았습니다.</p>
+  <div class="led">
+    <div class="r h" style="grid-template-columns:1.4fr 1fr 1fr 1fr"><div>측정 항목</div><div>낮음 (30회/일)</div><div>보통 (60회/일)</div><div>높음 (100회/일)</div></div>
+    <div class="r" style="grid-template-columns:1.4fr 1fr 1fr 1fr">
+      <div class="k">월 게임 수<small>50개 매장 합계</small></div><div class="amt">45,000</div><div class="amt">90,000</div><div class="amt">150,000</div></div>
+    <div class="r" style="grid-template-columns:1.4fr 1fr 1fr 1fr">
+      <div class="k">월 API 호출</div><div class="v">270,000회</div><div class="v">540,000회</div><div class="v">900,000회</div></div>
+    <div class="r" style="grid-template-columns:1.4fr 1fr 1fr 1fr">
+      <div class="k">월 DB 증가</div><div class="v">43.2 MB</div><div class="v">86.4 MB</div><div class="v">144.1 MB</div></div>
+    <div class="r" style="grid-template-columns:1.4fr 1fr 1fr 1fr">
+      <div class="k">월 전송량<small>재접속 비율에 따른 범위</small></div><div class="v">20.9 ~ 69.0 GB</div><div class="v">41.7 ~ 138.1 GB</div><div class="v">69.5 ~ 230.1 GB</div></div>
+    <div class="r" style="grid-template-columns:1.4fr 1fr 1fr 1fr">
+      <div class="k">10만 행에서 목록 조회</div><div class="v">0.133 ms</div><div class="v">0.133 ms</div><div class="v">0.133 ms</div></div>
+  </div>
+  <div class="imp"><b>측정 조건</b><span>운영용 Docker 환경 · 헤드리스 브라우저 실측. <b class="warn">통신망·실기기 조건은 아직 측정하지 않았습니다.</b></span></div>
+  <div class="foot"><span>7. 비용과 경계</span><span class="num">19</span></div>
+</article></section>
+
+<!-- 20 결정 슬라이드 -->
+<section class="shell"><article class="slide dark">
+  <div class="top"><div class="bd">소담<i>SODAM</i></div><div class="cr">8. 첫 달 무료 → 유료 전환</div></div>
+  <div class="eye">요청</div>
+  <h2 class="ttl">첫 달은 <em>저희가 검증 비용을 집니다.</em></h2>
+  <div class="flow">
+    <div class="step on"><div class="t">0단계 · 계약 전</div><h4>사업주 테스트<br>20회 제공</h4><p>본부 담당자와 매장 사업주가 직접 20회 던져보고 판단합니다. 손님에게 열기 전입니다.</p></div>
+    <div class="step on"><div class="t">1단계 · 시작</div><h4>첫 참여일부터<br>1개월 무료</h4><p>가입일이 아니라 <b>손님 첫 참여일</b>부터 셉니다. 준비 기간이 무료 기간을 깎지 않습니다.</p></div>
+    <div class="step on"><div class="t">2단계 · 전환</div><h4>무료 종료 시점에<br>결정</h4><p>계좌 자동이체로 전환됩니다. 전환 전 사전 고지 시점은 계약서에 명시합니다.</p></div>
+    <div class="step on"><div class="t">3단계 · 해지</div><h4>다음 결제일<br>전날까지 이용</h4><p>중도 해지해도 이미 낸 기간은 끝까지 씁니다. <b>위약금은 없습니다.</b></p></div>
+  </div>
+  <div class="imp"><b>이 요청의 뜻</b><span><b>성과 근거가 없는 쪽이 비용을 집니다.</b> 첫 달 뒤에 판단하십시오.</span></div>
+  <div class="foot"><span>8. 첫 달 무료 → 유료 전환</span><span class="num">20</span></div>
+</article></section>
+
+<!-- 21 위험 등록부 -->
+<section class="shell"><article class="slide light">
+  <div class="top"><div class="bd">소담<i>SODAM</i></div><div class="cr">9. 위험과 마무리</div></div>
+  <div class="eye">위험 등록부</div>
+  <h2 class="ttl">잘 안 될 경우를 <em>먼저 적어둡니다.</em></h2>
+  <div class="led">
+    <div class="r h" style="grid-template-columns:1.3fr 1.2fr 2fr"><div>위험</div><div>신호</div><div>대응</div></div>
+    <div class="r" style="grid-template-columns:1.3fr 1.2fr 2fr">
+      <div class="k" style="color:var(--alert)">해지 시 손님 쿠폰 소멸<small>가장 아픈 지점</small></div>
+      <div class="v">해지 신청 시점에 미사용 쿠폰이 남아 있음</div>
+      <div class="v">다음 결제일 전날까지 서비스가 유지되므로 그 기간에 소진 안내를 합니다. 남은 쿠폰이 많으면 해지 시점을 조정하시기를 권합니다. <b class="warn">그 이후 미사용 쿠폰은 소멸합니다.</b></div></div>
+    <div class="r" style="grid-template-columns:1.3fr 1.2fr 2fr">
+      <div class="k">참여가 저조함</div><div class="v">첫 2주 참여 수가 기대 이하</div>
+      <div class="v">QR 위치, 직원 안내 문구, 상품 등급 구성을 함께 조정합니다. 무료 기간 안에 조정할 수 있습니다.</div></div>
+    <div class="r" style="grid-template-columns:1.3fr 1.2fr 2fr">
+      <div class="k">직원이 번거로워함</div><div class="v">현장에서 PIN 입력을 미룸</div>
+      <div class="v"><b>직원 동선이 1회를 넘으면 저희 설계 실패입니다.</b> 원인을 확인하고 고치지 못하면 해지를 권합니다.</div></div>
+    <div class="r" style="grid-template-columns:1.3fr 1.2fr 2fr">
+      <div class="k">플랫폼 정책 변경</div><div class="v">네이버 플레이스 정책 변경</div>
+      <div class="v">이벤트 방식 조정 또는 서비스 중단이 필요할 수 있습니다. 통제 밖 위험임을 미리 밝힙니다.</div></div>
+    <div class="r" style="grid-template-columns:1.3fr 1.2fr 2fr">
+      <div class="k">사업자등록 미완료</div><div class="v">계약 시점에 등록 진행 중</div>
+      <div class="v">세금계산서 발행은 등록 완료 후 가능합니다. 계약 일정에 이 점을 반영해 주십시오.</div></div>
+  </div>
+  <div class="foot"><span>9. 위험과 마무리</span><span class="num">21</span></div>
+</article></section>
+
+<!-- 22 마무리 -->
+<section class="shell"><article class="slide dark big">
+  <div class="eye">마무리</div>
+  <p class="q">효과는 아직 증명하지 못했습니다.<br><em>위험은 이미 없앴습니다.</em><br>첫 달은 저희가 지겠습니다.</p>
+  <div class="why">
+    <div><h4>01 · 손님이 의심하지 않습니다</h4><p>서버가 결과를 먼저 정하고 화면은 그대로 멈춥니다. 확률은 손님에게 공개합니다.</p></div>
+    <div><h4>02 · 직원 손이 한 번만 갑니다</h4><p>게임 시작에 직원이 필요 없습니다. 쿠폰 사용 시 PIN 한 번뿐입니다.</p></div>
+    <div><h4>03 · 개인정보가 저절로 지워집니다</h4><p>암호화 저장, 120일 뒤 자동 익명화. 사람이 기억해서 지우는 구조가 아닙니다.</p></div>
+  </div>
+  <div class="imp" style="border-top-color:var(--wood-light)">
+    <b>다음 단계</b>
+    <span>① 무료 시작 매장·시점 결정 &nbsp;·&nbsp; ② 사업주 테스트 20회 &nbsp;·&nbsp; ③ QR 설치 후 첫 참여일부터 1개월</span>
+  </div>
+  <div class="foot"><span>소담 · 이호영 · 010-9352-3827 · c65621@gmail.com</span><span class="num">22</span></div>
+</article></section>
+
+<!-- 23 부록 품의용 -->
+<section class="shell"><article class="slide light">
+  <div class="top"><div class="bd">소담<i>SODAM</i></div><div class="cr">부록 A · 내부 보고용 한 장 요약</div></div>
+  <h2 class="ttl" style="font-size:44px">한 장 요약</h2>
+  <div class="led">
+    <div class="r" style="grid-template-columns:.8fr 3fr"><div class="k">무엇을</div><div class="v">네이버 플레이스 리뷰 작성 손님에게 매장이 그 자리에서 윷놀이로 보상을 주는 도구. 웹 기반, 손님 앱 설치·로그인 없음.</div></div>
+    <div class="r" style="grid-template-columns:.8fr 3fr"><div class="k">왜 지금</div><div class="v">리뷰 요청이 직원 감정노동으로만 처리되고 측정되지 않는다. 보상을 걸면 "좋은 리뷰 요구" 위치에 서게 되고, 추첨 방식은 조작 의심을 남긴다.</div></div>
+    <div class="r" style="grid-template-columns:.8fr 3fr"><div class="k">해결</div><div class="v">서버가 결과를 먼저 확정하고 화면이 그대로 재생 · 직원 개입은 쿠폰 사용 PIN 1회 · 별점/내용을 시스템이 읽지 않음 · 개인정보 120일 자동 익명화.</div></div>
+    <div class="r" style="grid-template-columns:.8fr 3fr"><div class="k">비용</div><div class="v">매장당 월 9,900 / 19,900 / 29,900원. 상품 원가·인쇄비 별도. 계좌 자동이체.</div></div>
+    <div class="r" style="grid-template-columns:.8fr 3fr"><div class="k">요청</div><div class="v">사업주 테스트 20회 → 손님 첫 참여일부터 1개월 무료 → 이후 유료 전환. 위약금 없음.</div></div>
+    <div class="r" style="grid-template-columns:.8fr 3fr"><div class="k" style="color:var(--alert)">알아야 할 것</div><div class="v"><b class="warn">① 매장 실증 성과 데이터 없음 ② 해지 시 미사용 쿠폰 소멸</b> ③ 소담 사업자등록 신청 예정 단계 ④ 개인정보 문구 법적 검토 미완료</div></div>
+  </div>
+  <div class="foot"><span>부록 A</span><span class="num">23</span></div>
+</article></section>
+
+<!-- 24 부록 실측 -->
+<section class="shell"><article class="slide light">
+  <div class="top"><div class="bd">소담<i>SODAM</i></div><div class="cr">부록 B · 기술 검토용 실측</div></div>
+  <h2 class="ttl" style="font-size:44px">실측 자료</h2>
+  <div class="led">
+    <div class="r h" style="grid-template-columns:1.4fr 1fr 2fr"><div>항목</div><div>측정값</div><div>조건</div></div>
+    <div class="r" style="grid-template-columns:1.4fr 1fr 2fr"><div class="k">고객 1회 완주 전송량</div><div class="amt">1.53 MB</div><div class="v">46 요청 · 백엔드 API 6회 · 최초 접속(캐시 없음)</div></div>
+    <div class="r" style="grid-template-columns:1.4fr 1fr 2fr"><div class="k">쿠폰 재접속 전송량</div><div class="amt">4.4 KB</div><div class="v">캐시 보유 상태에서 쿠폰 화면만 다시 열 때</div></div>
+    <div class="r" style="grid-template-columns:1.4fr 1fr 2fr"><div class="k">목록 조회 (10만 행)</div><div class="amt">0.133 ms</div><div class="v">DB 실행 시간. 인덱스 역방향 스캔, 50행 페이지</div></div>
+    <div class="r" style="grid-template-columns:1.4fr 1fr 2fr"><div class="k">개인정보 익명화</div><div class="amt">1,000건/일</div><div class="v">한국 시간 매일 03:15. 121일차부터. 유효 미사용 쿠폰 제외</div></div>
+    <div class="r" style="grid-template-columns:1.4fr 1fr 2fr"><div class="k">게임 화면 번들</div><div class="amt">0.85 MB</div><div class="v">brotli 압축 기준. 3D 물리·렌더링 포함</div></div>
+  </div>
+  <div class="imp"><b>측정 한계</b><span>운영용 Docker + 헤드리스 브라우저 기준입니다. 통신망(LTE/5G), 실기기 브라우저, 클라우드 엣지 조건은 아직 측정하지 않았습니다.</span></div>
+  <div class="foot"><span>부록 B</span><span class="num">24</span></div>
+</article></section>
+
+</main>
+
+<div class="hint" id="hint">가로로 돌리고 두 손가락으로 확대하면 읽기 편합니다</div>
+<div class="nowbar" aria-hidden="true"><b id="nowNum">1</b><span>/ 24</span></div>
+
+<script>
+function fit(){
+  var pad = window.innerWidth < 900 ? 0 : 80;
+  document.documentElement.style.setProperty('--stage', Math.min(1,(window.innerWidth-pad)/1920));
+}
+fit(); window.addEventListener('resize', fit);
+var shells=[].slice.call(document.querySelectorAll('.shell'));
+var numEl=document.getElementById('nowNum'), hint=document.getElementById('hint');
+if('IntersectionObserver' in window){
+  var io=new IntersectionObserver(function(es){es.forEach(function(e){
+    if(e.isIntersecting) numEl.textContent=shells.indexOf(e.target)+1;});},{threshold:0.5});
+  shells.forEach(function(el){io.observe(el);});
+}
+window.addEventListener('scroll',function once(){
+  if(hint) hint.classList.add('gone');
+  window.removeEventListener('scroll',once);
+},{passive:true});
+</script>
