@@ -11,5 +11,8 @@ frontend/tsconfig.tsbuildinfo
 .claude/skills/r3f-*
 # impeccable live 모드의 로컬 세션 상태
 .impeccable/live/sessions/
+.impeccable/review/
+.playwright-cli/
+output/playwright/
 # 로컬 PDF 렌더링 검수 산출물
 tmp/
