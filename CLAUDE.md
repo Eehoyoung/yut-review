@@ -321,10 +321,15 @@ DB를 버려도 되는 로컬이라면 `docker compose down -v` 후 새 키로 �
 이유는 그쪽이 매장까지 만들기 때문이다.
 
 ```bash
-# .env.production 에 한시적으로 넣고 재기동한다.
-OPERATOR_BOOTSTRAP_EMAIL=operator@sodamlabs.kr
-OPERATOR_BOOTSTRAP_PASSWORD=<영문+숫자 10자 이상>
+sh scripts/create-operator.sh                      # operator@sodamlabs.kr
+sh scripts/create-operator.sh admin@example.com    # 이메일 지정
 ```
+
+`generate-production-secrets.sh`와 달리 **비밀번호를 화면에 한 번 찍는다.** 저쪽 값들은 사람이
+볼 일이 없어서 감추는 것이 이득이지만, 이 값은 사람이 로그인에 써야 한다. 감추면 쓸 수가 없다.
+
+그래서 이 스크립트로는 비밀번호를 **바꿀 수 없다.** 잊었으면 DB에서 그 계정의 role을
+STORE_ADMIN으로 내린 뒤 다시 돌린다.
 
 운영자가 **한 명이라도 있으면 아무 일도 하지 않는다.** 이메일이 아니라 역할 수로 보기 때문에,
 운영자가 권한을 잃은 뒤 재기동에서 조용히 되돌아오는 일이 없다. 값은 로그에 찍지 않는다.
