@@ -298,6 +298,18 @@ DB를 버려도 되는 로컬이라면 `docker compose down -v` 후 새 키로 �
   다운로드(`AdminController.poster`)가 없으면 그때 만든다. `provision`에 포스터 생성을 되돌리지 말 것.
 - 화면은 설정을 복제하지 않는다. 가입 결과는 서버가 준 `approvalRequired`를 그대로 따른다.
 
+## QR 안내물 3종 (2026-09-23)
+
+`StorePosterService.render(PosterVariant, ...)` 하나가 기본(GAME)·이벤트(EVENT)·재방문(REVISIT)을 그린다.
+뼈대(상호 → 제목 → QR 판 → 3단계 → 하단 띠)와 QR 판 위치·크기는 셋이 같고 색·장식·문구만 다르다.
+
+- **저장하는 것은 GAME뿐이다.** 나머지는 `GET /poster?variant=`에서 그때 그린다. 저장본의 origin을 쓰므로
+  "안내물 다시 만들기"가 세 장 모두의 주소를 바꾼다. `store_posters`에 variant 행을 늘리지 말 것.
+- 큰 글자(상호·제목·단계)는 번들한 주아체(`resources/fonts/Jua-Regular.ttf`, OFL), 작은 안내문은 `NanumSquareRound` → 맑은 고딕 → 기본 sans. 인쇄물 바탕이 밝은 톤으로 바뀌었다
+  (예전엔 네이비 전면). 기존 매장의 저장본은 "안내물 다시 만들기"를 눌러야 새 디자인이 된다.
+- 리뷰·별점은 어느 안내물에도 참여 조건으로 적지 않는다. 문구는 해요체.
+- `CoreRulesTest`가 세 종류 모두 QR이 실제로 디코딩되는지 본다. 바탕색이나 장식을 바꾸면 이 테스트를 돌릴 것.
+
 ## 로그아웃
 
 `features/admin/LogoutButton.tsx` 하나다. `/admin`, `AdminFrame`, `OperatorFrame` 세 헤더에 붙는다.

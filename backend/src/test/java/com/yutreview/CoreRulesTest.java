@@ -121,6 +121,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         byte[] png=posterService.bytes(poster);var image=ImageIO.read(new ByteArrayInputStream(png));
         assertEquals("https://field-test.example",poster.publicOrigin);assertEquals(StorePosterService.WIDTH,image.getWidth());assertEquals(StorePosterService.HEIGHT,image.getHeight());
         var decoded=new MultiFormatReader().decode(new BinaryBitmap(new HybridBinarizer(new BufferedImageLuminanceSource(image))));assertEquals("https://field-test.example/s/"+p.storeToken(),decoded.getText());
+        // 세 종류 모두 같은 주소의 QR이 실제로 읽혀야 한다. 바탕색이 달라도 스캔은 같아야 한다.
+        for(PosterVariant v:PosterVariant.values()){var variantImage=ImageIO.read(new ByteArrayInputStream(StorePosterService.render(v,p.store().name,"https://field-test.example/s/"+p.storeToken(),null)));
+            assertEquals(StorePosterService.HEIGHT,variantImage.getHeight());assertEquals("https://field-test.example/s/"+p.storeToken(),new MultiFormatReader().decode(new BinaryBitmap(new HybridBinarizer(new BufferedImageLuminanceSource(variantImage)))).getText(),v.name());}
         assertEquals("DUPLICATE_EMAIL",assertThrows(AppException.class,()->signup.signUp(new AdminSignupService.Request("secret1234","secret1234","owner@test.com","김대표","01022223334","다른상회","1234567891"))).code);
         assertEquals("DUPLICATE_BUSINESS_NUMBER",assertThrows(AppException.class,()->signup.signUp(new AdminSignupService.Request("secret1234","secret1234","other@test.com","김대표","01022223334","다른상회","1234567890"))).code);
         assertEquals("PASSWORD_MISMATCH",assertThrows(AppException.class,()->signup.signUp(new AdminSignupService.Request("secret1234","secret9999","new@test.com","김대표","01022223334","다른상회","1234567892"))).code);

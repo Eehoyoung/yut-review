@@ -1154,6 +1154,47 @@ form > .success {
   gap: var(--s3);
 }
 
+/* 안내물 종류 선택. 라디오라 방향키로 옮겨 다닐 수 있다. */
+.poster-variants {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--s1);
+  margin: 0;
+  padding: var(--s1);
+  border: 1px solid var(--line-control);
+  border-radius: var(--r-md);
+  background: var(--panel-2);
+}
+
+.poster-variants label { position: relative; }
+
+.poster-variants input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  margin: 0;
+  cursor: pointer;
+}
+
+.poster-variants span {
+  display: grid;
+  place-items: center;
+  min-height: 44px;
+  border-radius: calc(var(--r-md) - 4px);
+  font-weight: 700;
+  color: var(--ink-2);
+}
+
+.poster-variants input:checked + span {
+  background: var(--brand);
+  color: var(--brand-ink);
+}
+
+.poster-variants input:focus-visible + span {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
 .wrap-anywhere { overflow-wrap: anywhere; }
 
 @media (max-width: 700px) {

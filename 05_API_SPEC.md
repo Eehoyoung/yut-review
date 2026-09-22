@@ -651,11 +651,13 @@ POST /api/admin/stores/{storeId}/qr-codes/regenerate
 
 ## 매장 QR 안내물
 ```http
-GET  /api/admin/stores/{storeId}/poster
+GET  /api/admin/stores/{storeId}/poster?variant=GAME|EVENT|REVISIT
 POST /api/admin/stores/{storeId}/poster/regenerate
 ```
 
 `GET /poster`는 서버에 저장된 PNG와 함께 `X-Poster-Public-Origin` 응답 헤더를 반환한다. 관리 화면은 이 값으로 실제 저장본의 QR 주소를 표시하고 현재 접속 origin과 다르면 재생성을 안내한다.
+
+`variant`는 생략하면 `GAME`(기본 안내물)이다. `EVENT`(이벤트)·`REVISIT`(재방문)은 저장하지 않고 요청 때 그리며, 저장본의 origin과 현재 활성 QR 토큰을 써서 세 장이 늘 같은 주소를 가리킨다. 알 수 없는 값은 400 `VALIDATION_ERROR`다. 어느 안내물에도 리뷰·별점을 참여 조건으로 적지 않는다.
 
 - `GET`은 인증된 매장 관리자에게 `image/png` 첨부 파일을 반환한다.
 - `POST`는 현재 공개 origin, 현재 매장명, 활성 QR 토큰으로 서버 저장본을 다시 만든다.

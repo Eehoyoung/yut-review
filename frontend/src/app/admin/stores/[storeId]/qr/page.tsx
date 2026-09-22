@@ -10,10 +10,18 @@ import { Dialog } from "@/features/ui/Dialog";
 
 type Qr = { token: string; status?: string };
 type Poster = { blob: Blob; publicOrigin: string };
+type Variant = "GAME" | "EVENT" | "REVISIT";
 
-async function posterBlob(storeId: string) {
+// 문구는 서버가 그린다. 여기서는 사장이 어느 것을 고를지 알 수 있을 만큼만 적는다.
+const variants: { value: Variant; label: string; hint: string }[] = [
+  { value: "GAME", label: "기본", hint: "윷 한 판 던져요~ 상품이 기다려요. 언제 붙여도 좋은 기본 안내물이에요." },
+  { value: "EVENT", label: "이벤트", hint: "만나서 반가워요. 깜짝 선물 기대하세요! 이벤트 기간에 눈에 띄게 붙이기 좋아요." },
+  { value: "REVISIT", label: "재방문", hint: "감사의 선물 받아 가세요. 계산대나 출입문처럼 다시 오실 분이 보는 자리에 어울려요." },
+];
+
+async function posterBlob(storeId: string, variant: Variant) {
   const token = sessionStorage.getItem("adminToken");
-  const response = await fetch(`/api/admin/stores/${storeId}/poster`, {
+  const response = await fetch(`/api/admin/stores/${storeId}/poster?variant=${variant}`, {
     credentials: "include",
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
@@ -31,8 +39,9 @@ export default function QrPage() {
   const [preview, setPreview] = useState("");
   const [message, setMessage] = useState("");
   const [askingRegenQr, setAskingRegenQr] = useState(false);
+  const [variant, setVariant] = useState<Variant>("GAME");
   const q = useQuery({ queryKey: ["qr", id], queryFn: () => api<Qr[]>(`/admin/stores/${id}/qr-codes`) });
-  const poster = useQuery({ queryKey: ["poster", id], queryFn: () => posterBlob(id) });
+  const poster = useQuery({ queryKey: ["poster", id, variant], queryFn: () => posterBlob(id, variant) });
   const regenerate = useMutation({
     mutationFn: () => api(`/admin/stores/${id}/poster/regenerate`, { method: "POST" }),
     onSuccess: async () => {
@@ -50,7 +59,7 @@ export default function QrPage() {
   });
 
   useEffect(() => {
-    if (!poster.data) return;
+    if (!poster.data) { setPreview(""); return; }
     const next = URL.createObjectURL(poster.data.blob);
     setPreview(next);
     return () => URL.revokeObjectURL(next);
@@ -60,14 +69,14 @@ export default function QrPage() {
     if (!preview) return;
     const anchor = document.createElement("a");
     anchor.href = preview;
-    anchor.download = `매장_${id}_A6_QR.png`;
+    anchor.download = `매장_${id}_${variant}_A6_QR.png`;
     anchor.click();
   };
 
   const share = async () => {
     if (!poster.data) return;
     setMessage("");
-    const file = new File([poster.data.blob], `매장_${id}_A6_QR.png`, { type: "image/png" });
+    const file = new File([poster.data.blob], `매장_${id}_${variant}_A6_QR.png`, { type: "image/png" });
     if (!navigator.share || !navigator.canShare?.({ files: [file] })) {
       download();
       setMessage("공유할 수 없어 이미지로 저장했어요.");
@@ -104,8 +113,18 @@ export default function QrPage() {
         <div className="stack poster-controls">
           <div>
             <h2>매장용 A6 안내물</h2>
-            <p className="lead">가입할 때 자동으로 만든 안내물입니다. 이미지로 저장하거나 공유하세요.</p>
+            <p className="lead">세 가지 안내물 모두 같은 QR이에요. 자리에 맞는 것을 골라 저장하거나 공유하세요.</p>
           </div>
+          <fieldset className="poster-variants">
+            <legend className="visually-hidden">안내물 종류</legend>
+            {variants.map((item) => (
+              <label key={item.value}>
+                <input type="radio" name="poster-variant" value={item.value} checked={variant === item.value} onChange={() => { setVariant(item.value); setMessage(""); }} />
+                <span>{item.label}</span>
+              </label>
+            ))}
+          </fieldset>
+          <p className="notice">{variants.find((item) => item.value === variant)?.hint}</p>
           <div className="poster-actions">
             <button className="btn" onClick={download} disabled={!preview}>이미지 저장</button>
             <button className="btn secondary" onClick={share} disabled={!poster.data}>공유</button>
