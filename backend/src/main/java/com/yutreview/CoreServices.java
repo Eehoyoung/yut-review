@@ -88,6 +88,18 @@ final class Inputs {
         if(t.isEmpty())throw new AppException("INVALID_REQUEST",message);
         return t;
     }
+    /**
+     * 개업일자. 숫자만 남겨 YYYYMMDD 8자리.
+     *
+     * 국세청이 하이픈을 받지 않는다. 화면도 막지만 서버가 다시 정규화한다 — 정규식을 화면마다
+     * 새로 적지 않는다는 규칙이 여기에도 적용된다.
+     */
+    static String openingDate(String v){
+        String d=digits(v);
+        if(!d.matches("(19|20)\\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\\d|3[01])"))
+            throw new AppException("INVALID_OPENING_DATE","개업일자를 YYYYMMDD 형식으로 입력해 주세요.");
+        return d;
+    }
     static void password(String password,String confirm){
         if(password==null||!password.equals(confirm))throw new AppException("PASSWORD_MISMATCH","비밀번호가 일치하지 않습니다.");
         if(password.length()<10||!password.matches(".*[A-Za-z].*")||!password.matches(".*\\d.*"))
@@ -239,27 +251,61 @@ final class Inputs {
     }
 }
 @Service class AdminSignupService {
-    record Request(String password,String passwordConfirm,String email,String ownerName,String phone,String storeName,String businessNumber,boolean termsAgreed,String termsVersion,boolean privacyAgreed,String privacyVersion,String marketingVersion,boolean yutReviewMarketing,boolean reviewPilotMarketing,boolean sodamMarketing){
-        Request(String password,String passwordConfirm,String email,String ownerName,String phone,String storeName,String businessNumber){this(password,passwordConfirm,email,ownerName,phone,storeName,businessNumber,true,LegalConsentPolicy.TERMS_VERSION,true,LegalConsentPolicy.ADMIN_PRIVACY_VERSION,LegalConsentPolicy.MARKETING_SMS_VERSION,false,false,false);}
-        Request(String password,String passwordConfirm,String email,String ownerName,String phone,String storeName,String businessNumber,boolean termsAgreed,String termsVersion,boolean privacyAgreed,String privacyVersion){this(password,passwordConfirm,email,ownerName,phone,storeName,businessNumber,termsAgreed,termsVersion,privacyAgreed,privacyVersion,LegalConsentPolicy.MARKETING_SMS_VERSION,false,false,false);}
+    /**
+     * `openingDate`는 국세청 진위확인에 필요한 세 값 중 하나다(번호·개업일자·대표자명).
+     * 검증이 꺼져 있으면 비어 있어도 된다. 기존 편의 생성자들이 빈 값을 넘기는 이유가 그것이다.
+     */
+    record Request(String password,String passwordConfirm,String email,String ownerName,String phone,String storeName,String businessNumber,boolean termsAgreed,String termsVersion,boolean privacyAgreed,String privacyVersion,String marketingVersion,boolean yutReviewMarketing,boolean reviewPilotMarketing,boolean sodamMarketing,String openingDate){
+        Request(String password,String passwordConfirm,String email,String ownerName,String phone,String storeName,String businessNumber){this(password,passwordConfirm,email,ownerName,phone,storeName,businessNumber,true,LegalConsentPolicy.TERMS_VERSION,true,LegalConsentPolicy.ADMIN_PRIVACY_VERSION,LegalConsentPolicy.MARKETING_SMS_VERSION,false,false,false,"");}
+        Request(String password,String passwordConfirm,String email,String ownerName,String phone,String storeName,String businessNumber,boolean termsAgreed,String termsVersion,boolean privacyAgreed,String privacyVersion){this(password,passwordConfirm,email,ownerName,phone,storeName,businessNumber,termsAgreed,termsVersion,privacyAgreed,privacyVersion,LegalConsentPolicy.MARKETING_SMS_VERSION,false,false,false,"");}
+        /** 개업일자 없이 부르던 자리. 검증이 꺼져 있으면 그 값을 쓰지 않으므로 그대로 둔다. */
+        Request(String password,String passwordConfirm,String email,String ownerName,String phone,String storeName,String businessNumber,boolean termsAgreed,String termsVersion,boolean privacyAgreed,String privacyVersion,String marketingVersion,boolean yutReviewMarketing,boolean reviewPilotMarketing,boolean sodamMarketing){this(password,passwordConfirm,email,ownerName,phone,storeName,businessNumber,termsAgreed,termsVersion,privacyAgreed,privacyVersion,marketingVersion,yutReviewMarketing,reviewPilotMarketing,sodamMarketing,"");}
     }
-    private final AdminUserRepository admins;private final StoreRepository stores;private final StoreProvisioningService provisioning;private final PasswordEncoder encoder;private final Clock clock;private final MarketingConsentService marketingConsents;private final SignupAttemptLimiter limiter;
-    AdminSignupService(AdminUserRepository admins,StoreRepository stores,StoreProvisioningService provisioning,PasswordEncoder encoder,Clock clock,MarketingConsentService marketingConsents,SignupAttemptLimiter limiter){this.admins=admins;this.stores=stores;this.provisioning=provisioning;this.encoder=encoder;this.clock=clock;this.marketingConsents=marketingConsents;this.limiter=limiter;}
-    @Transactional StoreProvisioningService.Provisioned signUp(Request r){return signUp(r,"http://localhost:8088",null);}
-    @Transactional StoreProvisioningService.Provisioned signUp(Request r,String publicOrigin){return signUp(r,publicOrigin,null);}
-    @Transactional StoreProvisioningService.Provisioned signUp(Request r,String publicOrigin,String clientIp){
+    private final AdminUserRepository admins;private final StoreRepository stores;private final StoreProvisioningService provisioning;private final PasswordEncoder encoder;private final Clock clock;private final MarketingConsentService marketingConsents;private final SignupAttemptLimiter limiter;private final BusinessRegistryService businessRegistry;
+    /**
+     * 쓰기 구간만 감싸는 트랜잭션.
+     *
+     * 메서드 전체에 `@Transactional`을 두면 국세청 호출이 그 안으로 들어간다. 응답을 기다리는
+     * 동안 DB 커넥션을 붙들어 풀이 마른다(AI 공급자 호출에서 같은 규칙을 이미 적어 뒀다).
+     * 계정·매장·멤버십·QR의 원자성은 이 템플릿이 그대로 보장한다.
+     */
+    private final org.springframework.transaction.support.TransactionTemplate writes;
+    AdminSignupService(AdminUserRepository admins,StoreRepository stores,StoreProvisioningService provisioning,PasswordEncoder encoder,Clock clock,MarketingConsentService marketingConsents,SignupAttemptLimiter limiter,BusinessRegistryService businessRegistry,org.springframework.transaction.PlatformTransactionManager transactions){this.admins=admins;this.stores=stores;this.provisioning=provisioning;this.encoder=encoder;this.clock=clock;this.marketingConsents=marketingConsents;this.limiter=limiter;this.businessRegistry=businessRegistry;this.writes=new org.springframework.transaction.support.TransactionTemplate(transactions);}
+    StoreProvisioningService.Provisioned signUp(Request r){return signUp(r,"http://localhost:8088",null);}
+    StoreProvisioningService.Provisioned signUp(Request r,String publicOrigin){return signUp(r,publicOrigin,null);}
+
+    /**
+     * 순서가 곧 비용 순서다. 형식 → 한도 → 중복 → 국세청 → BCrypt와 행 생성.
+     *
+     * 중복 검사를 국세청 호출보다 먼저 두는 것은 이미 등록된 번호로 외부 호출을 태우지 않기
+     * 위해서다. 국세청 호출은 이 흐름에서 가장 느리고 유일하게 할당량이 있는 자원이다.
+     */
+    StoreProvisioningService.Provisioned signUp(Request r,String publicOrigin,String clientIp){
         LegalConsentPolicy.requireAdmin(r.termsAgreed,r.termsVersion,r.privacyAgreed,r.privacyVersion);
         String email=Inputs.email(r.email),owner=Inputs.required(r.ownerName,"대표자 이름을 입력해 주세요."),
             storeName=Inputs.required(r.storeName,"매장 상호명을 입력해 주세요."),
             phone=Inputs.phone(r.phone),business=Inputs.businessNumber(r.businessNumber);
         Inputs.password(r.password,r.passwordConfirm);
+        // 검증이 꺼져 있으면 개업일자를 요구하지 않는다. 켜면 세 값이 다 있어야 국세청이 답한다.
+        String openingDate=businessRegistry.enabled()?Inputs.openingDate(r.openingDate()):"";
         // BCrypt와 행 생성 전에 센다. 형식 검증만 통과한 요청이 매번 해시 비용을 태우면 그 자체가 부하다.
         limiter.attempt(clientIp,business);
         if(admins.existsByEmail(email))throw new AppException("DUPLICATE_EMAIL","이미 가입된 이메일입니다.");
         if(stores.existsByBusinessNumber(business))throw new AppException("DUPLICATE_BUSINESS_NUMBER","이미 등록된 사업자등록번호입니다.");
-        Instant now=clock.instant();AdminUser a=new AdminUser();a.email=email;a.passwordHash=encoder.encode(r.password);a.name=owner;a.phone=phone;a.role=AdminRole.STORE_ADMIN;a.termsVersion=r.termsVersion;a.termsAgreedAt=now;a.privacyVersion=r.privacyVersion;a.privacyAgreedAt=now;a.createdAt=now;admins.save(a);
-        marketingConsents.recordInitial(a,Map.of(MarketingService.YUT_REVIEW,r.yutReviewMarketing,MarketingService.REVIEW_PILOT,r.reviewPilotMarketing,MarketingService.SODAM,r.sodamMarketing),r.marketingVersion);
-        return provisioning.provision(a,storeName,phone,null,business,null,null,publicOrigin);
+        // 트랜잭션 밖이다. 이 줄을 아래 writes 블록 안으로 옮기지 말 것.
+        businessRegistry.verify(business,openingDate,owner);
+        return writes.execute(status->{
+            Instant now=clock.instant();AdminUser a=new AdminUser();a.email=email;a.passwordHash=encoder.encode(r.password);a.name=owner;a.phone=phone;a.role=AdminRole.STORE_ADMIN;a.termsVersion=r.termsVersion;a.termsAgreedAt=now;a.privacyVersion=r.privacyVersion;a.privacyAgreedAt=now;a.createdAt=now;admins.save(a);
+            marketingConsents.recordInitial(a,Map.of(MarketingService.YUT_REVIEW,r.yutReviewMarketing,MarketingService.REVIEW_PILOT,r.reviewPilotMarketing,MarketingService.SODAM,r.sodamMarketing),r.marketingVersion);
+            StoreProvisioningService.Provisioned p=provisioning.provision(a,storeName,phone,null,business,null,null,publicOrigin);
+            // 확인에 쓴 세 값을 매장에 묶어 둔다. 소유권이 넘어가도 이 매장이 어느 사업자로
+            // 확인됐는지는 남아야 한다.
+            stores.findById(p.store().id).ifPresent(st->{
+                st.representativeName=owner;
+                if(businessRegistry.enabled()){st.openingDate=openingDate;st.businessVerifiedAt=now;}
+            });
+            return p;
+        });
     }
 }
 @Service class StoreAccessService {

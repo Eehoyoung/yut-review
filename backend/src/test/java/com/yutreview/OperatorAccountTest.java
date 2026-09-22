@@ -24,6 +24,7 @@ class OperatorAccountTest {
     @Autowired StoreApprovalService approvals;
     @Autowired AdminSignupService signup;
     @Autowired StoreRepository stores;
+    @Autowired BusinessRegistryService businessRegistry;
     @Autowired PasswordEncoder encoder;
     @Autowired Clock clock;
 
@@ -178,6 +179,29 @@ class OperatorAccountTest {
         // 그래도 매장은 하나뿐이다.
         assertEquals(1, stores.findAll().stream()
                 .filter(st -> "3332220001".equals(st.businessNumber)).count());
+    }
+
+    /**
+     * 승인제를 껐을 때 남는 두 번째 방어선.
+     *
+     * 국세청 진위확인은 기본값이 꺼짐이다. 꺼져 있을 때 개업일자를 요구하면 기존 가입이 전부
+     * 막히고, 켜져 있을 때 요구하지 않으면 국세청이 411로 답해 모든 가입이 실패한다.
+     * 두 상태가 각각 맞게 도는지가 이 테스트가 보는 것이다.
+     */
+    @Test void openingDateIsOnlyRequiredWhenVerificationIsOn() {
+        // 기본값은 꺼짐이라 개업일자 없이도 가입된다.
+        assertFalse(businessRegistry.enabled());
+        StoreProvisioningService.Provisioned p = signup.signUp(new AdminSignupService.Request(
+                "secret1234", "secret1234", "nodate@test.com", "무날짜", "01022221111",
+                "무날짜상회", "2221110001"), "https://example.test", "203.0.113.95");
+
+        Store saved = stores.findById(p.store().id).orElseThrow();
+        // 대표자명은 검증 여부와 무관하게 매장에 묶인다. 소유권이 넘어가도 이 매장이 누구
+        // 이름으로 등록됐는지는 남아야 한다.
+        assertEquals("무날짜", saved.representativeName);
+        // 확인하지 않았으므로 확인 시각은 비어 있다. 이 값이 곧 "확인된 매장인가"다.
+        assertNull(saved.businessVerifiedAt);
+        assertNull(saved.openingDate);
     }
 
     private AdminUser operator(String email) {

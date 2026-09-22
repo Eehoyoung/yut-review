@@ -52,6 +52,18 @@ enum MarketingService { YUT_REVIEW, REVIEW_PILOT, SODAM }
     @Id @GeneratedValue(strategy=GenerationType.IDENTITY) Long id;
     @Column(nullable=false) String name;
     String businessNumber; @Column(nullable=false) String phone; String address; String naverPlaceUrl;
+    /**
+     * 국세청 진위확인에 쓴 대표자성명과 개업일자.
+     *
+     * 계정(AdminUser.name)이 아니라 매장에 둔다. 소유권 이전으로 계정이 바뀌어도 이 매장이
+     * 어느 사업자로 확인됐는지는 그대로 남아야 한다. 사업자등록번호와 한 쌍으로만 의미가 있다.
+     *
+     * 검증을 끄고 만든 매장은 비어 있다. 그래서 nullable이고, 있는지 여부가 곧 "확인된 매장인가"다.
+     */
+    @Column(name="representative_name",length=50) String representativeName;
+    /** YYYYMMDD. 국세청 규격이 그렇고, 날짜 연산을 하지 않아 문자열로 둔다. */
+    @Column(name="opening_date",length=8) String openingDate;
+    @Column(name="business_verified_at") Instant businessVerifiedAt;
     /** 안내물에 넣는 매장 한 줄. STANDARD 이상(브랜딩 권한)에서만 설정된다. */
     @Column(length=60) String posterTagline;
     @Column(nullable=false) String staffPinHash;

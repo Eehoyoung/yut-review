@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { FormEvent, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { api, errorMessage } from "@/lib/api";
 import { BUSINESS_NUMBER_LENGTH, PHONE_LENGTH, onlyDigits } from "@/features/normalize";
 import { ADMIN_PRIVACY_VERSION, MARKETING_SMS_VERSION, TERMS_VERSION, marketingServices } from "@/lib/legal";
@@ -47,6 +47,23 @@ const FIELDS: Field[] = [
 ];
 
 /**
+ * 국세청 진위확인이 켜져 있을 때만 붙는 칸.
+ *
+ * 켜고 끄는 것은 서버다(`app.business-verification.enabled`). 화면이 그 판단을 또 적으면
+ * 서버와 어긋나므로 `/admin/auth/signup-requirements`가 알려 준 대로만 한다.
+ *
+ * 국세청은 번호·개업일자·대표자명 셋을 함께 본다. 번호 하나만 맞아서는 통과하지 못한다.
+ */
+const OPENING_DATE: Field = {
+  key: "openingDate",
+  label: "개업일자",
+  type: "text",
+  hint: "사업자등록증에 적힌 날짜. '-' 없이 8자리 (예: 20200101)",
+  digits: 8,
+  inputMode: "numeric",
+};
+
+/**
  * 조사는 앞 글자의 받침으로 갈린다('연락처를' vs '이메일을'). 라벨이 일곱 개라
  * 문장을 손으로 적으면 어느 하나는 반드시 어긋난다.
  */
@@ -61,8 +78,8 @@ const hasFinalConsonant = (word: string) => {
  * id가 필요한 이유: 칸이 일곱 개라 안내 문구만 띄우면 정작 그 칸이 화면 밖에 있다.
  * 무엇이 문제인지 말하는 것과 거기로 데려다주는 것은 다른 일이다.
  */
-function problem(form: Record<string, string>, termsAgreed: boolean, privacyAgreed: boolean): { id: string; message: string } | null {
-  for (const f of FIELDS) {
+function problem(fields: Field[], form: Record<string, string>, termsAgreed: boolean, privacyAgreed: boolean): { id: string; message: string } | null {
+  for (const f of fields) {
     const value = (form[f.key] ?? "").trim();
     if (!value) return { id: f.key, message: `${f.label}${hasFinalConsonant(f.label) ? "을" : "를"} 입력해 주세요.` };
     if (f.digits && value.length !== f.digits)
@@ -82,6 +99,17 @@ export default function SignUp() {
   const [termsAgreed, setTermsAgreed] = useState(false);
   const [privacyAgreed, setPrivacyAgreed] = useState(false);
   const [marketing, setMarketing] = useState<Record<string, boolean>>({});
+
+  // 실패해도 가입을 막지 않는다. 그 경우 개업일자를 묻지 않고 보내고, 검증이 켜져 있으면
+  // 서버가 INVALID_OPENING_DATE로 되돌려 준다. 조회 한 번 실패가 가입 화면을 못 쓰게
+  // 만드는 것보다 낫다.
+  const requirements = useQuery({
+    queryKey: ["signup-requirements"],
+    queryFn: () => api<{ businessVerification: boolean }>("/admin/auth/signup-requirements"),
+    retry: false,
+  });
+  const fields = requirements.data?.businessVerification ? [...FIELDS, OPENING_DATE] : FIELDS;
+
   const signUp = useMutation({
     mutationFn: () => api<SignUpResult>("/admin/auth/signup", { method: "POST", body: JSON.stringify({ ...form, termsAgreed, privacyAgreed, termsVersion: TERMS_VERSION, privacyVersion: ADMIN_PRIVACY_VERSION, ...marketing, marketingVersion: MARKETING_SMS_VERSION }) }),
     onSuccess: setDone,
@@ -120,7 +148,7 @@ export default function SignUp() {
       </main>
     );
 
-  const blocked = problem(form, termsAgreed, privacyAgreed);
+  const blocked = problem(fields, form, termsAgreed, privacyAgreed);
 
   return (
     <main className="screen">
@@ -144,7 +172,13 @@ export default function SignUp() {
           document.getElementById(blocked.id)?.focus();
         }}
       >
-        {FIELDS.map((f) => (
+        {requirements.data?.businessVerification && (
+          <p className="notice" role="status">
+            국세청에 등록된 사업자등록번호·개업일자·대표자명이 모두 일치해야 가입됩니다.
+          </p>
+        )}
+
+        {fields.map((f) => (
           <div className="field" key={f.key}>
             <label htmlFor={f.key}>{f.label}</label>
             <input

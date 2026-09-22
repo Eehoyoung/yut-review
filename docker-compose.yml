@@ -29,6 +29,9 @@ services:
       # 첫 운영자 1회 주입. 비워 두면 아무 일도 하지 않는다.
       OPERATOR_BOOTSTRAP_EMAIL: ${OPERATOR_BOOTSTRAP_EMAIL:-}
       OPERATOR_BOOTSTRAP_PASSWORD: ${OPERATOR_BOOTSTRAP_PASSWORD:-}
+      # 국세청 사업자등록 진위확인. 키는 .env에만 두고 로그에 찍지 않는다.
+      BUSINESS_VERIFICATION_ENABLED: ${BUSINESS_VERIFICATION_ENABLED:-false}
+      NTS_SERVICE_KEY: ${NTS_SERVICE_KEY:-}
       # 매장 승인제. false면 가입 즉시 ACTIVE. 중복 사업자번호는 이 값과 무관하게 막힌다.
       STORE_APPROVAL_REQUIRED: ${STORE_APPROVAL_REQUIRED:-false}
       # 운영자 콘솔 접근 통제. false가 유일한 잠금 탈출구라 지우지 말 것.

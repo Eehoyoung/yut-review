@@ -51,6 +51,12 @@ app:
     staff-pin: ${FIELD_TEST_STAFF_PIN:}
   # 첫 운영자 한 명. app.bootstrap과 달리 매장을 만들지 않는다.
   # 운영자가 한 명이라도 있으면 무시되므로 값이 남아 있어도 계정이 되돌아오지 않는다.
+  # 국세청 사업자등록정보 진위확인(공공데이터포털). 번호·개업일자·대표자명 세 개를 함께 본다.
+  # 키가 없으면 켤 수 없다(기동 시 거부). 국세청에 닿지 못하면 가입을 막는다 — 열어 주면
+  # 장애 시간 동안 아무 번호나 들어온다.
+  business-verification:
+    enabled: ${BUSINESS_VERIFICATION_ENABLED:false}
+    service-key: ${NTS_SERVICE_KEY:}
   # 셀프 신청 매장을 운영자가 승인해야 열리게 할지. 2026-09-22에 기본값을 false로 내렸다.
   # 중복 사업자등록번호는 이 값과 무관하게 계속 막힌다. 심사 화면은 그대로 있어 true로 되돌아온다.
   store-approval-required: ${STORE_APPROVAL_REQUIRED:false}

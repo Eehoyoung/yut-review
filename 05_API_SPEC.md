@@ -403,6 +403,29 @@ DELETE /api/admin/operator/access/devices/{deviceId}
 `kind`는 `STORE` 또는 `ACCOUNT`다. `target`은 매장이면 매장명, 계정이면 **사건 시점의 이메일**이다
 (계정이 지워져도 누구였는지가 남아야 한다).
 
+### 사업자등록 진위확인
+
+`BUSINESS_VERIFICATION_ENABLED=true`면 가입(`POST /api/admin/auth/signup`)과 매장 추가
+(`POST /api/admin/stores`)가 국세청 진위확인을 지난다. **사업자등록번호 + 개업일자 + 대표자성명
+세 개가 모두 맞아야** 통과한다.
+
+`GET /api/admin/auth/signup-requirements` (인증 불필요) → `{"businessVerification": true|false}`.
+가입 화면이 개업일자 칸을 띄울지 여기서 정한다.
+
+| 코드 | HTTP | 언제 |
+|---|---|---|
+| `INVALID_OPENING_DATE` | 400 | 개업일자가 YYYYMMDD 8자리가 아니다 |
+| `BUSINESS_NOT_VERIFIED` | 400 | 국세청 `valid`가 `01`이 아니다 |
+| `BUSINESS_CLOSED` | 400 | 폐업(`b_stt_cd=03`) |
+| `BUSINESS_SUSPENDED` | 400 | 휴업(`b_stt_cd=02`) |
+| `BUSINESS_VERIFICATION_UNAVAILABLE` | **503** | 국세청에 닿지 못했다 |
+
+503은 fail closed다. 국세청 장애 시간 동안 통과시키면 아무 번호나 들어온다. 사용자가 잘못한 것이
+아니라 잠시 후 다시 하면 된다는 뜻이 코드에 담겨 있다.
+
+검증이 꺼져 있으면 `openingDate`는 보내지 않아도 되고 보내도 저장되지 않는다.
+중복 사업자등록번호(`DUPLICATE_BUSINESS_NUMBER`)는 이 설정과 무관하게 항상 막힌다.
+
 ### 접근 통제 — `/api/admin/operator/access/**`
 
 `OPERATOR_ACCESS_ENABLED=true`면 `/api/admin/operator/**` 전체가 문지기를 지난다.
