@@ -293,12 +293,22 @@ interface OperatorAuditEventRepository extends JpaRepository<OperatorAuditEvent,
         // 이미 운영자가 있으면 손대지 않는다. 계정 목록이 아니라 역할로 본다 — 이메일만 보면
         // 운영자가 권한을 잃은 뒤 재기동에서 조용히 되돌아온다.
         if(admins.countByRole(AdminRole.SYSTEM_ADMIN)>0)return;
-        String normalized=Inputs.email(email);
+        // 설정이 잘못돼도 기동을 막지 않는다. 여기서 예외가 CommandLineRunner 밖으로 나가면
+        // Spring Boot가 통째로 뜨지 않고, 운영자 계정 하나 때문에 손님 화면까지 내려간다.
+        // 계정은 나중에 고쳐서 다시 만들 수 있지만 내려간 서비스는 그 사이 장사를 못 한다.
+        String normalized;
+        try{
+            normalized=Inputs.email(email);
+            Inputs.password(password,password);
+        }catch(RuntimeException e){
+            log.warn("operator bootstrap skipped: check OPERATOR_BOOTSTRAP_EMAIL and "
+                +"OPERATOR_BOOTSTRAP_PASSWORD (letters and digits, at least 10 characters)");
+            return;
+        }
         if(admins.existsByEmail(normalized)){
             log.warn("operator bootstrap skipped: the account already exists but is not an operator");
             return;
         }
-        Inputs.password(password,password);
         AdminUser a=new AdminUser();
         a.email=normalized;a.passwordHash=encoder.encode(password);
         a.name=Inputs.required(name,"이름을 입력해 주세요.");
