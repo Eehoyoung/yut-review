@@ -403,6 +403,21 @@ DELETE /api/admin/operator/access/devices/{deviceId}
 `kind`는 `STORE` 또는 `ACCOUNT`다. `target`은 매장이면 매장명, 계정이면 **사건 시점의 이메일**이다
 (계정이 지워져도 누구였는지가 남아야 한다).
 
+### 초대코드
+
+`GET /api/admin/auth/invite-code/{code}` (인증 불필요, IP 분당 30회) → `{"exists": true|false}`.
+누구 것인지는 말하지 않는다. 가입 화면이 제출 전에 확인하는 용도다.
+
+가입 요청의 `inviteCode`는 선택이다. 비어 있으면 그냥 통과하고, 값이 있는데 틀리면 가입이 막힌다.
+
+| 코드 | 언제 |
+|---|---|
+| `INVITE_CODE_NOT_FOUND` | 그런 코드가 없다 (형식이 틀린 경우도 같은 코드) |
+| `INVITE_CODE_SELF` | 초대한 계정과 연락처가 같다 |
+
+`GET /api/admin/me`가 `inviteCode`와 `invitedCount`를 함께 준다. 코드가 없는 계정은 이 호출이
+그 자리에서 만들어 준다.
+
 ### 사업자등록 진위확인
 
 `BUSINESS_VERIFICATION_ENABLED=true`면 가입(`POST /api/admin/auth/signup`)과 매장 추가

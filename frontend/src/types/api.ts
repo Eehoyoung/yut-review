@@ -185,6 +185,10 @@ export interface AdminMe {
   email: string;
   name: string;
   role: "SYSTEM_ADMIN" | "STORE_ADMIN";
+  /** 지인에게 알려 주는 코드. 계정당 하나이고 바뀌지 않는다. */
+  inviteCode: string;
+  /** 이 코드로 가입한 사람 수. 리워드 정책은 아직 없고 숫자만 보여 준다. */
+  invitedCount: number;
 }
 
 export interface OperatorSummary {

@@ -103,6 +103,8 @@ const friendly: Record<string, string> = {
   WEAK_PASSWORD: "비밀번호는 영문과 숫자를 포함해 10자 이상이어야 합니다.", INVALID_EMAIL: "이메일 주소를 확인해 주세요.",
   INVALID_BUSINESS_NUMBER: "사업자등록번호는 숫자 10자리로 입력해 주세요.",
   DUPLICATE_EMAIL: "이미 가입된 이메일입니다.", DUPLICATE_BUSINESS_NUMBER: "이미 등록된 사업자등록번호입니다.",
+  INVITE_CODE_NOT_FOUND: "존재하지 않는 초대코드예요.",
+  INVITE_CODE_SELF: "자신의 초대코드는 사용할 수 없어요.",
   INVALID_OPENING_DATE: "개업일자를 '-' 없이 8자리 숫자로 입력해 주세요. (예: 20200101)",
   BUSINESS_NOT_VERIFIED: "국세청에 등록된 사업자 정보와 일치하지 않습니다. 사업자등록증의 번호·개업일자·대표자명을 확인해 주세요.",
   BUSINESS_CLOSED: "폐업 처리된 사업자등록번호입니다.",

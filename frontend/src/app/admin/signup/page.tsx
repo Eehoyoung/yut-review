@@ -103,6 +103,21 @@ export default function SignUp() {
   // 실패해도 가입을 막지 않는다. 그 경우 개업일자를 묻지 않고 보내고, 검증이 켜져 있으면
   // 서버가 INVALID_OPENING_DATE로 되돌려 준다. 조회 한 번 실패가 가입 화면을 못 쓰게
   // 만드는 것보다 낫다.
+  // 초대코드는 선택이라 FIELDS(전부 필수) 루프에 넣지 않는다. 넣으면 그 루프의 "모두 필수"가
+  // 거짓이 되고, 다음 사람이 루프를 보고 잘못된 결론을 내린다.
+  const [inviteCode, setInviteCode] = useState("");
+  const normalizedInvite = inviteCode.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const inviteCheck = useQuery({
+    queryKey: ["invite-code", normalizedInvite],
+    queryFn: () => api<{ exists: boolean }>(`/admin/auth/invite-code/${normalizedInvite}`),
+    // 6자리가 차기 전에는 묻지 않는다. 타이핑 중간마다 "없는 코드"라고 말하면 잔소리가 된다.
+    enabled: normalizedInvite.length === 6,
+    retry: false,
+    staleTime: 60_000,
+  });
+  /** 코드를 넣었는데 없는 것이 확인된 상태. 확인 중이거나 조회 실패는 여기 포함하지 않는다. */
+  const inviteMissing = normalizedInvite.length > 0 && inviteCheck.data?.exists === false;
+
   const requirements = useQuery({
     queryKey: ["signup-requirements"],
     queryFn: () => api<{ businessVerification: boolean }>("/admin/auth/signup-requirements"),
@@ -111,7 +126,7 @@ export default function SignUp() {
   const fields = requirements.data?.businessVerification ? [...FIELDS, OPENING_DATE] : FIELDS;
 
   const signUp = useMutation({
-    mutationFn: () => api<SignUpResult>("/admin/auth/signup", { method: "POST", body: JSON.stringify({ ...form, termsAgreed, privacyAgreed, termsVersion: TERMS_VERSION, privacyVersion: ADMIN_PRIVACY_VERSION, ...marketing, marketingVersion: MARKETING_SMS_VERSION }) }),
+    mutationFn: () => api<SignUpResult>("/admin/auth/signup", { method: "POST", body: JSON.stringify({ ...form, inviteCode: normalizedInvite, termsAgreed, privacyAgreed, termsVersion: TERMS_VERSION, privacyVersion: ADMIN_PRIVACY_VERSION, ...marketing, marketingVersion: MARKETING_SMS_VERSION }) }),
     onSuccess: setDone,
   });
 
@@ -148,7 +163,17 @@ export default function SignUp() {
       </main>
     );
 
-  const blocked = problem(fields, form, termsAgreed, privacyAgreed);
+  const fieldProblem = problem(fields, form, termsAgreed, privacyAgreed);
+  // 코드가 틀리면 다음으로 넘어가지 못한다. 조용히 넘기면 오타를 친 사람이 추천이 반영된 줄 안다.
+  const blocked =
+    fieldProblem ??
+    (normalizedInvite.length > 0 && normalizedInvite.length < 6
+      ? { id: "inviteCode", message: "초대코드는 영문·숫자 6자리예요." }
+      : inviteMissing
+        ? { id: "inviteCode", message: "존재하지 않는 초대코드예요." }
+        : inviteCheck.isFetching
+          ? { id: "inviteCode", message: "초대코드를 확인하고 있어요. 잠시만요." }
+          : null);
 
   return (
     <main className="screen">
@@ -196,6 +221,30 @@ export default function SignUp() {
             {f.hint && <small className="hint">{f.hint}</small>}
           </div>
         ))}
+
+        <div className="field">
+          <label htmlFor="inviteCode">초대코드 (선택)</label>
+          <input
+            id="inviteCode"
+            type="text"
+            inputMode="text"
+            autoComplete="off"
+            autoCapitalize="characters"
+            maxLength={8}
+            value={inviteCode}
+            onChange={(e) => setInviteCode(e.target.value)}
+            aria-invalid={inviteMissing || undefined}
+            aria-describedby="inviteCode-hint"
+          />
+          <small className="hint" id="inviteCode-hint" aria-live="polite">
+            {inviteMissing
+              ? "존재하지 않는 초대코드예요."
+              : normalizedInvite.length === 6 && inviteCheck.data?.exists
+                ? "확인했어요."
+                : "소개해 주신 분께 받은 영문·숫자 6자리. 없으면 비워 두세요."}
+          </small>
+        </div>
+
         <hr className="hair" />
         <label className="check">
           <input id="termsAgreed" type="checkbox" checked={termsAgreed} onChange={(e) => setTermsAgreed(e.target.checked)} required />

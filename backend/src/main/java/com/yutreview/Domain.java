@@ -46,6 +46,20 @@ enum MarketingService { YUT_REVIEW, REVIEW_PILOT, SODAM }
     @Enumerated(EnumType.STRING) @Column(nullable=false) AdminRole role;
     String termsVersion; Instant termsAgreedAt;
     String privacyVersion; Instant privacyAgreedAt;
+    /**
+     * 지인에게 알려 주는 초대코드. 계정당 하나다.
+     *
+     * 이 기능이 생기기 전 계정은 비어 있고, 자기 코드를 처음 볼 때 채워진다(InviteCodeService).
+     * 그래서 nullable이다. 한 번 정해지면 바꾸지 않는다 — 이미 남에게 알려 준 값이다.
+     */
+    @Column(name="invite_code",unique=true,length=12) String inviteCode;
+    /** 나를 데려온 사람. 리워드 정책이 생기면 이 열을 센다. */
+    @ManyToOne @JoinColumn(name="invited_by_admin_user_id") AdminUser invitedBy;
+    /**
+     * 그때 실제로 입력된 코드. FK가 있는데도 남기는 것은 초대한 계정이 사라져도 "어느 코드로
+     * 들어왔는가"가 남아야 해서다. 감사 로그가 대상 이메일을 동결하는 것과 같은 이유다.
+     */
+    @Column(name="invited_by_code",length=12) String invitedByCode;
     @Column(nullable=false) Instant createdAt;
 }
 @Entity @Table(name="stores",uniqueConstraints=@UniqueConstraint(columnNames="business_number")) class Store {

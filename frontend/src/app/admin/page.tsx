@@ -15,6 +15,7 @@ export default function Stores() {
   const qc = useQueryClient();
   const [form, setForm] = useState(EMPTY_FORM);
   const [adding, setAdding] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [tried, setTried] = useState(false);
   const [created, setCreated] = useState<CreatedStore>();
 
@@ -54,6 +55,48 @@ export default function Stores() {
           </button>
         )}<LogoutButton /></div>
       </header>
+
+      {/*
+        나의 초대코드.
+        지인에게 불러 주거나 문자로 보내는 값이라 크게, 한 덩어리로 보여 준다.
+        코드가 없는 계정(이 기능 이전 가입자)은 /admin/me 호출이 그 자리에서 만들어 준다.
+      */}
+      {me.data?.inviteCode && (
+        <section className="panel stack">
+          <div className="row">
+            <h2>나의 초대코드</h2>
+            {me.data.invitedCount > 0 && <span className="pill" data-tone="brand">{me.data.invitedCount}명 가입</span>}
+          </div>
+          <div className="copyout">
+            {/* 전화로 불러 주는 값이라 글자 간격을 벌린다. 붙여 두면 O와 0을 헷갈리는데,
+                코드에는 애초에 그 글자들이 없다(InviteCodeService의 알파벳). */}
+            <p className="copyout-headline" style={{ letterSpacing: "0.18em", fontVariantNumeric: "tabular-nums" }}>
+              {me.data.inviteCode}
+            </p>
+          </div>
+          <p className="lead">
+            지인이 가입할 때 이 코드를 입력하면 회원님이 소개한 것으로 기록됩니다.
+          </p>
+          <div className="sheet-actions">
+            <button
+              type="button"
+              className="btn secondary btn-inline"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(me.data!.inviteCode);
+                  setCopied(true);
+                } catch {
+                  // 클립보드는 권한이나 보안 컨텍스트 때문에 막힐 수 있다. 코드는 화면에 이미
+                  // 보이므로 실패해도 손으로 옮겨 적을 수 있다. 조용히 넘어간다.
+                  setCopied(false);
+                }
+              }}
+            >
+              {copied ? "복사했어요" : "코드 복사"}
+            </button>
+          </div>
+        </section>
+      )}
 
       {created && (
         <p className="notice" role="status">

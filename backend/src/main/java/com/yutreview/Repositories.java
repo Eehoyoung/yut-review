@@ -12,6 +12,9 @@ interface AdminUserRepository extends JpaRepository<AdminUser,Long> {
     Optional<AdminUser> findByEmail(String email);
     boolean existsByEmail(String email);
     long countByRole(AdminRole role);
+    Optional<AdminUser> findByInviteCode(String inviteCode);
+    boolean existsByInviteCode(String inviteCode);
+    long countByInvitedById(Long adminId);
     Page<AdminUser> findByEmailContainingIgnoreCaseOrNameContainingIgnoreCase(String email,String name,Pageable pageable);
 }
 interface MarketingConsentEventRepository extends JpaRepository<MarketingConsentEvent,Long> {
