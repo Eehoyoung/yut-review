@@ -5,14 +5,14 @@
 # fail-closed 동작 — 을 살아 있는 origin에 대고 확인한다. 배포 직후 한 번, 그리고 Cloudflare
 # 설정이나 인증서를 바꿀 때마다 다시 돌린다.
 #
-#   sh scripts/verify-production.sh                      # https://yut.sodamlabs.kr
+#   sh scripts/verify-production.sh                      # https://hanpan.sodamlabs.kr
 #   sh scripts/verify-production.sh https://staging.example
 #   ORIGIN_IP=1.2.3.4 sh scripts/verify-production.sh    # Cloudflare를 우회해 origin 직접 점검
 #
 # 읽기 전용이다. 아무 것도 만들지 않고 아무 것도 바꾸지 않는다.
 set -u
 
-ORIGIN="${1:-https://yut.sodamlabs.kr}"
+ORIGIN="${1:-https://hanpan.sodamlabs.kr}"
 HOST=$(printf '%s' "$ORIGIN" | sed -e 's|^https\{0,1\}://||' -e 's|/.*$||')
 PASS=0
 FAIL=0

@@ -45,7 +45,7 @@ app:
     enabled: ${FIELD_TEST_BOOTSTRAP_ENABLED:false}
     email: ${FIELD_TEST_ADMIN_EMAIL:}
     password: ${FIELD_TEST_ADMIN_PASSWORD:}
-    store-name: ${BOOTSTRAP_STORE_NAME:Yut Review Test Store}
+    store-name: ${BOOTSTRAP_STORE_NAME:Sodam Hanpan Test Store}
     store-phone: ${BOOTSTRAP_STORE_PHONE:0200000000}
     naver-place-url: ${FIELD_TEST_NAVER_PLACE_URL:}
     staff-pin: ${FIELD_TEST_STAFF_PIN:}

@@ -61,7 +61,7 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file .env.
 
 ### Cloudflare
 
-- DNS: `yut.sodamlabs.kr` A 레코드 → Lightsail 고정 IP, **Proxied(주황 구름)**.
+- DNS: `hanpan.sodamlabs.kr` A 레코드 → Lightsail 고정 IP, **Proxied(주황 구름)**.
 - SSL/TLS mode: **Full (strict)**. Flexible은 origin 구간이 평문이라 쓰지 않는다.
 - Origin Certificate를 발급해 VM의 `TLS_CERT_DIR`(기본 `/etc/yut-review/certs`)에
   `fullchain.pem` / `privkey.pem` 이름으로 두고 `0600`으로 둔다. 컨테이너에는 `/etc/nginx/certs`로 read-only mount된다.
@@ -80,13 +80,13 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file .env.
 
 ## Production origin (확정)
 
-- 서비스: Yut Review
-- canonical origin: `https://yut.sodamlabs.kr`
+- 서비스: Sodam Hanpan
+- canonical origin: `https://hanpan.sodamlabs.kr`
 - 운영사: 소담랩스
 - 대표자: 이호영
 - 사업자등록번호: `358-23-02207`
 
-운영에서는 `SPRING_PROFILES_ACTIVE=prod`와 `APP_PUBLIC_ORIGIN=https://yut.sodamlabs.kr`를 사용한다.
+운영에서는 `SPRING_PROFILES_ACTIVE=prod`와 `APP_PUBLIC_ORIGIN=https://hanpan.sodamlabs.kr`를 사용한다.
 `application-prod.yml`이 QR/안내물의 절대 URL을 이 origin으로 고정하므로 요청의 Host 헤더를 운영 URL로
 신뢰하지 않는다. 브라우저 API와 redirect는 동일 origin 상대경로(`/api`, `/admin/login`)를 유지한다.
 
@@ -152,10 +152,10 @@ vi .env.production                                # APP_PUBLIC_ORIGIN, TLS_CERT_
 
 ```bash
 # Cloudflare를 지나는 경로
-sh scripts/verify-production.sh https://yut.sodamlabs.kr
+sh scripts/verify-production.sh https://hanpan.sodamlabs.kr
 
 # origin 직결까지 (Full strict와 default_server 444는 이 경로에서만 확인된다)
-ORIGIN_IP=<lightsail-고정-IP> sh scripts/verify-production.sh https://yut.sodamlabs.kr
+ORIGIN_IP=<lightsail-고정-IP> sh scripts/verify-production.sh https://hanpan.sodamlabs.kr
 ```
 
 스크립트는 읽기 전용이고 다음을 본다. FAIL이 하나라도 있으면 배포를 공개하지 않는다.
@@ -185,9 +185,9 @@ ORIGIN_IP=<lightsail-고정-IP> sh scripts/verify-production.sh https://yut.soda
 1. Lightsail 방화벽 80/443 개방
 2. 인증서 배치 (`TLS_CERT_DIR`), `.env.production` 생성
 3. `... pull && ... up -d` (위 "운영 기동". `--build` 없다)
-4. `ORIGIN_IP=<IP> sh scripts/verify-production.sh https://yut.sodamlabs.kr` → origin 직결 FAIL 0
+4. `ORIGIN_IP=<IP> sh scripts/verify-production.sh https://hanpan.sodamlabs.kr` → origin 직결 FAIL 0
 5. Cloudflare DNS A 레코드 Proxied로 전환, SSL mode `Full (strict)`
-6. `sh scripts/verify-production.sh https://yut.sodamlabs.kr` → FAIL 0
+6. `sh scripts/verify-production.sh https://hanpan.sodamlabs.kr` → FAIL 0
 7. 운영자 계정으로 `/admin/operator` 자원 현황이 뜨는지 확인
 
 ## PHONE_HMAC_SECRET 회전
@@ -256,7 +256,7 @@ gunzip -c backup-YYYY-MM-DD-HHMM.sql.gz | docker compose -f docker-compose.yml \
 문서상 확정이지만 실제로 해 보지 않은 것들이다. 첫 운영 배포 때 위 "배포 후 확인"의 7단계를 따르면
 아래 항목 대부분이 `scripts/verify-production.sh` 한 번으로 닫힌다. 콘솔에서 눈으로 봐야 하는 것만 남는다.
 
-- [ ] Cloudflare DNS 레코드(`yut.sodamlabs.kr` A → Lightsail 고정 IP, Proxied) 생성 및 전파
+- [x] Cloudflare DNS 레코드(`hanpan.sodamlabs.kr` A → Lightsail 고정 IP, Proxied) 생성 및 전파 (2026-09-23 확인)
 - [ ] Cloudflare SSL mode가 실제로 `Full (strict)`인지, Origin Certificate로 handshake가 되는지
 - [ ] Lightsail 방화벽 규칙(80/443만 개방, 5432/8080/3000 차단) 적용
 - [ ] 실제 TLS 인증서 파일 배치와 권한, 만료일/갱신 담당자

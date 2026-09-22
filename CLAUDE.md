@@ -49,21 +49,29 @@ docker compose --env-file .env.field-test --profile field-test up -d   # Cloudfl
   기존 볼륨을 유지한 채 값을 바꾸지 말 것.
 - 접근 경로는 Nginx 단일 오리진 `http://localhost:8088`뿐이다. postgres/backend/frontend는 호스트 포트를 열지 않는다.
 
-## 프로덕션 도메인 (2026-09-21 확정)
+## 프로덕션 도메인 및 리브랜딩 전환
 
-- 서비스: Yut Review, canonical origin: `https://yut.sodamlabs.kr`
+- 2026-09-23 사용자가 서비스명을 `소담한판`, canonical origin을
+  `https://hanpan.sodamlabs.kr`로 확정했다. 실행 정본은 `docs/REBRAND_AND_DOMAIN_MIGRATION_PLAN.md`다.
+- 기존 `https://yut.sodamlabs.kr`은 새 주소의 실제 전환 검증이 끝날 때까지 롤백·리디렉션 대상으로 유지한다.
+
+- 서비스: Sodam Hanpan, canonical origin: `https://hanpan.sodamlabs.kr`
 - 운영사: 소담랩스 / 대표자: 이호영 / 사업자등록번호: `358-23-02207`
-- 운영은 `SPRING_PROFILES_ACTIVE=prod`, `APP_PUBLIC_ORIGIN=https://yut.sodamlabs.kr`를 사용한다.
+- 운영은 `SPRING_PROFILES_ACTIVE=prod`, `APP_PUBLIC_ORIGIN=https://hanpan.sodamlabs.kr`를 사용한다.
 - production에서는 QR 안내물 origin을 요청 Host가 아니라 위 canonical origin으로 고정한다.
 - 브라우저 API와 로그인 이동은 동일 origin 상대경로를 유지하며 CORS를 새로 열지 않는다.
 - 인증은 cookie가 아닌 `sessionStorage` Bearer JWT다. production Spring session cookie만 방어적으로
   `Secure`, `SameSite=Strict`이고, Nginx는 HTTP→HTTPS, HSTS와 기존 CSP를 적용한다.
 - 개발/field-test의 localhost 및 Quick Tunnel 동작은 유지한다. 운영 Nginx 예시는 `nginx/production.conf`,
   환경 변수 예시는 `.env.production.example`이다.
+- 새 Cloudflare 프록시 호스트와 TLS를 먼저 검증한 뒤 기존 호스트를 경로·쿼리 보존 리디렉션한다.
+  새 주소의 health, 보안 헤더, QR 절대 URL, 로그인, 고객 게임·쿠폰 E2E가 실패하면 기존 값으로 롤백한다.
 
 ## 광고성 문자 수신동의 (2026-09-21)
 
-- 소담랩스 서비스 3개는 `YUT_REVIEW`(윷리뷰), `REVIEW_PILOT`(리뷰파일럿), `SODAM`(소담)이다.
+- 소담랩스 서비스 3개는 `YUT_REVIEW`(소담한판), `REVIEW_PILOT`(리뷰파일럿), `SODAM`(소담)이다.
+- 리브랜딩 시 `YUT_REVIEW`는 과거 동의 증적을 잇는 내부 식별자로 유지한다. 최종 브랜드 확정 후 표시 라벨과
+  동의문 버전을 바꾸되 기존 `marketing_consent_events`를 수정하거나 다른 서비스 동의로 합치지 않는다.
 - 관리자 가입에서 서비스별 선택 체크박스를 기본 해제로 표시한다. 전부 거부해도 가입과 기능에 영향이 없다.
 - `marketing_consent_events`는 동의·거부·철회를 append-only로 남긴다. 발송 가능 여부는 서비스별 최신
   이벤트만 보며 다른 서비스 동의를 재사용하지 않는다.
@@ -385,4 +393,3 @@ STORE_ADMIN으로 내린 뒤 다시 돌린다.
 
 `admin_users.login_id` 컬럼은 `ddl-auto=update`가 못 지워서 nullable인 채로 DB에 남아 있다.
 쓰는 코드는 없다.
-

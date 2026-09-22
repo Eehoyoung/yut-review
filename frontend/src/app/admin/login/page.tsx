@@ -23,7 +23,7 @@ export default function Login() {
 
   return (
     <main className="screen">
-      <p className="brand">윷리뷰</p>
+      <p className="brand">소담한판</p>
       <h1>관리자 로그인</h1>
       <form
         className="panel stack"

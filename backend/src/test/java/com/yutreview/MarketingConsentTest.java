@@ -33,7 +33,7 @@ class MarketingConsentTest {
             .andExpect(status().isOk()).andExpect(jsonPath("$.data.length()").value(3))
             .andExpect(jsonPath("$.data[0].service").value("YUT_REVIEW")).andExpect(jsonPath("$.data[0].agreed").value(true));
         mvc.perform(put("/api/admin/marketing-consents").header("Authorization",token).contentType(MediaType.APPLICATION_JSON)
-            .content("{\"service\":\"YUT_REVIEW\",\"agreed\":false,\"version\":\"2026-09-21\"}"))
+            .content("{\"service\":\"YUT_REVIEW\",\"agreed\":false,\"version\":\"2026-09-23\"}"))
             .andExpect(status().isOk()).andExpect(jsonPath("$.data.agreed").value(false));
         assertFalse(consents.maySend(admin.id,MarketingService.YUT_REVIEW));
         assertEquals(4,events.findByAdminIdOrderByChangedAtDescIdDesc(admin.id).size(),"철회는 기존 동의 증적을 덮어쓰지 않는다");

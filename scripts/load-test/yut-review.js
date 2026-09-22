@@ -1,5 +1,5 @@
 /*
- * 윷리뷰 부하 테스트. k6 전용 (https://k6.io, 단일 실행 파일, 무료, 계정 불필요).
+ * 소담한판 부하 테스트. k6 전용 (https://k6.io, 단일 실행 파일, 무료, 계정 불필요).
  *
  * 계획과 합격 기준은 docs/LOAD_TEST_PLAN.md 에 있다. 이 파일은 그 계획의 시나리오를 그대로 옮긴 것이고,
  * 숫자를 바꾸려면 문서와 함께 바꾼다.
@@ -9,7 +9,7 @@
  *   k6 run -e BASE=... -e TOKENS=... -e SCENARIO=quota    scripts/load-test/yut-review.js
  *   k6 run -e BASE=... -e TOKENS=... -e SCENARIO=soak     scripts/load-test/yut-review.js
  *
- * 절대 운영(yut.sodamlabs.kr)에 대고 돌리지 말 것. 실제 매장의 일일 상한을 태우고 실제 쿠폰을 발급한다.
+ * 절대 운영(hanpan.sodamlabs.kr)에 대고 돌리지 말 것. 실제 매장의 일일 상한을 태우고 실제 쿠폰을 발급한다.
  */
 import http from "k6/http";
 import { check, sleep, fail } from "k6";

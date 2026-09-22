@@ -1,5 +1,5 @@
 app:
-  public-origin: ${APP_PUBLIC_ORIGIN:https://yut.sodamlabs.kr}
+  public-origin: ${APP_PUBLIC_ORIGIN:https://hanpan.sodamlabs.kr}
 
 server:
   forward-headers-strategy: framework

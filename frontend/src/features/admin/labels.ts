@@ -9,7 +9,7 @@ import type { AiFeature, Plan, StoreStatus } from "@/types/api";
 export const PLAN_LABEL: Record<Plan, string> = { BASIC: "베이직", STANDARD: "스탠다드", PRO: "프로" };
 
 export const PLAN_TAGLINE: Record<Plan, string> = {
-  BASIC: "윷리뷰 핵심 기능",
+  BASIC: "소담한판 핵심 기능",
   STANDARD: "분석·AI 기능",
   PRO: "AI 매장 운영",
 };

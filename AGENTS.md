@@ -644,23 +644,29 @@ If actual Cloudflare connectivity cannot be exercised in the current Codex envir
 
 ## 15. Production Domain
 
-The production identity is fixed unless the user explicitly changes it:
+The user approved the service rebrand and production-domain replacement on 2026-09-23. The migration source of
+truth is `docs/REBRAND_AND_DOMAIN_MIGRATION_PLAN.md`. The production identity is:
 
-- Service: Yut Review
-- Canonical origin: `https://yut.sodamlabs.kr`
+- Service: Sodam Hanpan
+- Canonical origin: `https://hanpan.sodamlabs.kr`
 - Operator: 소담랩스
 - Representative: 이호영
 - Business registration number: `358-23-02207`
 
 Production-only rules:
 
-- Use the `prod` Spring profile and `APP_PUBLIC_ORIGIN=https://yut.sodamlabs.kr`.
+- Use the `prod` Spring profile and `APP_PUBLIC_ORIGIN=https://hanpan.sodamlabs.kr`.
 - Generate absolute customer/QR/poster URLs from the configured canonical origin, not an untrusted request Host.
 - Keep browser API calls and redirects same-origin; do not enable broad CORS.
 - Redirect HTTP to the canonical HTTPS origin and retain HSTS, CSP, frame, MIME-sniffing, referrer and permissions headers.
 - Authentication remains a Bearer JWT stored in `sessionStorage`; do not introduce an authentication cookie merely for domain configuration.
 - Keep localhost and Quick Tunnel behavior available only for development/field-test environments.
 - Never commit production secrets, private keys, or certificates.
+- Keep this section, `CLAUDE.md`, product/legal/deployment docs, runtime configuration and tests aligned with the
+  approved service name and canonical origin.
+- Provision and verify the new Cloudflare-proxied hostname and TLS before redirecting the old hostname. Preserve
+  path and query on the old hostname during the observation period, and keep a tested rollback path.
+- Keep localhost and Quick Tunnel URLs unchanged by the production-domain migration.
 
 ---
 
@@ -668,7 +674,7 @@ Production-only rules:
 
 Sodam Labs operates three services for service-specific promotional SMS consent:
 
-- `YUT_REVIEW` — 윷리뷰
+- `YUT_REVIEW` — 소담한판
 - `REVIEW_PILOT` — 리뷰파일럿
 - `SODAM` — 소담
 
@@ -682,3 +688,5 @@ Locked consent rules unless the user explicitly changes them:
 - Provide an authenticated self-service withdrawal path and exclude withdrawn users before any send.
 - Actual advertising messages must identify advertising and the sender and provide a free opt-out method. Do not send from 21:00 to 08:00 without separate night-time consent.
 - Consent storage does not authorize or implement an SMS vendor. Keep delivery integration outside the game/coupon domains.
+- During the rebrand, treat `YUT_REVIEW` as a stable consent evidence identifier unless an explicit data migration is
+  approved. Change its customer-visible label and consent text version with the final brand; never rewrite historical events.

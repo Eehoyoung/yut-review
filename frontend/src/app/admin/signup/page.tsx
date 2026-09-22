@@ -92,7 +92,7 @@ export default function SignUp() {
   if (done)
     return (
       <main className="screen">
-        <p className="brand">윷리뷰</p>
+        <p className="brand">소담한판</p>
         <h1>
           {done.storeName} {done.approvalRequired ? "신청 완료" : "등록 완료"}
         </h1>

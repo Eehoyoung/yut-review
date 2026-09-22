@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { MARKETING_SMS_VERSION, legalOperator, marketingServices } from "@/lib/legal";
 
-export const metadata: Metadata = { title: "광고성 문자 수신동의 | 윷리뷰" };
+export const metadata: Metadata = { title: "광고성 문자 수신동의 | 소담한판" };
 
 export default function MarketingConsentPage() {
   return <main className="legal-page">

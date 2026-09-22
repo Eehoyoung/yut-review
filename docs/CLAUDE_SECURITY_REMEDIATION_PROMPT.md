@@ -45,7 +45,7 @@ Lightsail 2GB 단일 서버에서 동작해야 하므로 Redis를 새로 도입�
 - 외부 공개 포트는 80/443만 허용하고 PostgreSQL, Spring Boot, Next.js 포트는 host에 publish하지 말라.
 - Cloudflare에서 HTTPS를 사용하고 origin은 Cloudflare Origin Certificate 또는 검증 가능한 TLS로 구성한다. Cloudflare SSL mode는 `Full (strict)`로 한다.
 - Nginx가 유일한 ingress가 되게 하고 production 설정을 명시적으로 선택한다. default/field-test HTTP 설정으로 운영되지 않게 fail-closed 한다.
-- canonical origin은 `https://yut.sodamlabs.kr`로 고정한다. 요청 Host로 QR/포스터 URL을 만들지 말라.
+- canonical origin은 `https://hanpan.sodamlabs.kr`로 고정한다. 요청 Host로 QR/포스터 URL을 만들지 말라.
 - Cloudflare의 검증된 connecting-IP 헤더는 신뢰된 Cloudflare IP 범위에서만 해석하고, 그 외에는 socket peer를 사용한다. Nginx와 Spring의 client-IP 정책을 일치시킨다.
 - HSTS, CSP, frame/mime/referrer/permissions headers, HTTP→HTTPS redirect를 운영 경로에서 검증한다.
 - Quick Tunnel은 개발/현장 테스트 전용이며 production 설정에 섞지 말라.

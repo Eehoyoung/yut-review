@@ -226,7 +226,7 @@ Store B API는 403
 저장한다. 점주 회원가입은 이용약관과 개인정보 수집·이용을 별도 필수 항목으로 받고 각각의 버전과
 동의 시각을 계정에 저장한다.
 
-광고성 문자 수신동의는 가입 필수 동의와 분리하고 기본값을 미동의로 둔다. 윷리뷰·리뷰파일럿·소담을
+광고성 문자 수신동의는 가입 필수 동의와 분리하고 기본값을 미동의로 둔다. 소담한판·리뷰파일럿·소담을
 각각 선택하며, 동의하지 않아도 기능이나 요금제에 불이익을 주지 않는다. 변경 이력은 덮어쓰지 않고
 서비스, 동의 여부, 동의문 버전, 변경 경로와 시각을 저장한다. 실제 발송기는 반드시 해당 서비스의
 최신 이벤트가 동의인 번호만 선택하고, 철회 직후 대상에서 제외해야 한다. 광고 문자에는 `(광고)`,
@@ -300,7 +300,7 @@ Store B API는 403
 - TLS·HSTS·canonical host는 production override(`docker-compose.prod.yml`)로만 선택된다.
   override 없이 뜬 스택은 운영 ingress가 아니며, 운영 설정이 우연히 default로 대체되지 않게 fail-closed로 둔다.
 - 외부 공개 포트는 80/443뿐이다. postgres/backend/frontend는 host 포트를 publish하지 않는다.
-- QR·포스터·안내 URL은 요청 Host가 아니라 고정된 canonical origin `https://yut.sodamlabs.kr`로 만든다.
+- QR·포스터·안내 URL은 요청 Host가 아니라 고정된 canonical origin `https://hanpan.sodamlabs.kr`로 만든다.
 - Cloudflare Quick Tunnel은 개발·현장테스트 전용이다. production 설정에 섞지 않는다.
 
 ## finding → 통제 → 검증

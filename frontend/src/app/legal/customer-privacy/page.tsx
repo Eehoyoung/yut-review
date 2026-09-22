@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 import { CUSTOMER_PRIVACY_VERSION, legalOperator } from "@/lib/legal";
 
-export const metadata: Metadata = { title: "고객 개인정보 수집·이용 안내 | 윷리뷰" };
+export const metadata: Metadata = { title: "고객 개인정보 수집·이용 안내 | 소담한판" };
 export const dynamic = "force-dynamic";
 
 export default function CustomerPrivacyPage() {
   return (
     <main className="legal-page">
-      <header><p className="brand">윷리뷰</p><h1>고객 개인정보 수집·이용 안내</h1><p className="lead">동의문 버전: {CUSTOMER_PRIVACY_VERSION}</p></header>
+      <header><p className="brand">소담한판</p><h1>고객 개인정보 수집·이용 안내</h1><p className="lead">동의문 버전: {CUSTOMER_PRIVACY_VERSION}</p></header>
       <section><h2>누가 처리하나요?</h2><p>참여한 이벤트의 운영 매장과 서비스 운영자 {legalOperator.businessName}가 참여 확인과 쿠폰 제공을 위해 처리합니다. 매장 관리자는 자기 매장의 참여·쿠폰 정보만 확인할 수 있습니다.</p></section>
       <section><h2>수집 항목</h2><p>이름, 휴대폰 번호, 참여 매장, 게임 결과, 당첨 상품과 쿠폰 상태, 참여·사용 시각</p></section>
       <section><h2>이용 목적</h2><p>중복 참여 방지, 기존 쿠폰 확인, 윷놀이 결과와 쿠폰 제공, 쿠폰 사용 처리, 부정 이용 방지</p></section>

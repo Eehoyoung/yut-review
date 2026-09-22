@@ -4,7 +4,7 @@ export default function Home() {
   return (
     <main className="screen">
       <header className="stack">
-        <p className="brand">윷 한 판, 오늘의 상품</p>
+        <p className="brand">소담한판</p>
         <p className="result-mark" aria-hidden="true">
           윷
         </p>

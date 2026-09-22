@@ -9,7 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 class MarketingConsentService {
     record ConsentView(MarketingService service,String serviceName,boolean agreed,String version,java.time.Instant changedAt) {}
     private static final Map<MarketingService,String> NAMES=Map.of(
-        MarketingService.YUT_REVIEW,"윷리뷰",MarketingService.REVIEW_PILOT,"리뷰파일럿",MarketingService.SODAM,"소담");
+        MarketingService.YUT_REVIEW,"소담한판",MarketingService.REVIEW_PILOT,"리뷰파일럿",MarketingService.SODAM,"소담");
     private final MarketingConsentEventRepository events;
     private final Clock clock;
     MarketingConsentService(MarketingConsentEventRepository events,Clock clock){this.events=events;this.clock=clock;}

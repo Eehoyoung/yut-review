@@ -7,12 +7,12 @@ import org.springframework.mock.web.MockHttpServletRequest;
 
 class PublicOriginResolverTest {
     @Test void configuredProductionOriginOverridesRequestHost() {
-        PublicOriginResolver resolver = new PublicOriginResolver("https://yut.sodamlabs.kr/");
+        PublicOriginResolver resolver = new PublicOriginResolver("https://hanpan.sodamlabs.kr/");
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/admin/stores");
         request.setScheme("http");
         request.setServerName("attacker.example");
         request.setServerPort(80);
-        assertEquals("https://yut.sodamlabs.kr", resolver.resolve(request));
+        assertEquals("https://hanpan.sodamlabs.kr", resolver.resolve(request));
     }
 
     @Test void emptyConfigurationKeepsDevelopmentRequestOrigin() {
@@ -25,7 +25,7 @@ class PublicOriginResolverTest {
     }
 
     @Test void configuredOriginRejectsPathsAndNonHttpSchemes() {
-        assertThrows(IllegalArgumentException.class, () -> new PublicOriginResolver("https://yut.sodamlabs.kr/admin"));
+        assertThrows(IllegalArgumentException.class, () -> new PublicOriginResolver("https://hanpan.sodamlabs.kr/admin"));
         assertThrows(IllegalArgumentException.class, () -> new PublicOriginResolver("javascript:alert(1)"));
     }
 }

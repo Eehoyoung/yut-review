@@ -1,14 +1,14 @@
 import type { Metadata } from "next";
 import { legalOperator, TERMS_VERSION } from "@/lib/legal";
 
-export const metadata: Metadata = { title: "이용약관 | 윷리뷰" };
+export const metadata: Metadata = { title: "이용약관 | 소담한판" };
 export const dynamic = "force-dynamic";
 
 export default function TermsPage() {
   return (
     <main className="legal-page">
-      <header><p className="brand">윷리뷰</p><h1>서비스 이용약관</h1><p className="lead">시행일 및 버전: {TERMS_VERSION}</p></header>
-      <section><h2>제1조 목적</h2><p>이 약관은 {legalOperator.businessName}(이하 “회사”)가 제공하는 매장 이벤트 운영 서비스 윷리뷰의 이용 조건과 회사 및 매장 관리자의 권리·의무를 정합니다.</p></section>
+      <header><p className="brand">소담한판</p><h1>서비스 이용약관</h1><p className="lead">시행일 및 버전: {TERMS_VERSION}</p></header>
+      <section><h2>제1조 목적</h2><p>이 약관은 {legalOperator.businessName}(이하 “회사”)가 제공하는 매장 이벤트 운영 서비스 소담한판의 이용 조건과 회사 및 매장 관리자의 권리·의무를 정합니다.</p></section>
       <section><h2>제2조 서비스 내용</h2><p>회사는 매장 전용 QR, 고객 참여, 서버에서 결정하는 윷 결과, 상품 설정, 쿠폰 발급·사용 처리, 참여·쿠폰 내역 및 통계 기능을 제공합니다. 리뷰 작성, 별점 또는 특정 표현은 참여나 혜택의 조건이 아닙니다.</p></section>
       <section><h2>제3조 계정과 가입</h2><p>매장 관리자는 정확한 대표자·연락처·이메일·매장·사업자 정보를 제공해야 하며 계정과 직원 PIN을 안전하게 관리해야 합니다. 타인의 정보 사용, 계정 공유로 인한 무단 접근 및 부정 이용을 금지합니다.</p></section>
       <section><h2>제4조 매장 관리자의 책임</h2><p>매장 관리자는 상품명, 사용 조건, 쿠폰 사용 가능 기간과 확률 설정을 고객이 오해하지 않도록 정확히 관리하고 약속한 상품을 제공해야 합니다. 직원 PIN은 쿠폰 사용 처리에만 사용하며, 리뷰 작성 여부를 확인하거나 긍정적인 리뷰를 요구해서는 안 됩니다.</p></section>

@@ -160,7 +160,7 @@ class AiService {
         Plan plan = requirePlan(store, AiFeature.AI_REPORT);
         AiContextService.Window w = context.window(plan, from, to);
         Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("instruction", "다음 기간의 윷리뷰 이벤트 운영 데이터를 분석하고 핵심 변화와 개선점을 제시해라.");
+        payload.put("instruction", "다음 기간의 소담한판 이벤트 운영 데이터를 분석하고 핵심 변화와 개선점을 제시해라.");
         payload.put("analyticsContext", context.analyticsBundle(store, plan, w));
         Map<String, Object> result = structured(store, plan, AiFeature.AI_REPORT, analysisModel, payload, 1600);
         save(store, AiFeature.AI_REPORT, prompts.version(AiFeature.AI_REPORT), w, result);

@@ -55,7 +55,7 @@ export async function registerDevice(name: string) {
   const credential = (await navigator.credentials.create({
     publicKey: {
       challenge: fromB64url(challenge),
-      rp: { id: rpId, name: "윷리뷰 운영자" },
+      rp: { id: rpId, name: "소담한판 운영자" },
       // userHandle은 서버가 쓰지 않는다. 신원은 이미 JWT가 말하고, 여기에 계정 식별자를
       // 넣으면 인증기에 그 값이 남는다.
       user: { id: crypto.getRandomValues(new Uint8Array(16)), name, displayName: name },
