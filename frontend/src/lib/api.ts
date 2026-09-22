@@ -26,7 +26,7 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   });
   const body = (await response.json().catch(() => null)) as Envelope<T> | null;
   if (response.status === 401 && path.startsWith("/admin/") && path !== "/admin/auth/login" && typeof window !== "undefined") {
-    sessionStorage.removeItem("adminToken");
+    clearAdminSession();
     window.location.assign("/admin/login");
   }
   if (!response.ok || !body?.success || body.data === null) {
@@ -66,6 +66,21 @@ export async function downloadWithAuth(path: string, fallbackName: string) {
 
 export function setAdminToken(token: string) {
   sessionStorage.setItem("adminToken", token);
+}
+
+/**
+ * 로그아웃 시 지우는 것 전부.
+ *
+ * 운영자 기기 통행증도 함께 지운다. JWT만 지우면 통행증이 4시간 남아, 다음 사람이 같은
+ * 브라우저에서 로그인했을 때 기기 인증을 건너뛴다.
+ */
+export function clearAdminSession() {
+  try {
+    sessionStorage.removeItem("adminToken");
+    sessionStorage.removeItem("operatorDeviceToken");
+  } catch {
+    // 사생활 보호 모드에서 sessionStorage 접근이 막힐 수 있다. 그래도 이동은 해야 한다.
+  }
 }
 
 /**

@@ -24,7 +24,10 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 @SpringBootTest(properties = {
         "app.limits.game-per-store-per-minute=3",
         "app.limits.game-per-ip-per-minute=2",
-        "app.limits.game-per-store-per-day=3"
+        "app.limits.game-per-store-per-day=3",
+    // 승인제는 기본값이 꺼짐이다. 이 클래스는 승인 흐름 자체를 검증하므로 켜고 돈다.
+    // 기능을 지운 것이 아니라 꺼 둔 것이라, 다시 켤 때 동작하는지가 여기서 보장된다.
+    "app.store-approval-required=true"
 })
 class SecurityRemediationTest {
     @Autowired StoreRepository stores;

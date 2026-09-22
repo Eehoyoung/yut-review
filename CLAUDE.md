@@ -240,6 +240,31 @@ Base64로 디코딩해 32바이트 이상이어야 하고, 아니면 **기동하
 
 DB를 버려도 되는 로컬이라면 `docker compose down -v` 후 새 키로 올리는 쪽이 빠르다.
 
+## 매장 승인제 중단 (2026-09-22)
+
+`STORE_APPROVAL_REQUIRED` 기본값이 **false**다. 셀프 가입이 바로 `ACTIVE`로 열린다.
+
+- **기능을 지운 것이 아니라 꺼 둔 것이다.** 심사 화면·승인 API·감사 로그 전부 그대로 있고
+  `STORE_APPROVAL_REQUIRED=true` 한 줄로 되돌아온다. `StoreApproval.java`를 지우지 말 것.
+  `SecurityRemediationTest`가 플래그를 켜고 돌아서 되돌릴 때 동작하는지 계속 보장한다.
+- 승인을 끄면 "사업자등록번호가 진짜인가"는 아무도 보지 않는다. **남는 방어선은 중복 금지
+  하나뿐이다** — 한 번호로 매장을 두 개 만들 수 없다. 가입과 매장 추가 양쪽에서 막고,
+  `OperatorAccountTest.aBusinessNumberCannotBeRegisteredTwiceEvenWithApprovalTurnedOff`가 잠근다.
+  하이픈 표기 우회도 같이 본다(정규화 뒤에 비교한다).
+- **`provision()`이 안내물을 만들지 않는다.** 예전에는 "승인된 매장만" 그려서 익명 가입이 큰 PNG를
+  쌓는 것을 막았는데, 승인을 끄면 그 방어가 통째로 사라진다. 안내물은 파생 데이터라 인증된
+  다운로드(`AdminController.poster`)가 없으면 그때 만든다. `provision`에 포스터 생성을 되돌리지 말 것.
+- 화면은 설정을 복제하지 않는다. 가입 결과는 서버가 준 `approvalRequired`를 그대로 따른다.
+
+## 로그아웃
+
+`features/admin/LogoutButton.tsx` 하나다. `/admin`, `AdminFrame`, `OperatorFrame` 세 헤더에 붙는다.
+
+- `clearAdminSession()`이 JWT와 **운영자 기기 통행증을 같이** 지운다. JWT만 지우면 통행증이 4시간
+  남아 다음 사람이 같은 브라우저에서 기기 인증을 건너뛴다.
+- TanStack Query 캐시도 비운다. 안 비우면 다른 계정으로 로그인했을 때 잠깐 남의 매장이 보인다.
+- `router.push`가 아니라 `window.location.assign`이다. 클라이언트 전환은 메모리 상태를 끌고 온다.
+
 ## 운영자 콘솔 (2026-09-22)
 
 `/admin/operator` 아래 네 화면이다. `OperatorFrame.tsx`가 공통 껍데기이며 `AdminFrame`과 합치지

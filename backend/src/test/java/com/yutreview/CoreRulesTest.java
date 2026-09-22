@@ -110,17 +110,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         assertEquals(LegalConsentPolicy.TERMS_VERSION,owner.termsVersion);assertNotNull(owner.termsAgreedAt);assertEquals(LegalConsentPolicy.ADMIN_PRIVACY_VERSION,owner.privacyVersion);assertNotNull(owner.privacyAgreedAt);
         assertEquals("01022223333",owner.phone,"전화번호는 숫자만 남긴다");
         assertTrue(memberships.existsByAdminIdAndStoreId(owner.id,p.store().id));
-        // 셀프 신청은 운영자 승인 전까지 PENDING_APPROVAL이고, 비싼 포스터 렌더링도 그때까지 미룬다.
-        assertEquals(StoreStatus.PENDING_APPROVAL,p.store().status);
-        assertTrue(posters.findByStoreId(p.store().id).isEmpty(),"승인 전에는 안내물을 만들지 않는다");
-        assertEquals("STORE_PENDING_APPROVAL",assertThrows(AppException.class,()->approvals.requireOperable(p.store())).code);
-        AdminUser operator=new AdminUser();operator.email="operator-signup@test.com";operator.passwordHash=encoder.encode("secret1234");operator.name="운영자";operator.role=AdminRole.SYSTEM_ADMIN;operator.createdAt=Instant.now();admins.save(operator);
-        assertEquals(true,approvals.approve(operator,p.store().id,"사업자 확인 완료","https://field-test.example").get("changed"));
-        assertEquals(false,approvals.approve(operator,p.store().id,null,"https://field-test.example").get("changed"),"같은 승인을 다시 보내도 상태와 기록이 늘지 않는다");
-        entityManager.flush();entityManager.clear();
-        assertEquals(StoreStatus.ACTIVE,stores.findById(p.store().id).orElseThrow().status);
-        assertEquals(1,approvals.events(p.store().id).size());
-        StorePoster poster=posters.findByStoreId(p.store().id).orElseThrow();byte[] png=posterService.bytes(poster);var image=ImageIO.read(new ByteArrayInputStream(png));
+        // 승인제는 2026-09-22에 껐다(app.store-approval-required, 기본 false). 가입이 바로 ACTIVE다.
+        // 승인 흐름 자체는 SecurityRemediationTest가 플래그를 켜고 따로 검증한다.
+        assertEquals(StoreStatus.ACTIVE,p.store().status);
+        assertDoesNotThrow(()->approvals.requireOperable(p.store()));
+        // 안내물은 가입 시점에 만들지 않는다. 가입은 익명 요청이라 그 자리에서 큰 PNG를 그리면
+        // 요청 한 번에 수백 KB를 쌓는 길이 열린다. 인증된 다운로드가 처음 만든다.
+        assertTrue(posters.findByStoreId(p.store().id).isEmpty(),"가입 시점에는 안내물을 만들지 않는다");
+        StorePoster poster=posterService.save(p.store(),p.storeToken(),"https://field-test.example");
+        byte[] png=posterService.bytes(poster);var image=ImageIO.read(new ByteArrayInputStream(png));
         assertEquals("https://field-test.example",poster.publicOrigin);assertEquals(StorePosterService.WIDTH,image.getWidth());assertEquals(StorePosterService.HEIGHT,image.getHeight());
         var decoded=new MultiFormatReader().decode(new BinaryBitmap(new HybridBinarizer(new BufferedImageLuminanceSource(image))));assertEquals("https://field-test.example/s/"+p.storeToken(),decoded.getText());
         assertEquals("DUPLICATE_EMAIL",assertThrows(AppException.class,()->signup.signUp(new AdminSignupService.Request("secret1234","secret1234","owner@test.com","김대표","01022223334","다른상회","1234567891"))).code);

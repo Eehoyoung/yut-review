@@ -7,7 +7,7 @@ import { BUSINESS_NUMBER_LENGTH, PHONE_LENGTH, onlyDigits } from "@/features/nor
 import { ADMIN_PRIVACY_VERSION, MARKETING_SMS_VERSION, TERMS_VERSION, marketingServices } from "@/lib/legal";
 import type { StoreStatus } from "@/types/api";
 
-/** 가입은 신청까지다. QR·포스터·직원 PIN은 운영자 승인 후에 열린다. */
+/** 가입 결과 화면은 서버가 준 approvalRequired를 따른다. 승인제는 서버 설정으로 켜고 끈다. */
 type SignUpResult = { storeId: number; storeName: string; status: StoreStatus; approvalRequired: boolean };
 
 type Field = {
@@ -87,17 +87,32 @@ export default function SignUp() {
     onSuccess: setDone,
   });
 
+  // 승인제는 서버 설정으로 켜고 끈다(app.store-approval-required). 화면이 어느 쪽인지 정하지 않고
+  // 응답의 approvalRequired를 그대로 따른다. 여기에 설정을 또 적으면 서버와 어긋날 수 있다.
   if (done)
     return (
       <main className="screen">
         <p className="brand">윷리뷰</p>
-        <h1>{done.storeName} 신청 완료</h1>
+        <h1>
+          {done.storeName} {done.approvalRequired ? "신청 완료" : "등록 완료"}
+        </h1>
         <div className="panel stack">
-          <p className="lead">소담랩스 운영자가 사업자 정보를 확인하고 있습니다.</p>
-          <p className="notice" role="status">
-            승인되면 QR 안내물, 포스터, 직원 PIN이 열립니다.
-          </p>
-          <p className="hint">지금 바로 로그인해 심사 상태를 확인할 수 있습니다.</p>
+          {done.approvalRequired ? (
+            <>
+              <p className="lead">소담랩스 운영자가 사업자 정보를 확인하고 있습니다.</p>
+              <p className="notice" role="status">
+                승인되면 QR 안내물, 포스터, 직원 PIN이 열립니다.
+              </p>
+              <p className="hint">지금 바로 로그인해 심사 상태를 확인할 수 있습니다.</p>
+            </>
+          ) : (
+            <>
+              <p className="lead">바로 사용할 수 있습니다.</p>
+              <p className="notice" role="status">
+                로그인하면 QR 안내물, 포스터, 직원 PIN이 열립니다.
+              </p>
+            </>
+          )}
         </div>
         <Link className="btn" href="/admin/login">
           로그인

@@ -51,6 +51,9 @@ app:
     staff-pin: ${FIELD_TEST_STAFF_PIN:}
   # 첫 운영자 한 명. app.bootstrap과 달리 매장을 만들지 않는다.
   # 운영자가 한 명이라도 있으면 무시되므로 값이 남아 있어도 계정이 되돌아오지 않는다.
+  # 셀프 신청 매장을 운영자가 승인해야 열리게 할지. 2026-09-22에 기본값을 false로 내렸다.
+  # 중복 사업자등록번호는 이 값과 무관하게 계속 막힌다. 심사 화면은 그대로 있어 true로 되돌아온다.
+  store-approval-required: ${STORE_APPROVAL_REQUIRED:false}
   # 운영자 콘솔 접근 통제. enabled=false면 문지기가 통째로 비켜선다.
   # **이 false가 유일한 잠금 탈출구다.** IP가 바뀌고 기기를 잃으면 화면으로는 복구할 수 없다.
   operator-access:

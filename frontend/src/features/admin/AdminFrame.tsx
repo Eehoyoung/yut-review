@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
+import { LogoutButton } from "@/features/admin/LogoutButton";
 
 const menus = [
   ["dashboard", "대시보드"],
@@ -30,9 +31,12 @@ export function AdminFrame({ title, children }: { title: string; children: React
       */}
       <header className="admin-head">
         <h1>{title}</h1>
-        <Link className="btn secondary btn-inline" href="/admin">
-          매장 변경
-        </Link>
+        <div className="sheet-actions">
+          <Link className="btn secondary btn-inline" href="/admin">
+            매장 변경
+          </Link>
+          <LogoutButton />
+        </div>
       </header>
       {/* 메뉴가 일곱 개라 지금 어디에 있는지 표시가 없으면 방향을 잃는다. */}
       <nav className="nav" aria-label="매장 관리 메뉴">

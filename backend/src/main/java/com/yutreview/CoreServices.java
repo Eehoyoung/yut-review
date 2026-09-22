@@ -96,15 +96,29 @@ final class Inputs {
 }
 @Service class StoreProvisioningService {
     record Provisioned(Store store,String staffPin,String storeToken){}
-    private final StoreRepository stores;private final MembershipRepository memberships;private final QrRepository qrs;private final GameConfigService config;private final StorePosterService posters;private final SubscriptionService subscriptions;private final PasswordEncoder encoder;private final SecureRandom random;private final Clock clock;
-    StoreProvisioningService(StoreRepository stores,MembershipRepository memberships,QrRepository qrs,GameConfigService config,StorePosterService posters,SubscriptionService subscriptions,PasswordEncoder encoder,SecureRandom random,Clock clock){this.stores=stores;this.memberships=memberships;this.qrs=qrs;this.config=config;this.posters=posters;this.subscriptions=subscriptions;this.encoder=encoder;this.random=random;this.clock=clock;}
+    private final StoreRepository stores;private final MembershipRepository memberships;private final QrRepository qrs;private final GameConfigService config;private final SubscriptionService subscriptions;private final PasswordEncoder encoder;private final SecureRandom random;private final Clock clock;
+    /**
+     * 셀프 신청 매장을 운영자가 승인해야 열리게 할지.
+     *
+     * 2026-09-22에 기본값을 false로 내렸다. 중복 사업자등록번호는 그대로 막으므로 한 번호로 두
+     * 매장을 만들 수는 없고, 승인 대기 큐만 없앤 것이다. 심사 화면과 감사 로그는 그대로 살아 있어서
+     * `STORE_APPROVAL_REQUIRED=true` 한 줄로 되돌아온다. 코드를 지우지 말 것.
+     */
+    private final boolean approvalRequired;
+    StoreProvisioningService(StoreRepository stores,MembershipRepository memberships,QrRepository qrs,GameConfigService config,SubscriptionService subscriptions,PasswordEncoder encoder,SecureRandom random,Clock clock,@org.springframework.beans.factory.annotation.Value("${app.store-approval-required:false}") boolean approvalRequired){this.stores=stores;this.memberships=memberships;this.qrs=qrs;this.config=config;this.subscriptions=subscriptions;this.encoder=encoder;this.random=random;this.clock=clock;this.approvalRequired=approvalRequired;}
     /** 운영자가 직접 만드는 매장(부트스트랩/시드)은 이미 확인된 것이므로 바로 ACTIVE다. */
     @Transactional Provisioned provision(AdminUser owner,String name,String phone,String address,String businessNumber,String naverPlaceUrl,String staffPin){
         return provision(owner,name,phone,address,businessNumber,naverPlaceUrl,staffPin,"http://localhost:8088",StoreStatus.ACTIVE);
     }
-    /** 셀프 신청은 운영자 승인 전까지 PENDING_APPROVAL이다. 사업자등록번호는 주장일 뿐이라서다. */
+    /**
+     * 셀프 신청. `app.store-approval-required`가 켜져 있으면 PENDING_APPROVAL, 아니면 바로 ACTIVE다.
+     *
+     * 승인을 꺼도 사업자등록번호 중복은 막힌다(호출부의 existsByBusinessNumber). 한 번호로 매장을
+     * 두 개 만들 수 없다는 것이 승인 없이도 남는 최소 방어선이다.
+     */
     @Transactional Provisioned provision(AdminUser owner,String name,String phone,String address,String businessNumber,String naverPlaceUrl,String staffPin,String publicOrigin){
-        return provision(owner,name,phone,address,businessNumber,naverPlaceUrl,staffPin,publicOrigin,StoreStatus.PENDING_APPROVAL);
+        return provision(owner,name,phone,address,businessNumber,naverPlaceUrl,staffPin,publicOrigin,
+            approvalRequired?StoreStatus.PENDING_APPROVAL:StoreStatus.ACTIVE);
     }
     @Transactional Provisioned provision(AdminUser owner,String name,String phone,String address,String businessNumber,String naverPlaceUrl,String staffPin,String publicOrigin,StoreStatus status){
         Instant now=clock.instant();String pin=staffPin==null||staffPin.isBlank()?Integer.toString(100000+random.nextInt(900000)):staffPin;
@@ -114,9 +128,10 @@ final class Inputs {
         config.save(s,GameConfigService.defaults());
         // 신규 매장은 BASIC으로 시작한다. 게임과 쿠폰은 어떤 등급에서도 다 열려 있으므로 이걸로 막히는 건 없다.
         subscriptions.start(s,Plan.BASIC);
-        // 포스터 PNG는 이 흐름에서 가장 비싼 작업이다. 승인 전에 그려 두면 익명 요청 한 번으로
-        // 큰 이미지를 계속 쌓을 수 있다. 승인 시점(StoreApprovalService)에 처음 만든다.
-        if(status==StoreStatus.ACTIVE)posters.save(s,q.publicToken,publicOrigin);
+        // 포스터 PNG는 이 흐름에서 가장 비싼 작업이라 여기서 만들지 않는다. 가입은 익명 요청이고,
+        // 그 자리에서 큰 이미지를 그리면 요청 한 번에 수백 KB를 쌓는 길이 열린다. 예전에는
+        // "승인된 매장만" 그려서 막았는데, 승인을 끄면 그 방어가 통째로 사라졌다.
+        // 안내물은 파생 데이터라 인증된 다운로드(AdminController.poster)가 없으면 그때 만든다.
         return new Provisioned(s,pin,q.publicToken);
     }
 }

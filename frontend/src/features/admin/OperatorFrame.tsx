@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { LogoutButton } from "@/features/admin/LogoutButton";
 
 /**
  * 운영자 콘솔 공통 껍데기.
@@ -27,9 +28,12 @@ export function OperatorFrame({ title, children }: { title: string; children: Re
           <p className="brand">소담랩스 운영자</p>
           <h1>{title}</h1>
         </div>
-        <Link className="btn ghost btn-inline" href="/admin">
-          내 매장
-        </Link>
+        <div className="sheet-actions">
+          <Link className="btn ghost btn-inline" href="/admin">
+            내 매장
+          </Link>
+          <LogoutButton />
+        </div>
       </header>
 
       <nav className="nav" aria-label="운영자 메뉴">

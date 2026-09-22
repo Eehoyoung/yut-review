@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { LogoutButton } from "@/features/admin/LogoutButton";
 import { api, errorMessage } from "@/lib/api";
 import type { AdminMe, StoreStatus, StoreSummary } from "@/types/api";
 import { STORE_STATUS_LABEL, STORE_STATUS_TONE } from "@/features/admin/labels";
@@ -51,13 +52,14 @@ export default function Stores() {
           <button className="btn secondary btn-inline" onClick={() => setAdding(true)}>
             매장 추가
           </button>
-        )}</div>
+        )}<LogoutButton /></div>
       </header>
 
       {created && (
         <p className="notice" role="status">
-          {created.name} 등록을 신청했습니다.
-          <br />운영자 승인 후 QR과 직원 PIN이 열립니다.
+          {created.name}을(를) 등록했습니다.
+          <br />
+          {created.approvalRequired ? "운영자 승인 후 QR과 직원 PIN이 열립니다." : "QR과 직원 PIN이 바로 열립니다."}
         </p>
       )}
 
@@ -77,7 +79,7 @@ export default function Stores() {
       {q.data?.length === 0 && !adding && (
         <section className="panel stack">
           <h2>등록된 매장이 없어요</h2>
-          <p className="lead">매장을 추가하면 운영자 승인 후 QR과 직원 PIN이 열립니다.</p>
+          <p className="lead">매장을 추가하면 QR 안내물과 직원 PIN이 열립니다.</p>
           <button className="btn" onClick={() => setAdding(true)}>
             매장 추가
           </button>
@@ -121,7 +123,7 @@ export default function Stores() {
           }}
         >
           <h2>매장 추가</h2>
-          <p className="lead">매장마다 다른 사업자등록번호가 필요합니다. 운영자 승인 후 QR과 직원 PIN이 열립니다.</p>
+          <p className="lead">매장마다 다른 사업자등록번호가 필요합니다. 이미 등록된 번호로는 만들 수 없습니다.</p>
           <div className="field">
             <label htmlFor="store-name">매장 상호명</label>
             <input

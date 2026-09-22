@@ -23,6 +23,7 @@ class OperatorAccountTest {
     @Autowired AdminUserRepository admins;
     @Autowired StoreApprovalService approvals;
     @Autowired AdminSignupService signup;
+    @Autowired StoreRepository stores;
     @Autowired PasswordEncoder encoder;
     @Autowired Clock clock;
 
@@ -146,6 +147,37 @@ class OperatorAccountTest {
         assertEquals("ADMIN_NOT_FOUND",
                 assertThrows(AppException.class, () -> accounts.grant(
                         operator("missing-actor@test.com"), 9_999_999L, null)).code);
+    }
+
+    /**
+     * 승인제를 끈 상태에서 남는 최소 방어선.
+     *
+     * 2026-09-22에 승인 대기 큐를 껐다. 그러면 "사업자등록번호가 진짜인가"는 아무도 보지 않는다.
+     * 남은 것은 "한 번호로 매장을 두 개 만들 수는 없다" 하나뿐이라, 이것이 깨지면 승인을 끈 선택
+     * 자체가 무너진다. 승인 플래그와 무관하게 성립해야 하므로 여기서 잠근다.
+     */
+    @Test void aBusinessNumberCannotBeRegisteredTwiceEvenWithApprovalTurnedOff() {
+        StoreProvisioningService.Provisioned first = signup.signUp(new AdminSignupService.Request(
+                "secret1234", "secret1234", "dup-first@test.com", "첫대표", "01033332222",
+                "중복상회", "3332220001"), "https://example.test", "203.0.113.92");
+        // 승인제가 꺼져 있으므로 바로 쓸 수 있는 상태다.
+        assertEquals(StoreStatus.ACTIVE, first.store().status);
+
+        // 다른 사람이 같은 사업자등록번호로 가입하려 하면 막힌다.
+        assertEquals("DUPLICATE_BUSINESS_NUMBER", assertThrows(AppException.class,
+                () -> signup.signUp(new AdminSignupService.Request(
+                        "secret1234", "secret1234", "dup-second@test.com", "둘째대표", "01033332223",
+                        "가로채기상회", "3332220001"), "https://example.test", "203.0.113.93")).code);
+
+        // 하이픈을 넣어도 같은 번호다. 정규화 뒤에 비교하지 않으면 여기로 빠져나간다.
+        assertEquals("DUPLICATE_BUSINESS_NUMBER", assertThrows(AppException.class,
+                () -> signup.signUp(new AdminSignupService.Request(
+                        "secret1234", "secret1234", "dup-third@test.com", "셋째대표", "01033332224",
+                        "우회상회", "333-22-20001"), "https://example.test", "203.0.113.94")).code);
+
+        // 그래도 매장은 하나뿐이다.
+        assertEquals(1, stores.findAll().stream()
+                .filter(st -> "3332220001".equals(st.businessNumber)).count());
     }
 
     private AdminUser operator(String email) {
