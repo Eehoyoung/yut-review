@@ -257,11 +257,16 @@ gunzip -c backup-YYYY-MM-DD-HHMM.sql.gz | docker compose -f docker-compose.yml \
 아래 항목 대부분이 `scripts/verify-production.sh` 한 번으로 닫힌다. 콘솔에서 눈으로 봐야 하는 것만 남는다.
 
 - [x] Cloudflare DNS 레코드(`hanpan.sodamlabs.kr` A → Lightsail 고정 IP, Proxied) 생성 및 전파 (2026-09-23 확인)
-- [ ] Cloudflare SSL mode가 실제로 `Full (strict)`인지, Origin Certificate로 handshake가 되는지
-- [ ] Lightsail 방화벽 규칙(80/443만 개방, 5432/8080/3000 차단) 적용
-- [ ] 실제 TLS 인증서 파일 배치와 권한, 만료일/갱신 담당자
-- [ ] 운영 secret 주입 방식(`.env.production` 파일 권한, 백업 위치, 분실 시 절차)
+- [x] Cloudflare SSL mode `Full (strict)`, Origin Certificate handshake (2026-09-23, verify-production PASS)
+- [x] 실제 TLS 인증서 배치와 권한 0600, 만료 2041-09-17 (2026-09-23)
+- [x] 운영 secret 주입 — `generate-production-secrets.sh`로 서버에서 생성, 파일 권한 600 (2026-09-23)
+- [x] 국세청 사업자등록 진위확인 실동작 (2026-09-23) — 틀린 대표자명은 `BUSINESS_NOT_VERIFIED`,
+      실제 정보는 통과. 백엔드 로그에 키·대표자명·사업자번호 유출 0건.
+- [ ] Lightsail 방화벽 규칙(80/443만 개방, 5432/8080/3000 차단) — AWS 콘솔에서 눈으로 확인 필요
 - [ ] Cloudflare 경유 시 `X-Real-IP`가 실제 손님 IP로 들어오는지(접근 로그로 확인)
+- [ ] 백업 복원 리허설. 스냅샷은 켜 뒀지만 `pg_dump` 복원을 한 번도 해 보지 않았다.
+      해 보지 않은 백업은 백업이 아니다.
+- [ ] Lightsail 2GB 부하 실측(`docs/LOAD_TEST_PLAN.md`). 유휴 상태 backend 261MiB/768MiB만 쟀다.
 
 ## S3 / CDN
 저장 대상:
