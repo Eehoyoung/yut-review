@@ -31,10 +31,10 @@ import org.springframework.web.bind.annotation.*;
 }
 
 @Service class RecoveryMailService {
-    private final JavaMailSender sender;private final boolean enabled;private final String from;
-    RecoveryMailService(JavaMailSender sender,@Value("${app.mail.enabled:false}") boolean enabled,@Value("${app.mail.from:}") String from){this.sender=sender;this.enabled=enabled;this.from=from;}
+    private final JavaMailSender sender;private final String from;private final String password;
+    RecoveryMailService(JavaMailSender sender,@Value("${spring.mail.username:}") String from,@Value("${spring.mail.password:}") String password){this.sender=sender;this.from=from;this.password=password;}
     void sendCode(String to,String code){
-        if(!enabled||from.isBlank())throw unavailable();
+        if(from.isBlank()||password.isBlank())throw unavailable();
         try{MimeMessage m=sender.createMimeMessage();MimeMessageHelper h=new MimeMessageHelper(m,"UTF-8");h.setFrom(from);h.setTo(to);h.setSubject("[소담한판] 로그인 정보 확인 인증번호");h.setText("소담한판 인증번호는 "+code+"입니다. 10분 안에 입력해 주세요.\n본인이 요청하지 않았다면 이 메일을 무시해 주세요.");sender.send(m);}catch(Exception e){throw unavailable();}
     }
     private static AppException unavailable(){return new AppException("RECOVERY_EMAIL_UNAVAILABLE","인증 메일을 보내지 못했습니다. 잠시 후 다시 시도해 주세요.",HttpStatus.SERVICE_UNAVAILABLE);}

@@ -1,6 +1,6 @@
 spring:
   mail:
-    host: ${SMTP_HOST:localhost}
+    host: ${SMTP_HOST:smtp.gmail.com}
     port: ${SMTP_PORT:587}
     username: ${SMTP_USERNAME:}
     password: ${SMTP_PASSWORD:}
@@ -22,9 +22,6 @@ server:
   forward-headers-strategy: framework
 management.endpoints.web.exposure.include: health
 app:
-  mail:
-    enabled: ${RECOVERY_EMAIL_ENABLED:false}
-    from: ${RECOVERY_EMAIL_FROM:}
   # 비어 있으면 개발/field-test에서 현재 요청 origin을 사용한다. prod profile은 canonical origin을 고정한다.
   public-origin: ${APP_PUBLIC_ORIGIN:}
   # Base64로 인코딩한 무작위 32바이트 이상. 미달이면 기동하지 않는다(PhoneService).
