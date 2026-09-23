@@ -166,6 +166,8 @@ enum MarketingService { YUT_REVIEW, REVIEW_PILOT, SODAM }
     @Enumerated(EnumType.STRING) @Column(nullable=false,length=20) Plan plan;
     @Enumerated(EnumType.STRING) @Column(nullable=false,length=20) SubscriptionStatus status;
     @Column(nullable=false) Instant startedAt; @Column(nullable=false) Instant updatedAt;
+    /** 신규 가입 시 제공하는 PRO 체험 종료 시각. null이면 체험 구독이 아니다. */
+    @Column(name="trial_ends_at") Instant trialEndsAt;
     /** 결제 연동 전이라 관리자가 바꾼 사유만 남긴다. */
     @Column(length=200) String note;
 }

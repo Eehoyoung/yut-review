@@ -30,6 +30,8 @@ export interface Subscription {
   analyticsFrom?: string;
   status?: string;
   startedAt?: string;
+  trial?: boolean;
+  trialEndsAt?: string;
   note?: string;
 }
 

@@ -3,6 +3,7 @@ package com.yutreview;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.Map;
@@ -93,6 +94,7 @@ class PlanEntitlementService {
  */
 @Service
 class SubscriptionService {
+    static final int SIGNUP_TRIAL_DAYS = 14;
     private final StoreSubscriptionRepository subscriptions;
     private final Clock clock;
 
@@ -105,11 +107,19 @@ class SubscriptionService {
      * 구독 행이 없는 매장은 BASIC으로 본다. 기존 매장을 일괄 백필하지 않아도 되고, 행이 사라져도
      * 매장이 잠기지 않는다. 요금제는 기능을 열어 주는 값이므로 없을 때의 기본은 가장 낮은 등급이다.
      */
+    @Transactional
     Plan planOf(Long storeId) {
-        return subscriptions.findByStoreId(storeId)
-                .filter(s -> s.status == SubscriptionStatus.ACTIVE)
-                .map(s -> s.plan)
-                .orElse(Plan.BASIC);
+        Optional<StoreSubscription> found = subscriptions.findByStoreId(storeId);
+        if (found.isEmpty() || found.get().status != SubscriptionStatus.ACTIVE) return Plan.BASIC;
+        StoreSubscription subscription = found.get();
+        if (subscription.trialEndsAt != null && !clock.instant().isBefore(subscription.trialEndsAt)) {
+            subscription.plan = Plan.BASIC;
+            subscription.trialEndsAt = null;
+            subscription.note = "14일 PRO 무료체험 종료";
+            subscription.updatedAt = clock.instant();
+            subscriptions.save(subscription);
+        }
+        return subscription.plan;
     }
 
     Optional<StoreSubscription> find(Long storeId) {
@@ -126,7 +136,25 @@ class SubscriptionService {
         }
         s.plan = plan;
         s.status = SubscriptionStatus.ACTIVE;
+        s.trialEndsAt = null;
         s.updatedAt = now;
+        return subscriptions.save(s);
+    }
+
+    /** 신규 가입 매장은 가입 순간부터 14일간 PRO 전체 기능을 사용한다. */
+    @Transactional
+    StoreSubscription startSignupTrial(Store store) {
+        Instant now = clock.instant();
+        StoreSubscription s = subscriptions.findByStoreId(store.id).orElseGet(StoreSubscription::new);
+        if (s.id == null) {
+            s.store = store;
+            s.startedAt = now;
+        }
+        s.plan = Plan.PRO;
+        s.status = SubscriptionStatus.ACTIVE;
+        s.trialEndsAt = now.plus(SIGNUP_TRIAL_DAYS, ChronoUnit.DAYS);
+        s.updatedAt = now;
+        s.note = "신규 가입 14일 PRO 무료체험";
         return subscriptions.save(s);
     }
 

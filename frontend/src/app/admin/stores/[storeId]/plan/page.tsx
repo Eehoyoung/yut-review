@@ -87,6 +87,11 @@ export default function PlanPage() {
           {PLAN_LABEL[now]} · {priceLabel(current.data.monthlyPriceKrw)}
         </h2>
         <p className="insight-summary">{PLAN_TAGLINE[now]}</p>
+        {current.data.trial && current.data.trialEndsAt && (
+          <p className="insight-summary">
+            신규 가입 무료체험 · {new Date(current.data.trialEndsAt).toLocaleDateString("ko-KR")}까지 PRO 전체 기능
+          </p>
+        )}
       </section>
 
       <section className="panel stack">

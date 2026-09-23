@@ -138,8 +138,8 @@ final class Inputs {
         AdminStoreMembership m=new AdminStoreMembership();m.admin=owner;m.store=s;m.role=MembershipRole.OWNER;m.createdAt=now;memberships.save(m);
         StoreQrCode q=new StoreQrCode();q.store=s;q.publicToken=Tokens.random();q.status=QrStatus.ACTIVE;q.createdAt=now;qrs.save(q);
         config.save(s,GameConfigService.defaults());
-        // 신규 매장은 BASIC으로 시작한다. 게임과 쿠폰은 어떤 등급에서도 다 열려 있으므로 이걸로 막히는 건 없다.
-        subscriptions.start(s,Plan.BASIC);
+        // 신규 매장은 가입 순간부터 14일간 PRO 전체 기능을 체험하고, 만료 뒤 자동으로 BASIC이 된다.
+        subscriptions.startSignupTrial(s);
         // 포스터 PNG는 이 흐름에서 가장 비싼 작업이라 여기서 만들지 않는다. 가입은 익명 요청이고,
         // 그 자리에서 큰 이미지를 그리면 요청 한 번에 수백 KB를 쌓는 길이 열린다. 예전에는
         // "승인된 매장만" 그려서 막았는데, 승인을 끄면 그 방어가 통째로 사라졌다.

@@ -202,6 +202,8 @@ class SubscriptionController {
         subscriptions.find(storeId).ifPresent(s -> {
             out.put("status", s.status.name());
             out.put("startedAt", s.startedAt);
+            out.put("trial", s.trialEndsAt != null && clock.instant().isBefore(s.trialEndsAt));
+            if (s.trialEndsAt != null) out.put("trialEndsAt", s.trialEndsAt);
             out.put("note", s.note == null ? "" : s.note);
         });
         return out;

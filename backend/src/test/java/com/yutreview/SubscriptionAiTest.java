@@ -33,6 +33,7 @@ class SubscriptionAiTest {
     @Autowired GameService games;
     @Autowired PrizeRepository prizes;
     @Autowired SubscriptionService subscriptions;
+    @Autowired StoreSubscriptionRepository subscriptionRows;
     @Autowired PlanEntitlementService entitlements;
     @Autowired AiService ai;
     @Autowired AiQuotaService quota;
@@ -91,6 +92,23 @@ class SubscriptionAiTest {
         assertFalse(entitlements.has(Plan.BASIC, Entitlement.CSV_EXPORT));
         assertTrue(entitlements.has(Plan.STANDARD, Entitlement.CSV_EXPORT));
         assertTrue(entitlements.has(Plan.STANDARD, Entitlement.BRANDING));
+    }
+
+    @Test
+    void signupTrialStartsWithProAndFallsBackToBasicAfterFourteenDays() {
+        StoreSubscription trial = subscriptions.startSignupTrial(store);
+        assertEquals(Plan.PRO, subscriptions.planOf(store.id));
+        assertNotNull(trial.trialEndsAt);
+        assertEquals(SubscriptionService.SIGNUP_TRIAL_DAYS,
+                java.time.Duration.between(trial.startedAt, trial.trialEndsAt).toDays());
+
+        trial.trialEndsAt = clock.instant().minusSeconds(1);
+        subscriptionRows.saveAndFlush(trial);
+
+        assertEquals(Plan.BASIC, subscriptions.planOf(store.id));
+        StoreSubscription expired = subscriptionRows.findByStoreId(store.id).orElseThrow();
+        assertNull(expired.trialEndsAt);
+        assertEquals(Plan.BASIC, expired.plan);
     }
 
     @Test
@@ -233,9 +251,9 @@ class SubscriptionAiTest {
         // 남의 매장은 멤버십 검사에서 막힌다. 존재 여부도 알려주지 않는다.
         assertEquals("FORBIDDEN",
                 assertThrows(AppException.class, () -> access.member(owner.id, store.id)).code);
-        // 자기 매장은 통과하고, 기본 요금제는 BASIC이다.
+        // 자기 매장은 통과하고, 신규 가입 매장은 14일 PRO 무료체험으로 시작한다.
         access.member(owner.id, other.store().id);
-        assertEquals(Plan.BASIC, subscriptions.planOf(other.store().id));
+        assertEquals(Plan.PRO, subscriptions.planOf(other.store().id));
     }
 
     @Test

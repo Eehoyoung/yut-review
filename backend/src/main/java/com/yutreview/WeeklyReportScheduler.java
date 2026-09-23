@@ -23,14 +23,17 @@ class WeeklyReportScheduler {
     private static final Logger log = LoggerFactory.getLogger(WeeklyReportScheduler.class);
 
     private final StoreSubscriptionRepository subscriptions;
+    private final SubscriptionService subscriptionService;
     private final StoreRepository stores;
     private final PlanEntitlementService entitlements;
     private final AiService ai;
     private final Clock clock;
 
-    WeeklyReportScheduler(StoreSubscriptionRepository subscriptions, StoreRepository stores,
+    WeeklyReportScheduler(StoreSubscriptionRepository subscriptions, SubscriptionService subscriptionService,
+                          StoreRepository stores,
                           PlanEntitlementService entitlements, AiService ai, Clock clock) {
         this.subscriptions = subscriptions;
+        this.subscriptionService = subscriptionService;
         this.stores = stores;
         this.entitlements = entitlements;
         this.ai = ai;
@@ -51,7 +54,7 @@ class WeeklyReportScheduler {
         int made = 0;
         for (StoreSubscription subscription : subscriptions.findAll()) {
             if (subscription.status != SubscriptionStatus.ACTIVE) continue;
-            if (!entitlements.automaticWeeklyReport(subscription.plan)) continue;
+            if (!entitlements.automaticWeeklyReport(subscriptionService.planOf(subscription.store.id))) continue;
             Store store = stores.findById(subscription.store.id).orElse(null);
             if (store == null || store.status != StoreStatus.ACTIVE) continue;
             try {
