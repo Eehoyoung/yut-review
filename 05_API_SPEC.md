@@ -274,6 +274,18 @@ Request:
 ```
 계정은 이메일로만 식별한다. 아이디(`loginId`) 개념은 없다. 대소문자는 서버가 소문자로 맞춘다.
 
+### 이메일·비밀번호 찾기
+
+로그인 화면의 팝업에서 처리한다. `POST /api/admin/auth/recovery/request`는 목적
+`FIND_EMAIL` 또는 `RESET_PASSWORD`와 사업자번호·개업일자·대표자명·대표자 휴대전화를 받는다.
+비밀번호 재설정은 로그인 이메일도 함께 받는다. 가입 정보가 모두 일치하면 등록 이메일로 6자리
+인증번호를 보내고 `{challengeToken, maskedEmail, expiresInSeconds:600}`을 반환한다.
+
+`POST /api/admin/auth/recovery/verify`는 `{purpose, challengeToken, code, password?,
+passwordConfirm?}`을 받는다. 인증번호는 10분 만료, 최대 5회 확인, 1회용이다. 이메일 찾기는 인증 후
+전체 이메일을 반환하고, 비밀번호 재설정은 기존 비밀번호를 복구하지 않고 새 BCrypt 해시로 교체한다.
+인증번호와 토큰 원문은 DB·로그에 저장하지 않는다. 발급은 IP당 시간당 5회로 제한한다.
+
 ## 내 계정
 ```http
 GET /api/admin/me

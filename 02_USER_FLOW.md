@@ -59,6 +59,8 @@ flowchart TD
 ```mermaid
 flowchart TD
     S[매장 회원가입] --> A[로그인]
+    A --> R[이메일·비밀번호 찾기 팝업]
+    R --> V[등록 이메일 인증번호 확인]
     S --> T[A6 QR 안내물 서버 자동 생성]
     A --> B[매장 목록]
     B --> C[매장 선택]

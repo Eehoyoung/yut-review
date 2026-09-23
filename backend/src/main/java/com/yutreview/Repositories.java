@@ -17,11 +17,17 @@ interface AdminUserRepository extends JpaRepository<AdminUser,Long> {
     long countByInvitedById(Long adminId);
     Page<AdminUser> findByEmailContainingIgnoreCaseOrNameContainingIgnoreCase(String email,String name,Pageable pageable);
 }
+interface AdminRecoveryChallengeRepository extends JpaRepository<AdminRecoveryChallenge,Long> {
+    @Lock(LockModeType.PESSIMISTIC_WRITE) @Query("select c from AdminRecoveryChallenge c join fetch c.admin where c.tokenHash=:tokenHash")
+    Optional<AdminRecoveryChallenge> findForUpdate(@Param("tokenHash") String tokenHash);
+    @Modifying @Query("delete from AdminRecoveryChallenge c where c.expiresAt<:now") int purge(@Param("now") java.time.Instant now);
+}
 interface MarketingConsentEventRepository extends JpaRepository<MarketingConsentEvent,Long> {
     Optional<MarketingConsentEvent> findFirstByAdminIdAndServiceOrderByChangedAtDescIdDesc(Long adminId,MarketingService service);
     List<MarketingConsentEvent> findByAdminIdOrderByChangedAtDescIdDesc(Long adminId);
 }
 interface StoreRepository extends JpaRepository<Store,Long> {
+    Optional<Store> findByBusinessNumber(String businessNumber);
     boolean existsByBusinessNumber(String businessNumber);
     long countByStatus(StoreStatus status);
     Page<Store> findByStatus(StoreStatus status,Pageable pageable);

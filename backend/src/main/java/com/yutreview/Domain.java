@@ -36,6 +36,7 @@ enum Entitlement { BASIC_ANALYTICS, ADVANCED_ANALYTICS, CSV_EXPORT, BRANDING }
 /** 과금·쿼터 단위가 되는 AI 기능. */
 enum AiFeature { AI_EVENT_COPY, AI_REPORT, AI_IMPROVEMENT, AI_CHAT }
 enum MarketingService { YUT_REVIEW, REVIEW_PILOT, SODAM }
+enum AccountRecoveryPurpose { FIND_EMAIL, RESET_PASSWORD }
 
 @Entity @Table(name="admin_users") class AdminUser {
     @Id @GeneratedValue(strategy=GenerationType.IDENTITY) Long id;
@@ -170,6 +171,17 @@ enum MarketingService { YUT_REVIEW, REVIEW_PILOT, SODAM }
     @Column(name="trial_ends_at") Instant trialEndsAt;
     /** 결제 연동 전이라 관리자가 바꾼 사유만 남긴다. */
     @Column(length=200) String note;
+}
+@Entity @Table(name="admin_recovery_challenges",indexes=@Index(columnList="expires_at")) class AdminRecoveryChallenge {
+    @Id @GeneratedValue(strategy=GenerationType.IDENTITY) Long id;
+    @ManyToOne(optional=false) @JoinColumn(name="admin_user_id",nullable=false) AdminUser admin;
+    @Enumerated(EnumType.STRING) @Column(nullable=false,length=30) AccountRecoveryPurpose purpose;
+    @Column(name="token_hash",nullable=false,unique=true,length=64) String tokenHash;
+    @Column(name="code_hash",nullable=false,length=64) String codeHash;
+    @Column(nullable=false) int attempts;
+    @Column(name="expires_at",nullable=false) Instant expiresAt;
+    @Column(name="used_at") Instant usedAt;
+    @Column(name="created_at",nullable=false) Instant createdAt;
 }
 /**
  * 한 매장·한 기능·한 달의 사용량. (store, feature, month)에 유니크를 걸어 두고 증가는 조건부 UPDATE로만
