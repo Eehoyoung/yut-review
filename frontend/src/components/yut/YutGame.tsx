@@ -1,16 +1,17 @@
 "use client";
 
 import { Canvas, useFrame } from "@react-three/fiber";
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BufferAttribute, Color, ExtrudeGeometry, Quaternion, Shape, type Mesh } from "three";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { BufferAttribute, Color, ExtrudeGeometry, MathUtils, Quaternion, Shape, Vector3, type Mesh, type PerspectiveCamera } from "three";
 
 import type { RevealResponse } from "@/types/api";
 import { frontFacesFor, type YutResult } from "@/features/game/yut-result";
+import { yutCameraPose, type YutCameraPhase } from "@/features/game/yut-camera";
 import { crossSection, STICK_LENGTH, STICK_RADIUS } from "@/features/game/yut-shape";
 import { LANE_SPACING, simulateThrow, spreadFaces, STEP_HZ, warmUpPhysics, type ThrowRecording } from "@/features/game/yut-throw";
 import { YUT_LABEL } from "@/features/labels";
 
-type Phase = "READY" | "THROW" | "AIR" | "IMPACT" | "ROLL" | "SETTLE" | "RESULT_LOCK" | "REVEAL";
+type Phase = YutCameraPhase;
 
 type Props = {
   playId: string;
@@ -21,7 +22,9 @@ type Props = {
 };
 
 const BELLY_COLOR = new Color("#f0d9ab");
-const BACK_COLOR = new Color("#8f5c2c");
+const BACK_COLOR = new Color("#70401f");
+const BELLY_TIP_COLOR = new Color("#ffe8bc");
+const BACK_TIP_COLOR = new Color("#8b542d");
 
 /** Half-moon cross section extruded along the stick, belly (+Y) light and back dark. */
 function useStickGeometry() {
@@ -32,14 +35,25 @@ function useStickGeometry() {
     for (const [x, y] of section.slice(1)) shape.lineTo(x, y);
     shape.closePath();
 
-    const geometry = new ExtrudeGeometry(shape, { depth: STICK_LENGTH, bevelEnabled: false, curveSegments: 14 });
+    const geometry = new ExtrudeGeometry(shape, {
+      depth: STICK_LENGTH,
+      bevelEnabled: true,
+      bevelSegments: 3,
+      bevelSize: 0.045,
+      bevelThickness: 0.045,
+      curveSegments: 14,
+    });
     geometry.translate(0, 0, -STICK_LENGTH / 2);
     geometry.computeVertexNormals();
 
     const position = geometry.getAttribute("position");
     const colors = new Float32Array(position.count * 3);
     for (let i = 0; i < position.count; i += 1) {
-      const color = position.getY(i) > 0.001 ? BELLY_COLOR : BACK_COLOR;
+      const belly = position.getY(i) > 0.001;
+      const nearTip = Math.abs(position.getZ(i)) > STICK_LENGTH / 2 - 0.12;
+      const color = belly
+        ? nearTip ? BELLY_TIP_COLOR : BELLY_COLOR
+        : nearTip ? BACK_TIP_COLOR : BACK_COLOR;
       colors[i * 3] = color.r;
       colors[i * 3 + 1] = color.g;
       colors[i * 3 + 2] = color.b;
@@ -142,7 +156,7 @@ function Sticks({
           castShadow={shadows}
           receiveShadow={shadows}
         >
-          <meshStandardMaterial vertexColors roughness={0.78} metalness={0.02} />
+          <meshStandardMaterial vertexColors roughness={0.56} metalness={0.01} emissive="#2d170b" emissiveIntensity={0.025} />
         </mesh>
       ))}
     </>
@@ -156,11 +170,48 @@ function Sticks({
  */
 function Mat({ shadows }: { shadows: boolean }) {
   return (
-    <mesh position={[0, -0.09, 0]} receiveShadow={shadows}>
-      <cylinderGeometry args={[4.2, 4.5, 0.18, 48]} />
-      <meshStandardMaterial color="#2a140b" roughness={0.94} />
-    </mesh>
+    <group>
+      <mesh position={[0, -0.12, 0]} receiveShadow={shadows}>
+        <cylinderGeometry args={[6.6, 6.9, 0.24, 64]} />
+        <meshStandardMaterial color="#ad6642" roughness={0.96} />
+      </mesh>
+      <mesh position={[0, 0.012, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[4.72, 4.76, 64]} />
+        <meshBasicMaterial color="#f2c39e" transparent opacity={0.58} />
+      </mesh>
+    </group>
   );
+}
+
+function CameraRig({ phase, reducedMotion }: { phase: Phase; reducedMotion: boolean }) {
+  const target = useRef(new Vector3());
+  const phaseStartedAt = useRef(0);
+  const previousPhase = useRef(phase);
+
+  useFrame(({ camera, clock, size }, delta) => {
+    const perspective = camera as PerspectiveCamera;
+    if (previousPhase.current !== phase) {
+      previousPhase.current = phase;
+      phaseStartedAt.current = clock.elapsedTime;
+    }
+
+    const pose = yutCameraPose(phase, size.width / Math.max(size.height, 1));
+    const elapsed = clock.elapsedTime - phaseStartedAt.current;
+    const impactShake = !reducedMotion && phase === "IMPACT" && elapsed < 0.22
+      ? Math.sin(elapsed * 92) * (1 - elapsed / 0.22) * 0.055
+      : 0;
+    const speed = reducedMotion ? 30 : 5.5;
+
+    perspective.position.x = MathUtils.damp(perspective.position.x, pose.position[0] + impactShake, speed, delta);
+    perspective.position.y = MathUtils.damp(perspective.position.y, pose.position[1], speed, delta);
+    perspective.position.z = MathUtils.damp(perspective.position.z, pose.position[2], speed, delta);
+    perspective.fov = MathUtils.damp(perspective.fov, pose.fov, speed, delta);
+    perspective.updateProjectionMatrix();
+    target.current.set(pose.target[0], pose.target[1], pose.target[2]);
+    perspective.lookAt(target.current);
+  });
+
+  return null;
 }
 
 const PHASE_LABEL: Record<Phase, string> = {
@@ -275,7 +326,7 @@ export default function YutGame({ playId, animationSeed, reveal, onRevealed, cla
   const buttonLabel = preparing ? "결과 확인 중" : error ? "다시 던지기" : phase === "READY" ? "윷 던지기" : "던지는 중";
 
   return (
-    <section className={className ? `stage ${className}` : "stage"} aria-label={`윷놀이 ${playId}`}>
+    <section className={className ? `stage ${className}` : "stage"} data-phase={phase} aria-label={`윷놀이 ${playId}`}>
       <div className="stage-top">
         <nav className="steps" aria-label="참여 단계">
           <span>1 정보 입력</span>
@@ -290,16 +341,17 @@ export default function YutGame({ playId, animationSeed, reveal, onRevealed, cla
 
       <div className="stage-canvas">
         {/*
-          카메라는 실제 착지 범위(x -1.94~2.02, z -2.90~3.80, 40번 던져 실측)를 폰 세로 화면에
-          전부 담도록 맞췄다. 이전 [0, 5.4, 6.2]에서는 아이폰 12 기준 가로가 1.62배 넘쳐
-          던지기 10번 중 9번꼴로 윷 한 짝 이상이 화면 밖으로 나갔다. 던져진 모양이 곧 결과인
-          게임에서 보이지 않는 윷은 작은 윷보다 나쁘다.
-          R3F가 기본으로 원점을 바라보므로 위치만 바꾸면 된다. 이 값을 줄이면 다시 잘린다.
+          실제 착지 범위(x -1.94~2.02, z -2.90~3.80, 40번 던져 실측)는 보존하되,
+          CameraRig가 현재 Canvas 종횡비와 페이즈에 맞춰 FOV를 조절한다. 세로로 긴 폰에서도
+          준비 장면은 크게 보이고, 공중·착지 구간에는 네 짝이 잘리지 않는 안전 구도를 쓴다.
+          던져진 모양이 곧 결과이므로 정지한 윷의 위치나 회전은 카메라 연출을 위해 바꾸지 않는다.
         */}
-        <Canvas shadows={shadows} camera={{ position: [0, 9.86, 5.69], fov: 40 }} dpr={[1, 1.5]} gl={{ antialias: false, powerPreference: "high-performance" }}>
+        <Canvas shadows={shadows} camera={{ position: [0, 8.45, 4.72], fov: 48 }} dpr={[1, 1.5]} gl={{ antialias: false, powerPreference: "high-performance" }}>
           <Suspense fallback={null}>
-            <ambientLight intensity={1.2} />
-            <directionalLight position={[3, 7, 4]} intensity={2.3} castShadow={shadows} shadow-mapSize={[512, 512]} />
+            <CameraRig phase={phase} reducedMotion={reducedMotion} />
+            <hemisphereLight color="#fff5e5" groundColor="#713b27" intensity={1.18} />
+            <directionalLight position={[-3.5, 8, 5]} intensity={2.45} castShadow={shadows} shadow-mapSize={[512, 512]} shadow-normalBias={0.025} />
+            <directionalLight position={[4, 3, -2]} color="#ff9a5f" intensity={0.62} />
             <Mat shadows={shadows} />
             <Sticks
               recording={recording}
@@ -311,6 +363,15 @@ export default function YutGame({ playId, animationSeed, reveal, onRevealed, cla
             />
           </Suspense>
         </Canvas>
+        {phase === "REVEAL" && result ? (
+          <div className="stage-reveal" aria-hidden="true">
+            <div className="result-burst">
+              {Array.from({ length: 8 }, (_, index) => <i key={index} style={{ "--ray": index } as CSSProperties} />)}
+              <span>팡!</span>
+            </div>
+            <strong className="result-mark">{YUT_LABEL[result.yutResult as YutResult] ?? result.yutResult}</strong>
+          </div>
+        ) : null}
       </div>
 
       <div className="stage-bottom">
@@ -323,12 +384,7 @@ export default function YutGame({ playId, animationSeed, reveal, onRevealed, cla
           {phase === "REVEAL" && result ? `결과 ${YUT_LABEL[result.yutResult as YutResult] ?? result.yutResult}` : ""}
         </p>
         {error && <p className="error" role="alert">{error}</p>}
-        {phase === "REVEAL" && result ? (
-          <div className="stage-result">
-            <span className="label">결과</span>
-            <strong className="result-mark">{YUT_LABEL[result.yutResult as YutResult] ?? result.yutResult}</strong>
-          </div>
-        ) : (
+        {phase === "REVEAL" && result ? <p className="stage-result-caption">오늘의 윷 결과가 나왔어요</p> : (
           <button type="button" className="btn wood" onClick={() => void throwYut()} disabled={!idle}>
             {buttonLabel}
           </button>

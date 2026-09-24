@@ -1200,7 +1200,8 @@ form > .success {
   display: flex;
   flex-direction: column;
   min-height: 100dvh;
-  background: radial-gradient(120% 55% at 50% 0%, var(--panel) 0%, var(--bg) 45%, var(--bg-deep) 100%);
+  overflow: clip;
+  background: var(--bg);
 }
 
 .stage-top {
@@ -1208,7 +1209,7 @@ form > .success {
   z-index: var(--z-sticky);
   width: min(100%, 460px);
   margin-inline: auto;
-  padding: var(--s5) var(--s4) 0;
+  padding: max(var(--s4), var(--safe-t)) var(--s4) 0;
   display: flex;
   flex-direction: column;
   gap: var(--s3);
@@ -1219,17 +1220,70 @@ form > .success {
   font-weight: 700;
   color: var(--ink-2);
   min-height: 1.6em;
+  text-align: center;
 }
 
 .stage-canvas {
   position: relative;
   flex: 1;
-  min-height: 320px;
+  min-height: clamp(320px, 62dvh, 680px);
+  margin-block: var(--s2);
+  overflow: hidden;
+  background: radial-gradient(ellipse at 50% 42%, #e8bd96 0%, #cd865d 52%, #a95d3d 100%);
+  box-shadow: inset 0 18px 38px rgb(105 48 26 / 0.18), inset 0 -18px 34px rgb(105 48 26 / 0.2);
 }
 
-.stage-canvas > div {
+.stage-canvas > div:first-child {
+  position: absolute !important;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.stage-reveal {
   position: absolute;
   inset: 0;
+  z-index: 2;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  pointer-events: none;
+  background: radial-gradient(circle at center, rgb(252 103 45 / 0.16), transparent 43%);
+}
+
+.result-burst {
+  position: relative;
+  width: 126px;
+  height: 82px;
+  display: grid;
+  place-items: center;
+  color: #fff4e6;
+  font-size: clamp(1.3rem, 6vw, 1.75rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  filter: drop-shadow(0 5px 12px rgb(20 7 2 / 0.45));
+  animation: burst-word 620ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.result-burst i {
+  --ray: 0;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 3px;
+  height: 24px;
+  border-radius: 3px;
+  background: #fc672d;
+  transform: translate(-50%, -50%) rotate(calc(var(--ray) * 45deg)) translateY(-47px) scaleY(0);
+  transform-origin: 50% 35px;
+  animation: burst-ray 520ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.stage-reveal .result-mark {
+  color: #ffe1bd;
+  font-size: clamp(5rem, 27vw, 7.5rem);
+  text-shadow: 0 8px 28px rgb(10 4 2 / 0.58);
+  animation: reveal-result 720ms 90ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .stage-bottom {
@@ -1244,25 +1298,38 @@ form > .success {
   text-align: center;
 }
 
-.stage-result {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--s1);
-  animation: result-in 260ms var(--ease);
-}
-
-.stage-result .label {
-  font-size: var(--t-sm);
+.stage-result-caption {
+  min-height: 54px;
+  margin: 0;
+  display: grid;
+  place-items: center;
+  color: var(--ink-2);
   font-weight: 700;
-  color: var(--ink-muted);
 }
 
-@keyframes result-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
+@keyframes burst-word {
+  0% { opacity: 0; transform: scale(0.72); filter: blur(5px) drop-shadow(0 5px 12px rgb(20 7 2 / 0.45)); }
+  58% { opacity: 1; transform: scale(1.08); filter: blur(0) drop-shadow(0 5px 12px rgb(20 7 2 / 0.45)); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes burst-ray {
+  0% { opacity: 0; transform: translate(-50%, -50%) rotate(calc(var(--ray) * 45deg)) translateY(-31px) scaleY(0); }
+  45% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -50%) rotate(calc(var(--ray) * 45deg)) translateY(-58px) scaleY(1); }
+}
+
+@keyframes reveal-result {
+  0% { opacity: 0; transform: translateY(12px) scale(0.84); filter: blur(8px); }
+  62% { opacity: 1; transform: translateY(0) scale(1.04); filter: blur(0); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@media (max-height: 680px) {
+  .stage-top { padding-top: max(var(--s3), var(--safe-t)); gap: var(--s2); }
+  .stage-canvas { min-height: 300px; margin-block: var(--s1); }
+  .stage-bottom { padding-bottom: calc(var(--s3) + var(--safe-b)); }
+  .stage-reveal .result-mark { font-size: clamp(4.5rem, 24vw, 6rem); }
 }
 
 /* ---------- 관리자 ---------- */
