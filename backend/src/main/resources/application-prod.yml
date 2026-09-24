@@ -1,5 +1,12 @@
 app:
   public-origin: ${APP_PUBLIC_ORIGIN:https://hanpan.sodamlabs.kr}
+  # 운영에서는 환경변수 누락이 보안 기능 비활성화로 이어지지 않게 fail-closed 한다.
+  # 개발/field-test의 편의 기본값은 application.yml에 그대로 유지한다.
+  business-verification:
+    enabled: ${BUSINESS_VERIFICATION_ENABLED:true}
+  store-approval-required: ${STORE_APPROVAL_REQUIRED:true}
+  operator-access:
+    enabled: ${OPERATOR_ACCESS_ENABLED:true}
 
 server:
   forward-headers-strategy: framework

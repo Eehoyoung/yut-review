@@ -7,6 +7,7 @@ import java.util.Map;
 import org.junit.jupiter.api.*;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.mail.javamail.JavaMailSenderImpl;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -37,5 +38,12 @@ import org.springframework.transaction.annotation.Transactional;
         ArgumentCaptor<String> code=ArgumentCaptor.forClass(String.class);verify(mail).sendCode(eq("recover@example.com"),code.capture());
         recovery.verify(AccountRecoveryPurpose.RESET_PASSWORD,(String)issued.get("challengeToken"),code.getValue(),"newsecret12","newsecret12");
         assertTrue(encoder.matches("newsecret12",admins.findByEmail("recover@example.com").orElseThrow().passwordHash));
+    }
+
+    @Test void recoveryMailRequiresStartTls(){
+        JavaMailSenderImpl sender=(JavaMailSenderImpl)new RecoveryMailConfig().recoveryJavaMailSender(
+                "smtp.example.test",587,"sender@example.test","not-a-real-secret",true,true,true);
+        assertEquals("true",sender.getJavaMailProperties().getProperty("mail.smtp.starttls.enable"));
+        assertEquals("true",sender.getJavaMailProperties().getProperty("mail.smtp.starttls.required"));
     }
 }

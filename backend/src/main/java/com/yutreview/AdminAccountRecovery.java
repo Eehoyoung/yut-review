@@ -23,9 +23,10 @@ import org.springframework.web.bind.annotation.*;
         @Value("${spring.mail.host:localhost}") String host,@Value("${spring.mail.port:587}") int port,
         @Value("${spring.mail.username:}") String username,@Value("${spring.mail.password:}") String password,
         @Value("${spring.mail.properties.mail.smtp.auth:true}") boolean auth,
-        @Value("${spring.mail.properties.mail.smtp.starttls.enable:true}") boolean starttls){
+        @Value("${spring.mail.properties.mail.smtp.starttls.enable:true}") boolean starttls,
+        @Value("${spring.mail.properties.mail.smtp.starttls.required:true}") boolean starttlsRequired){
         JavaMailSenderImpl sender=new JavaMailSenderImpl();sender.setHost(host);sender.setPort(port);sender.setUsername(username);sender.setPassword(password);
-        Properties properties=sender.getJavaMailProperties();properties.put("mail.smtp.auth",Boolean.toString(auth));properties.put("mail.smtp.starttls.enable",Boolean.toString(starttls));
+        Properties properties=sender.getJavaMailProperties();properties.put("mail.smtp.auth",Boolean.toString(auth));properties.put("mail.smtp.starttls.enable",Boolean.toString(starttls));properties.put("mail.smtp.starttls.required",Boolean.toString(starttlsRequired));
         return sender;
     }
 }

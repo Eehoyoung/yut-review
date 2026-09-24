@@ -1,6 +1,9 @@
 .env
 .env.field-test
 .env.production
+.env.*
+!.env.example
+!.env.*.example
 backend/.gradle/
 backend/build/
 frontend/.next/
@@ -11,6 +14,7 @@ frontend/tsconfig.tsbuildinfo
 .claude/skills/r3f-*
 # impeccable live 모드의 로컬 세션 상태
 .impeccable/live/sessions/
+.impeccable/build/
 .impeccable/review/
 .playwright-cli/
 output/playwright/

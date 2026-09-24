@@ -50,6 +50,11 @@ services:
       JAVA_TOOL_OPTIONS: ${JAVA_TOOL_OPTIONS:--XX:MaxRAMPercentage=60 -XX:+ExitOnOutOfMemoryError}
       FIELD_TEST_BOOTSTRAP_ENABLED: "false"
       APP_PUBLIC_ORIGIN: ${APP_PUBLIC_ORIGIN:?set APP_PUBLIC_ORIGIN}
+      # 운영 보안 경계는 base Compose의 field-test 기본값을 상속하지 않는다.
+      BUSINESS_VERIFICATION_ENABLED: "true"
+      NTS_SERVICE_KEY: ${NTS_SERVICE_KEY:?set NTS_SERVICE_KEY}
+      STORE_APPROVAL_REQUIRED: "true"
+      OPERATOR_ACCESS_ENABLED: "true"
       # nginx가 넘긴 X-Real-IP를 신뢰할 peer 대역. nginx/cloudflare-real-ip.conf의 real_ip 정책과
       # 이 목록이 어긋나면 rate limit 식별자가 다시 전역으로 뭉개진다(보안점검 05).
       TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:-127.0.0.1/32,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}

@@ -6,6 +6,8 @@ spring:
     password: ${SMTP_PASSWORD:}
     properties.mail.smtp.auth: ${SMTP_AUTH:true}
     properties.mail.smtp.starttls.enable: ${SMTP_STARTTLS:true}
+    # 인증정보가 평문 SMTP로 내려가는 downgrade를 허용하지 않는다.
+    properties.mail.smtp.starttls.required: ${SMTP_STARTTLS_REQUIRED:true}
   autoconfigure:
     exclude: org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
   datasource:
