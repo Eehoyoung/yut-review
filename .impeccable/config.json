@@ -1,0 +1,26 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "design-system-font",
+        "value": "gothic a1",
+        "createdAt": "2026-09-22T03:24:37.659Z",
+        "reason": "Sales collateral, not product UI: the gaengbonbu proposal HTML under docs/ is a standalone print-oriented document with its own typographic identity; DESIGN.md governs the frontend app"
+      },
+      {
+        "rule": "design-system-font",
+        "value": "ibm plex mono",
+        "createdAt": "2026-09-22T03:24:37.781Z",
+        "reason": "Sales collateral, not product UI: the gaengbonbu proposal HTML under docs/ is a standalone print-oriented document with its own typographic identity; DESIGN.md governs the frontend app"
+      },
+      {
+        "rule": "design-system-font",
+        "value": "gowun batang",
+        "createdAt": "2026-09-22T03:27:13.627Z",
+        "reason": "Sales collateral, not product UI: the gaengbonbu proposal HTML under docs/ is a standalone print-oriented document with its own typographic identity; DESIGN.md governs the frontend app"
+      }
+    ]
+  }
+}

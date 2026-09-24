@@ -8,8 +8,8 @@ import { Providers } from "./providers";
 import { LegalFooter } from "@/components/LegalFooter";
 
 export const metadata: Metadata = {
-  title: "소담한판 | 매장 재방문 이벤트",
-  description: "QR로 참여하고 쿠폰 사용까지 관리하는 매장 재방문 이벤트",
+  title: "소담한판 | QR로 시작하는 매장 참여 이벤트",
+  description: "손님은 앱 설치 없이 QR로 참여하고, 사장님은 윷 결과부터 쿠폰 사용까지 한곳에서 관리하세요. 신규 매장 14일 PRO 무료체험.",
 };
 // 노치/홈 인디케이터가 있는 폰에서 화면 끝까지 쓰되, 안전영역만큼 콘텐츠를 띄운다.
 export const viewport: Viewport = {
