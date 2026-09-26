@@ -223,17 +223,19 @@ a {
   width: min(100%, 1080px);
   margin: 0 auto;
   padding: var(--s4) var(--s4) calc(var(--s5) + var(--safe-b));
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: var(--s2) var(--s4);
   border-top: 1px solid var(--line-soft);
   color: var(--ink-muted);
   font-size: var(--t-sm);
 }
 
+.legal-footer__content { display: grid; gap: var(--s3); }
 .legal-footer nav { display: flex; flex-wrap: wrap; gap: var(--s3); }
 .legal-footer a { color: var(--ink-2); }
+.legal-footer__business { margin: 0; display: flex; flex-wrap: wrap; gap: var(--s1) var(--s4); }
+.legal-footer__business div { display: flex; gap: 0.4rem; }
+.legal-footer__business dt { color: var(--ink-muted); }
+.legal-footer__business dd { margin: 0; color: var(--ink-2); }
+.legal-footer__address { flex-basis: 100%; }
 
 .legal-page {
   position: relative;
