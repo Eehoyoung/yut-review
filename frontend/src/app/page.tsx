@@ -1,5 +1,53 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
+
+// 검색 등록 대상 페이지. 문구는 코드로 확인한 기능만 쓴다(리뷰·별점은 참여 조건이 아니다).
+const title = "소담한판 | QR로 참여하는 매장 재방문 이벤트";
+const description = "소담한판은 손님이 매장 QR로 앱 설치 없이 윷놀이 이벤트에 참여하고, 결과에 맞는 쿠폰을 받아 매장에서 사용하는 재방문 이벤트 서비스입니다.";
+
+export const metadata: Metadata = {
+  title,
+  description,
+  alternates: { canonical: "/" },
+  openGraph: {
+    type: "website",
+    locale: "ko_KR",
+    siteName: "소담한판",
+    url: "/",
+    title,
+    description,
+    images: [{ url: "/og.png", width: 1200, height: 630, alt: "소담한판" }],
+  },
+  twitter: { card: "summary_large_image", title, description, images: ["/og.png"] },
+};
+
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebPage",
+      "@id": "https://hanpan.sodamlabs.kr/#webpage",
+      url: "https://hanpan.sodamlabs.kr/",
+      name: title,
+      description,
+      inLanguage: "ko-KR",
+      about: { "@id": "https://hanpan.sodamlabs.kr/#service" },
+      primaryImageOfPage: "https://hanpan.sodamlabs.kr/og.png",
+    },
+    {
+      "@type": "Service",
+      "@id": "https://hanpan.sodamlabs.kr/#service",
+      name: "소담한판",
+      serviceType: "매장 QR 참여 이벤트 및 쿠폰 운영",
+      description: "매장별 QR로 손님이 윷놀이 이벤트에 참여하면 서버가 결과를 정하고 쿠폰을 발급하며, 직원은 PIN으로 쿠폰 사용을 처리하고 매장은 상품·확률·사용 기한을 설정합니다.",
+      provider: { "@type": "Organization", "@id": "https://sodamlabs.kr/#organization", name: "소담랩스", url: "https://sodamlabs.kr/" },
+      areaServed: { "@type": "Country", name: "대한민국" },
+      audience: { "@type": "BusinessAudience", audienceType: "오프라인 매장 운영자" },
+      url: "https://hanpan.sodamlabs.kr/",
+    },
+  ],
+};
 
 const journey = [
   { step: "QR 비치", detail: "테이블에 안내물을 놓습니다.", visual: "qr" },
@@ -17,6 +65,8 @@ const benefits = [
 export default function Home() {
   return (
     <main className="landing">
+      {/* 정적 상수만 직렬화한다. 사용자 입력이 섞이지 않으므로 </script> 주입 위험이 없다. */}
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <nav className="landing-nav" aria-label="주요 메뉴">
         <Link className="landing-wordmark" href="/" aria-label="소담한판 홈"><Image src="/brand/sodam-wordmark.webp" width={1200} height={760} alt="소담" priority /></Link>
         <div className="landing-nav-links"><a href="#how">이용 방법</a><a href="#benefits">기능</a><a href="#pricing">요금</a></div>
@@ -25,7 +75,7 @@ export default function Home() {
 
       <section className="landing-hero" aria-labelledby="hero-title">
         <div className="hero-message">
-          <h1 id="hero-title">손님은 즐기고,<br />사장님은 <em>사용만</em><br />확인하세요</h1>
+          <h1 id="hero-title"><span className="hero-brand">소담한판</span>손님은 즐기고,<br />사장님은 <em>사용만</em><br />확인하세요</h1>
           <p>매장에 비치한 QR로 손님이 참여하면 윷 결과에 따라 쿠폰이 발급됩니다. 직원은 쿠폰을 사용할 때 PIN으로 확인하면 됩니다.</p>
           <div className="hero-actions">
             <Link className="landing-choice landing-primary" href="/admin/signup">14일 무료로 매장등록</Link>

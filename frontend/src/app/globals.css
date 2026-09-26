@@ -325,6 +325,7 @@ a {
 }
 
 .hero-message h1 em { color: #a43f13; font-style: normal; }
+.hero-brand { display: block; margin-bottom: 18px; color: #a43f13; font-size: 0.9rem; font-weight: 800; line-height: 1.4; letter-spacing: 0; }
 .hero-message > p { max-width: 31em; margin-top: 28px; color: #58645f; font-size: 1.075rem; line-height: 1.8; }
 .hero-actions { width: min(100%, 520px); margin-top: 34px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 
