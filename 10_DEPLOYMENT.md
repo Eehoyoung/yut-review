@@ -1,5 +1,19 @@
 # DEPLOYMENT
 
+## 현재 운영 기준선 (2026-09-26 KST)
+
+- canonical origin은 `https://hanpan.sodamlabs.kr`이며 Cloudflare를 거쳐 공개된다.
+- 공개 `/`와 `/api/actuator/health`(`{"status":"UP"}`)는 2026-09-26에 직접 응답을 확인했다.
+- 현재 공개 응답에는 HSTS, CSP, frame, MIME-sniffing, referrer, permissions 헤더가 존재한다.
+- 이 확인은 해당 시점의 edge 경로 증거일 뿐 이미지 태그, origin 방화벽, 백업 복구, SMTP 전달 성공까지
+  증명하지 않는다. 배포 후에는 아래 `scripts/verify-production.sh`와 운영 서버 점검을 다시 수행한다.
+- 2026-09-26 작업 트리의 운영자 이메일 OTP, actuator 관리 포트 분리, SEO(`robots.ts`, `sitemap.ts`,
+  Open Graph/JSON-LD) 변경은 이 기준선 확인 당시 **아직 공개 배포로 확인되지 않았다**. 특히 공개
+  `/api/actuator/metrics`는 401, `/sitemap.xml`은 404였으므로 로컬 코드만 보고 배포 완료로 기록하지 않는다.
+
+이 절은 최신 배포의 영구 상태표가 아니다. 새 릴리스 때 날짜·이미지 태그·검증 결과를 갱신하거나,
+일회성 배포 기록으로 옮겨 오래된 스냅샷이 현재 사실처럼 읽히지 않게 한다.
+
 ## 운영 목표 구성 (확정)
 
 **AWS Lightsail 2GB 단일 VM + Cloudflare Free 프록시.** 별도 로드밸런서나 RDS를 두지 않는다.
@@ -19,7 +33,7 @@ Next.js            Spring Boot
                    PostgreSQL (같은 VM, docker volume)
 ```
 
-- postgres / backend / frontend는 host 포트를 publish하지 않는다. 외부 노출은 nginx 80/443뿐이다.
+- postgres / backend / frontend는 외부 인터페이스에 host 포트를 publish하지 않는다. 외부 노출은 nginx 80/443뿐이다. 예외: backend는 운영 콘솔 collector용으로 관리 포트(8081, actuator 전용)만 루프백 `127.0.0.1:18080`에 연다. API 포트 8080은 게시하지 않는다(2026-09-26).
 - 3D asset은 프런트 번들에 포함한다. S3/CloudFront는 현재 쓰지 않는다(아래 "S3 / CDN"은 향후 안).
 - 트래픽이 이 구성을 넘기면 그때 RDS와 별도 웹 노드를 검토한다. 지금 하면 비용만 는다.
 
@@ -97,6 +111,11 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file .env.
 
 현재 인증은 쿠키가 아니라 브라우저 `sessionStorage`의 Bearer JWT다. 따라서 인증 cookie domain을 만들지
 않으며 CORS도 열지 않는다. Spring의 production 세션 cookie 기본값만 `Secure`/`SameSite=Strict`로 방어 설정한다.
+
+시스템 운영자 인증은 별도 이메일 OTP 흐름이다. 기본값은 `OPERATOR_OTP_TTL_SECONDS=120`,
+`OPERATOR_SESSION_TTL_SECONDS=600`이며 운영자 세션은 자동 연장되지 않는다. 대규모 운영 작업으로 10분을
+넘겨야 할 때만 `OPERATOR_SESSION_TTL_SECONDS`를 명시적으로 늘려 재배포하고, 작업 종료 후 600으로 되돌린다.
+변경 전 발급된 토큰의 만료는 바뀌지 않으므로 재배포 뒤 OTP 로그인을 다시 해야 한다.
 
 환경 변수 시작점은 `.env.production.example`이며 실제 비밀값과 인증서는 커밋하지 않는다.
 

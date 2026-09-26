@@ -107,15 +107,14 @@ interface OperatorAuditEventRepository extends JpaRepository<OperatorAuditEvent,
      * 매장을 만들지 않는다. 운영자는 어느 매장의 멤버도 아니어야 한다 — 멤버가 되면 자기 매장을
      * 스스로 심사할 수 있게 되고, 그 순간 승인 절차가 형식이 된다.
      */
-    @Transactional Map<String,Object> create(AdminUser actor,String rawEmail,String name,
-            String password,String passwordConfirm,String note){
+    @Transactional Map<String,Object> create(AdminUser actor,String rawEmail,String name,String note){
         String email=Inputs.email(rawEmail);
         String displayName=Inputs.required(name,"이름을 입력해 주세요.");
-        Inputs.password(password,passwordConfirm);
         if(admins.existsByEmail(email))throw new AppException("DUPLICATE_EMAIL","이미 가입된 이메일입니다.");
         Instant now=clock.instant();
         AdminUser created=new AdminUser();
-        created.email=email;created.passwordHash=encoder.encode(password);created.name=displayName;
+        // SYSTEM_ADMIN은 비밀번호 로그인을 사용할 수 없다. DB non-null 제약만 만족하는 무작위 폐기값이다.
+        created.email=email;created.passwordHash=encoder.encode(Tokens.random()+Tokens.random());created.name=displayName;
         created.role=AdminRole.SYSTEM_ADMIN;created.createdAt=now;
         admins.save(created);
         record(actor,created,OperatorAuditAction.OPERATOR_CREATED,note,now);
@@ -228,7 +227,6 @@ interface OperatorAuditEventRepository extends JpaRepository<OperatorAuditEvent,
     }
 
     record CreateBody(@NotBlank @Size(max=255) String email,@NotBlank @Size(max=100) String name,
-        @NotBlank @Size(max=100) String password,@NotBlank @Size(max=100) String passwordConfirm,
         @Size(max=200) String note){}
     record NoteBody(@Size(max=200) String note){}
 
@@ -240,8 +238,7 @@ interface OperatorAuditEventRepository extends JpaRepository<OperatorAuditEvent,
 
     @PostMapping("/admins") ApiResponse<?> create(@Valid @RequestBody CreateBody body,Authentication auth){
         AdminUser actor=approvals.requireOperator(adminId(auth));
-        return ApiResponse.ok(accounts.create(actor,body.email(),body.name(),
-            body.password(),body.passwordConfirm(),body.note()));
+        return ApiResponse.ok(accounts.create(actor,body.email(),body.name(),body.note()));
     }
 
     @PostMapping("/admins/{id}/grant") ApiResponse<?> grant(@PathVariable Long id,
@@ -271,25 +268,24 @@ interface OperatorAuditEventRepository extends JpaRepository<OperatorAuditEvent,
  * 운영자를 만드는 API는 운영자만 쓸 수 있으므로 첫 한 명은 밖에서 넣어야 한다. {@link Bootstrap}을
  * 쓰지 않는 이유는 그쪽이 매장까지 만들기 때문이다. 운영자는 어느 매장의 멤버도 아니어야 한다.
  *
- * 한 번 만들어지면 다시 만들지 않는다. 비밀번호를 바꾸는 용도로 쓸 수 없고, 그래야 환경 변수가
- * 서버에 남아 있다는 이유만으로 계정이 조용히 되돌려지는 일이 없다.
+ * 한 번 만들어지면 다시 만들지 않는다. 이메일 OTP만 로그인에 쓰며 DB 비밀번호 칸에는 접근할 수
+ * 없는 무작위 폐기값을 넣는다.
  *
  * 값은 로그에 찍지 않는다. 기동 로그는 채팅과 이슈로 복사되는 경로다.
  */
 @Component class OperatorBootstrap implements CommandLineRunner {
     private static final org.slf4j.Logger log=org.slf4j.LoggerFactory.getLogger(OperatorBootstrap.class);
-    private final String email,password,name;
+    private final String email,name;
     private final AdminUserRepository admins;private final PasswordEncoder encoder;private final Clock clock;
     OperatorBootstrap(@Value("${app.operator-bootstrap.email:}") String email,
-        @Value("${app.operator-bootstrap.password:}") String password,
         @Value("${app.operator-bootstrap.name:소담랩스 운영자}") String name,
         AdminUserRepository admins,PasswordEncoder encoder,Clock clock){
-        this.email=email;this.password=password;this.name=name;
+        this.email=email;this.name=name;
         this.admins=admins;this.encoder=encoder;this.clock=clock;
     }
 
     @Override @Transactional public void run(String... args){
-        if(email==null||email.isBlank()||password==null||password.isBlank())return;
+        if(email==null||email.isBlank())return;
         // 이미 운영자가 있으면 손대지 않는다. 계정 목록이 아니라 역할로 본다 — 이메일만 보면
         // 운영자가 권한을 잃은 뒤 재기동에서 조용히 되돌아온다.
         if(admins.countByRole(AdminRole.SYSTEM_ADMIN)>0)return;
@@ -299,10 +295,8 @@ interface OperatorAuditEventRepository extends JpaRepository<OperatorAuditEvent,
         String normalized;
         try{
             normalized=Inputs.email(email);
-            Inputs.password(password,password);
         }catch(RuntimeException e){
-            log.warn("operator bootstrap skipped: check OPERATOR_BOOTSTRAP_EMAIL and "
-                +"OPERATOR_BOOTSTRAP_PASSWORD (letters and digits, at least 10 characters)");
+            log.warn("operator bootstrap skipped: check OPERATOR_BOOTSTRAP_EMAIL");
             return;
         }
         if(admins.existsByEmail(normalized)){
@@ -310,7 +304,7 @@ interface OperatorAuditEventRepository extends JpaRepository<OperatorAuditEvent,
             return;
         }
         AdminUser a=new AdminUser();
-        a.email=normalized;a.passwordHash=encoder.encode(password);
+        a.email=normalized;a.passwordHash=encoder.encode(Tokens.random()+Tokens.random());
         a.name=Inputs.required(name,"이름을 입력해 주세요.");
         a.role=AdminRole.SYSTEM_ADMIN;a.createdAt=clock.instant();
         admins.save(a);

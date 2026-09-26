@@ -119,13 +119,13 @@ export default function Home() {
       </section>
 
       <section className="landing-section pricing-section" id="pricing" aria-labelledby="pricing-title">
-        <div className="section-heading compact"><h2 id="pricing-title">게임은 어떤 요금제에서도 같습니다</h2><p>QR 이벤트, 상품·확률 설정, 쿠폰, 직원 PIN과 참여 제한은 모든 요금제에 포함됩니다. 차이는 분석과 AI 기능입니다.</p></div>
+        <div className="section-heading compact"><h2 id="pricing-title">게임은 어떤 요금제에서도 같습니다</h2><p>QR 이벤트, 상품·확률 설정, 쿠폰, 직원 PIN과 참여 제한은 모든 요금제에 포함됩니다. 차이는 기록 보관 기간과 브랜딩·AI 운영 기능입니다.</p></div>
         <div className="price-line" aria-label="월 요금제">
-          <div><span>BASIC</span><strong>9,900원<small>/월</small></strong></div>
-          <div className="recommended"><span>STANDARD</span><strong>19,900원<small>/월</small></strong><em>분석·AI 기본</em></div>
-          <div><span>PRO</span><strong>29,900원<small>/월</small></strong></div>
+          <div><span>BASIC</span><strong>9,900원<small>/월</small></strong><em>기본 집계·AI 매장 분석</em></div>
+          <div><span>STANDARD</span><strong>14,900원<small>/월</small></strong><em>365일 기록·CSV</em></div>
+          <div className="recommended"><span>PRO</span><strong>19,900원<small>/월</small></strong><em>브랜딩·AI 운영 지원</em></div>
         </div>
-        <p className="pricing-note">신규 매장은 14일 동안 PRO 기능을 무료로 사용합니다. 체험 종료 후 자동 결제되지 않습니다.</p>
+        <p className="pricing-note">신규 매장은 가입일부터 14일 동안 PRO 기능을 무료로 사용합니다. 결제가 없으면 15일째 BASIC으로 전환되며 자동 결제되지 않습니다.</p>
       </section>
 
       <section className="landing-final" aria-labelledby="final-title">

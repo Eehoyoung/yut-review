@@ -11,7 +11,7 @@
 
 소담한판를 매장 운영 데이터를 분석해 주는 SaaS로 넓혔다. 두 축이다.
 
-**요금제 3단계** — BASIC 9,900 / STANDARD 19,900 / PRO 29,900원.
+**요금제 3단계** — 확정 가격 BASIC 9,900 / STANDARD 14,900 / PRO 19,900원.
 
 **소담 AI 네 기능** — 안내 문구, 운영 리포트, 개선 제안, AI 매니저.
 
@@ -64,8 +64,8 @@ enum Entitlement { BASIC_ANALYTICS, ADVANCED_ANALYTICS, CSV_EXPORT, BRANDING }
 | LlmProvider 추상화 | 완료 | Fake 기본 / OpenAI Responses API |
 | 환경변수 5종 | 완료 | `AI_PROVIDER` `OPENAI_API_KEY` `AI_MODEL_FAST/ANALYSIS/CHAT` |
 | Structured Outputs | 완료 | 문구·리포트·개선 제안 |
-| AI_EVENT_COPY (STANDARD+) | 완료 | 월 20/100회 |
-| AI_REPORT (STANDARD+) | 완료 | 월 5/20회 |
+| AI_EVENT_COPY (PRO) | 완료 | 월 100회 |
+| AI_REPORT (BASIC+) | 완료 | BASIC/STANDARD 월 5회, PRO 월 20회 |
 | AI_IMPROVEMENT (PRO) | 완료 | 월 30회 |
 | AI_CHAT (PRO) | 완료 | 월 100회, 도구 7종 |
 | 집계 도구 7종 | 완료 | 전부 읽기 전용, storeId 인자 없음 |

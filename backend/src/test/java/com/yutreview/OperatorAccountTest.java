@@ -31,8 +31,7 @@ class OperatorAccountTest {
     @Test void operatorCanCreateAnotherOperatorWithoutGivingThemAStore() {
         AdminUser actor = operator("create-actor@test.com");
 
-        Map<String, Object> created = accounts.create(actor, "New.Operator@Test.com", "새 운영자",
-                "operator1234", "operator1234", "인수인계");
+        Map<String, Object> created = accounts.create(actor, "New.Operator@Test.com", "새 운영자", "인수인계");
 
         // 이메일은 소문자로 정규화된다. 로그인이 소문자로만 찾기 때문이다.
         assertEquals("new.operator@test.com", created.get("email"));
@@ -42,16 +41,13 @@ class OperatorAccountTest {
 
         AdminUser saved = admins.findByEmail("new.operator@test.com").orElseThrow();
         assertEquals(AdminRole.SYSTEM_ADMIN, saved.role);
-        assertNotEquals("operator1234", saved.passwordHash, "비밀번호는 평문으로 저장되지 않는다");
+        assertFalse(encoder.matches("operator1234", saved.passwordHash),
+                "운영자는 사용할 수 있는 비밀번호를 만들지 않는다");
         // 응답 어디에도 해시가 실리지 않는다.
         assertFalse(created.containsValue(saved.passwordHash));
 
         assertEquals("DUPLICATE_EMAIL", assertThrows(AppException.class, () -> accounts.create(
-                actor, "new.operator@test.com", "중복", "operator1234", "operator1234", null)).code);
-        assertEquals("WEAK_PASSWORD", assertThrows(AppException.class, () -> accounts.create(
-                actor, "weak@test.com", "약한", "short1", "short1", null)).code);
-        assertEquals("PASSWORD_MISMATCH", assertThrows(AppException.class, () -> accounts.create(
-                actor, "mismatch@test.com", "불일치", "operator1234", "operator5678", null)).code);
+                actor, "new.operator@test.com", "중복", null)).code);
     }
 
     @Test void grantAndRevokeAreIdempotentAndRecorded() {

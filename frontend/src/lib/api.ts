@@ -8,24 +8,21 @@ export class ApiClientError extends Error {
 
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const token = typeof window === "undefined" ? null : sessionStorage.getItem("adminToken");
-  // 운영자 기기 통행증. 허용 IP에서는 없어도 열리므로 있을 때만 싣는다.
-  // 운영자 경로에만 싣는 것은 다른 요청 로그에 이 값이 남지 않게 하려는 것이다.
-  const device =
-    typeof window === "undefined" || !path.startsWith("/admin/operator")
-      ? null
-      : sessionStorage.getItem("operatorDeviceToken");
   const response = await fetch(`/api${path}`, {
     ...init,
     credentials: "include",
     headers: {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(device ? { "X-Operator-Device": device } : {}),
       ...init?.headers,
     },
   });
   const body = (await response.json().catch(() => null)) as Envelope<T> | null;
-  if (response.status === 401 && path.startsWith("/admin/") && path !== "/admin/auth/login" && typeof window !== "undefined") {
+  if (response.status === 401 && path.startsWith("/admin/operator") && !path.startsWith("/admin/operator-auth/") && typeof window !== "undefined") {
+    clearAdminSession();
+    window.location.assign("/admin/operator/login");
+  } else if (response.status === 401 && path.startsWith("/admin/") && path !== "/admin/auth/login"
+    && !path.startsWith("/admin/operator-auth/") && typeof window !== "undefined") {
     clearAdminSession();
     window.location.assign("/admin/login");
   }
@@ -68,16 +65,20 @@ export function setAdminToken(token: string) {
   sessionStorage.setItem("adminToken", token);
 }
 
+export function setOperatorSession(token: string, expiresAt: string) {
+  sessionStorage.setItem("adminToken", token);
+  sessionStorage.setItem("operatorExpiresAt", expiresAt);
+}
+
 /**
  * 로그아웃 시 지우는 것 전부.
  *
- * 운영자 기기 통행증도 함께 지운다. JWT만 지우면 통행증이 4시간 남아, 다음 사람이 같은
- * 브라우저에서 로그인했을 때 기기 인증을 건너뛴다.
+ * 운영자 OTP 세션의 만료 시각도 함께 지운다.
  */
 export function clearAdminSession() {
   try {
     sessionStorage.removeItem("adminToken");
-    sessionStorage.removeItem("operatorDeviceToken");
+    sessionStorage.removeItem("operatorExpiresAt");
   } catch {
     // 사생활 보호 모드에서 sessionStorage 접근이 막힐 수 있다. 그래도 이동은 해야 한다.
   }
@@ -99,6 +100,11 @@ const friendly: Record<string, string> = {
   COUPON_NOT_YET_VALID: "아직 사용할 수 없는 쿠폰입니다.", COUPON_EXPIRED: "사용 기간이 지난 쿠폰입니다.",
   COUPON_ALREADY_REDEEMED: "이미 사용한 쿠폰입니다.", COUPON_NOT_ACTIVE: "사용할 수 없는 쿠폰입니다.",
   AUTH_INVALID: "이메일 또는 비밀번호가 맞지 않아요.", AUTH_RATE_LIMITED: "로그인 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.",
+  OPERATOR_OTP_REQUIRED: "시스템 운영자는 이메일 인증번호로 로그인해 주세요.",
+  OPERATOR_OTP_INVALID: "인증번호가 올바르지 않거나 2분이 지났습니다.",
+  OPERATOR_OTP_RATE_LIMITED: "인증 요청이 너무 많습니다. 15분 후 다시 시도해 주세요.",
+  OPERATOR_OTP_EMAIL_UNAVAILABLE: "운영자 인증 메일을 보내지 못했습니다. 잠시 후 다시 시도해 주세요.",
+  OPERATOR_SESSION_REQUIRED: "운영자 세션이 만료되었습니다. 이메일 인증을 다시 진행해 주세요.",
   PASSWORD_MISMATCH: "비밀번호가 일치하지 않습니다.",
   WEAK_PASSWORD: "비밀번호는 영문과 숫자를 포함해 10자 이상이어야 합니다.", INVALID_EMAIL: "이메일 주소를 확인해 주세요.",
   INVALID_BUSINESS_NUMBER: "사업자등록번호는 숫자 10자리로 입력해 주세요.",

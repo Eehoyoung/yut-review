@@ -46,14 +46,14 @@ enum PosterVariant { GAME, EVENT, REVISIT }
     }
 
     /**
-     * 안내물 저장. tagline은 STANDARD 이상에서만 채워져 들어온다(브랜딩 권한).
+     * 안내물 저장. tagline은 PRO에서만 채워져 들어온다(브랜딩 권한).
      * 권한 판단은 호출부가 하고 여기서는 받은 값을 그릴 뿐이다.
      */
     StorePoster save(Store store,String storeToken,String publicOrigin,String tagline){
         String origin=origin(publicOrigin),url=origin+"/s/"+storeToken;
         StorePoster poster=posters.findByStoreId(store.id).orElseGet(StorePoster::new);Instant now=clock.instant();
         if(poster.id==null){poster.store=store;poster.createdAt=now;}
-        poster.contentBase64=Base64.getEncoder().encodeToString(render(store.name,url,tagline));poster.publicOrigin=origin;poster.updatedAt=now;
+        poster.contentBase64=Base64.getEncoder().encodeToString(render(PosterVariant.GAME,store.name,url,tagline,store.posterBrandTheme));poster.publicOrigin=origin;poster.updatedAt=now;
         return posters.save(poster);
     }
 
@@ -66,15 +66,21 @@ enum PosterVariant { GAME, EVENT, REVISIT }
 
     static byte[] render(String storeName,String url){return render(storeName,url,null);}
     static byte[] render(String storeName,String url,String tagline){return render(PosterVariant.GAME,storeName,url,tagline);}
+    static byte[] render(PosterVariant variant,String storeName,String url,String tagline,PosterBrandTheme brandTheme){
+        return renderWithTheme(variant,storeName,url,tagline,Theme.of(variant).branded(brandTheme));
+    }
 
     /**
      * 세 안내물은 같은 뼈대(상호 → 제목 → QR 판 → 참여 3단계 → 하단 띠)에 색·장식·문구만 다르다.
      * QR 판의 크기(47mm)와 위치가 셋 다 같아서 어느 것을 붙여도 스캔 거리가 같다.
-     * tagline은 매장이 직접 쓴 한 줄이며 STANDARD 이상에서만 채워진다(브랜딩 권한). 없으면 종류별 기본 문구를 쓴다.
+     * tagline은 매장이 직접 쓴 한 줄이며 PRO에서만 채워진다(브랜딩 권한). 없으면 종류별 기본 문구를 쓴다.
      * 리뷰·별점은 참여 조건이 아니므로 어느 안내물에도 적지 않는다.
      */
     static byte[] render(PosterVariant variant,String storeName,String url,String tagline){
-        Theme t=Theme.of(variant);
+        return renderWithTheme(variant,storeName,url,tagline,Theme.of(variant));
+    }
+
+    private static byte[] renderWithTheme(PosterVariant variant,String storeName,String url,String tagline,Theme t){
         BufferedImage image=new BufferedImage(WIDTH,HEIGHT,BufferedImage.TYPE_INT_RGB);Graphics2D g=image.createGraphics();
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,RenderingHints.VALUE_ANTIALIAS_ON);g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
         g.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS,RenderingHints.VALUE_FRACTIONALMETRICS_ON);
@@ -121,6 +127,15 @@ enum PosterVariant { GAME, EVENT, REVISIT }
             case REVISIT->new Theme(new Color(0xF2F9F5),new Color(0xD3EBDF),NAVY,ORANGE_DEEP,new Color(0x3F5A52),PAPER,NAVY,new Color(0x2E8B68),new Color(0xA5D6C0),
                 new Color(0x2E8B68),PAPER,new Color(0x1F5E4A),new Color(0xCFEBDD),"오늘 좋은 경험을 다음에도 경험해 보세요!","감사의 선물 받아 가세요","오늘 던지셨다면 모레 또 만나요","아직 쓰지 않은 쿠폰이 있으면 그 쿠폰부터 보여 드려요");
         };}
+        Theme branded(PosterBrandTheme requested){
+            PosterBrandTheme brand=requested==null?PosterBrandTheme.SODAM:requested;
+            if(brand==PosterBrandTheme.SODAM)return this;
+            Color dark=brand==PosterBrandTheme.FOREST?new Color(0x174C3C):new Color(0x512A4B);
+            Color strong=brand==PosterBrandTheme.FOREST?new Color(0x267A5B):new Color(0x8A3E72);
+            Color soft=brand==PosterBrandTheme.FOREST?new Color(0xDDEFE6):new Color(0xF3DFEB);
+            return new Theme(soft,bgBottom,dark,strong,dark,dark,PAPER,strong,strong,strong,PAPER,dark,soft,
+                    line1,line2,sub,footnote);
+        }
     }
 
     private static void decorate(Graphics2D g,PosterVariant v){

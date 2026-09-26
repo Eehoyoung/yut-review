@@ -35,9 +35,15 @@ app:
   # 목록 밖에서 온 요청은 헤더를 무시하고 socket peer를 쓴다.
   trusted-proxies: ${TRUSTED_PROXY_CIDRS:127.0.0.1/32,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}
   jwt-key: ${JWT_SECRET}
+  # 시스템 운영자 인증은 일반 관리자 비밀번호 JWT와 분리한다.
+  # OTP는 기본 2분, 세션은 기본 10분이며 요청 활동으로 자동 연장하지 않는다.
+  # 대규모 운영 작업 때만 배포 환경에서 OPERATOR_SESSION_TTL_SECONDS를 명시적으로 늘린다.
+  operator-auth:
+    otp-ttl-seconds: ${OPERATOR_OTP_TTL_SECONDS:120}
+    session-ttl-seconds: ${OPERATOR_SESSION_TTL_SECONDS:600}
   ai:
-    # 기본은 fake다. 키 없이도 서비스가 뜨고 CI가 네트워크를 타지 않는다.
-    provider: ${AI_PROVIDER:fake}
+    # auto는 키가 있으면 OpenAI, 없으면 fake다. CI는 키를 넣지 않아 네트워크를 타지 않는다.
+    provider: ${AI_PROVIDER:auto}
     timeout-seconds: ${AI_TIMEOUT_SECONDS:45}
     openai:
       api-key: ${OPENAI_API_KEY:}
@@ -66,17 +72,16 @@ app:
   business-verification:
     enabled: ${BUSINESS_VERIFICATION_ENABLED:false}
     service-key: ${NTS_SERVICE_KEY:}
+  # 포트원 V2 요금제 자동결제. 하나라도 비면 결제를 받지 않는다(화면은 결제 버튼을 숨긴다).
+  portone:
+    api-secret: ${PORTONE_API_SECRET:}
+    store-id: ${PORTONE_STORE_ID:}
+    channels:
+      tosspayments: ${PORTONE_TOSS_CHANNEL_KEY:}
+      inicis: ${PORTONE_INICIS_CHANNEL_KEY:}
   # 셀프 신청 매장을 운영자가 승인해야 열리게 할지. 2026-09-22에 기본값을 false로 내렸다.
   # 중복 사업자등록번호는 이 값과 무관하게 계속 막힌다. 심사 화면은 그대로 있어 true로 되돌아온다.
   store-approval-required: ${STORE_APPROVAL_REQUIRED:false}
-  # 운영자 콘솔 접근 통제. enabled=false면 문지기가 통째로 비켜선다.
-  # **이 false가 유일한 잠금 탈출구다.** IP가 바뀌고 기기를 잃으면 화면으로는 복구할 수 없다.
-  operator-access:
-    enabled: ${OPERATOR_ACCESS_ENABLED:false}
-    allowed-cidrs: ${OPERATOR_ALLOWED_CIDRS:}
-    # 비우면 app.public-origin의 호스트를 쓴다. 둘이 어긋나면 브라우저가 등록을 거부한다.
-    rp-id: ${OPERATOR_RP_ID:}
   operator-bootstrap:
     email: ${OPERATOR_BOOTSTRAP_EMAIL:}
-    password: ${OPERATOR_BOOTSTRAP_PASSWORD:}
     name: ${OPERATOR_BOOTSTRAP_NAME:소담랩스 운영자}

@@ -15,7 +15,8 @@
 #   개발/현장테스트 전용이며 운영 ingress에 섞으면 real_ip와 TLS 경계가 무너진다.
 #   그래서 cloudflared 서비스는 이 override에 넣지 않는다.
 #
-# 주의 3 — postgres/backend/frontend는 host 포트를 열지 않는다(base에도 ports가 없다).
+# 주의 3 — postgres/frontend는 host 포트를 열지 않는다(base에도 ports가 없다). backend는 운영 콘솔
+#   collector용으로 관리 포트(8081)만 127.0.0.1:18080에 연다(2026-09-26, CLAUDE.md "운영 콘솔 연동 기록").
 #   외부 공개는 nginx의 80/443뿐이며 Lightsail 방화벽도 그 두 개만 연다.
 #
 # 주의 4 — backend/frontend는 여기서 `build`를 지우고 GHCR 이미지를 쓴다. Lightsail 2GB에서 Gradle
@@ -53,13 +54,29 @@ services:
       # 운영 보안 경계는 base Compose의 field-test 기본값을 상속하지 않는다.
       BUSINESS_VERIFICATION_ENABLED: "true"
       NTS_SERVICE_KEY: ${NTS_SERVICE_KEY:?set NTS_SERVICE_KEY}
+      PORTONE_API_SECRET: ${PORTONE_API_SECRET:-}
+      PORTONE_STORE_ID: ${PORTONE_STORE_ID:-}
+      PORTONE_TOSS_CHANNEL_KEY: ${PORTONE_TOSS_CHANNEL_KEY:-}
+      PORTONE_INICIS_CHANNEL_KEY: ${PORTONE_INICIS_CHANNEL_KEY:-}
       STORE_APPROVAL_REQUIRED: "true"
-      OPERATOR_ACCESS_ENABLED: "true"
+      OPERATOR_OTP_TTL_SECONDS: ${OPERATOR_OTP_TTL_SECONDS:-120}
+      OPERATOR_SESSION_TTL_SECONDS: ${OPERATOR_SESSION_TTL_SECONDS:-600}
+      AI_PROVIDER: ${AI_PROVIDER:-auto}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      AI_MODEL_FAST: ${AI_MODEL_FAST:-gpt-4.1-mini}
+      AI_MODEL_ANALYSIS: ${AI_MODEL_ANALYSIS:-gpt-4.1}
+      AI_MODEL_CHAT: ${AI_MODEL_CHAT:-gpt-4.1-mini}
+      AI_TIMEOUT_SECONDS: ${AI_TIMEOUT_SECONDS:-45}
       # nginx가 넘긴 X-Real-IP를 신뢰할 peer 대역. nginx/cloudflare-real-ip.conf의 real_ip 정책과
       # 이 목록이 어긋나면 rate limit 식별자가 다시 전역으로 뭉개진다(보안점검 05).
       TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:-127.0.0.1/32,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}
       # HMAC 키 회전 중에만 채운다. rehash 완료 후 비우고 재배포한다.
       PHONE_HMAC_PREVIOUS_SECRET: ${PHONE_HMAC_PREVIOUS_SECRET:-}
+    # 운영 콘솔 collector가 /actuator/metrics를 읽는 통로. 관리 포트(8081)만 루프백에 게시한다.
+    # API 포트 8080은 호스트에 게시하지 않으므로 이 경로로 nginx rate limit·client-IP 정책을 우회할 수 없다.
+    ports:
+      - "127.0.0.1:18080:8081"
     logging:
       driver: "json-file"
       options:

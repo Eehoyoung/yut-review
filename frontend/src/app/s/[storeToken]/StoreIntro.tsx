@@ -2,13 +2,14 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { api, errorMessage } from "@/lib/api";
+import { ApiClientError, api, errorMessage } from "@/lib/api";
 import type { StoreSummary } from "@/types/api";
 import { YutFan } from "@/features/intro/YutFan";
 import { oddsLabel, rankLabel } from "@/features/labels";
 
 // 손님이 실제로 하는 일 세 가지. 진행 표시줄(.steps)과 달리 여기서는 아직 아무것도 시작하지 않았다.
 const HOW_TO = ["이름과 전화번호 입력", "윷 던지기", "상품 확인"];
+const PAYMENT_RESTRICTION_CODES = new Set(["SUBSCRIPTION_PAYMENT_REQUIRED", "STORE_PAYMENT_REQUIRED"]);
 
 export default function StoreIntro({ initialData }: { initialData?: StoreSummary }) {
   const token = String(useParams().storeToken);
@@ -27,6 +28,24 @@ export default function StoreIntro({ initialData }: { initialData?: StoreSummary
           <div className="skeleton" style={{ height: 190 }} />
           <div className="skeleton" style={{ height: 120 }} />
         </div>
+      </main>
+    );
+
+  if (store.error instanceof ApiClientError && PAYMENT_RESTRICTION_CODES.has(store.error.code))
+    return (
+      <main className="screen service-unavailable" aria-labelledby="store-unavailable-title">
+        <div className="service-unavailable-mark" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+          <span />
+        </div>
+        <p className="brand">소담한판</p>
+        <h1 id="store-unavailable-title">매장 정보에 오류가 있어요!</h1>
+        <p className="lead">잠시 후 다시 이용해 주세요. 계속 보이면 매장 직원에게 알려 주세요.</p>
+        <button className="btn secondary" type="button" onClick={() => store.refetch()} disabled={store.isFetching}>
+          {store.isFetching ? "다시 확인하는 중" : "다시 확인하기"}
+        </button>
       </main>
     );
 

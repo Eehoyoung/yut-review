@@ -15,7 +15,8 @@ class ProductionSecurityConfigurationTest {
                 "application-prod",new ClassPathResource("application-prod.yml"));
         assertEquals("${BUSINESS_VERIFICATION_ENABLED:true}",property(sources,"app.business-verification.enabled"));
         assertEquals("${STORE_APPROVAL_REQUIRED:true}",property(sources,"app.store-approval-required"));
-        assertEquals("${OPERATOR_ACCESS_ENABLED:true}",property(sources,"app.operator-access.enabled"));
+        assertEquals("${OPERATOR_OTP_TTL_SECONDS:120}",property(sources,"app.operator-auth.otp-ttl-seconds"));
+        assertEquals("${OPERATOR_SESSION_TTL_SECONDS:600}",property(sources,"app.operator-auth.session-ttl-seconds"));
     }
 
     private Object property(List<PropertySource<?>> sources,String name){

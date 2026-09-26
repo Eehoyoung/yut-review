@@ -9,6 +9,15 @@
   },
   "subscription_plans": {
     "currency": "KRW",
+    "trial_policy": {
+      "duration_days": 14,
+      "starts_at": "signup_date",
+      "downgrade_at": "day_15_00:01_Asia/Seoul",
+      "plan_during_trial": "PRO",
+      "payment_method_required": false,
+      "automatic_payment": false,
+      "plan_after_trial": "BASIC"
+    },
     "plans": {
       "BASIC": {
         "monthly_price": 9900,
@@ -26,14 +35,17 @@
           "csv_export": false,
           "branding": false,
           "ai_copy": false,
-          "ai_report": false,
+          "ai_report": true,
           "ai_improvement": false,
           "ai_chat": false
+        },
+        "default_ai_quota_per_month": {
+          "AI_REPORT": 5
         }
       },
       "STANDARD": {
-        "monthly_price": 19900,
-        "positioning": "가장 인기",
+        "monthly_price": 14900,
+        "positioning": "기록을 더 오래 보기",
         "analytics_data_retention_days": 365,
         "features": {
           "yut_game": true,
@@ -45,20 +57,19 @@
           "basic_analytics": true,
           "advanced_analytics": true,
           "csv_export": true,
-          "branding": true,
-          "ai_copy": true,
+          "branding": false,
+          "ai_copy": false,
           "ai_report": true,
           "ai_improvement": false,
           "ai_chat": false
         },
         "default_ai_quota_per_month": {
-          "AI_EVENT_COPY": 20,
           "AI_REPORT": 5
         }
       },
       "PRO": {
-        "monthly_price": 29900,
-        "positioning": "AI 매장 운영",
+        "monthly_price": 19900,
+        "positioning": "매장을 제대로 들여다보기",
         "analytics_data_retention": "long_term_anonymized_or_aggregated",
         "features": {
           "yut_game": true,
@@ -322,8 +333,8 @@
     "AI 의존성이 customer /s/{storeToken} bundle에 포함되지 않도록 분리"
   ],
   "testing": [
-    "BASIC AI 기능 거부",
-    "STANDARD AI_EVENT_COPY/AI_REPORT 허용",
+    "BASIC AI_REPORT 허용 및 그 밖의 AI 기능 거부",
+    "STANDARD AI_REPORT 허용 및 AI_EVENT_COPY 거부",
     "STANDARD AI_CHAT 거부",
     "PRO 전체 AI 허용",
     "quota 경계 테스트",

@@ -9,16 +9,24 @@ import type { AiFeature, Plan, StoreStatus } from "@/types/api";
 export const PLAN_LABEL: Record<Plan, string> = { BASIC: "베이직", STANDARD: "스탠다드", PRO: "프로" };
 
 export const PLAN_TAGLINE: Record<Plan, string> = {
-  BASIC: "소담한판 핵심 기능",
-  STANDARD: "분석·AI 기능",
-  PRO: "AI 매장 운영",
+  BASIC: "이벤트 운영·기본 집계·AI 매장 분석",
+  STANDARD: "365일 기록·기간 비교·CSV 내려받기",
+  PRO: "안내물 브랜딩·AI 운영 지원·장기 집계",
 };
 
 export const AI_FEATURE_LABEL: Record<AiFeature, string> = {
-  AI_EVENT_COPY: "이벤트 문구",
-  AI_REPORT: "운영 리포트",
-  AI_IMPROVEMENT: "개선 제안",
-  AI_CHAT: "AI 매니저",
+  AI_EVENT_COPY: "AI 이벤트 문구",
+  AI_REPORT: "AI 매장 분석",
+  AI_IMPROVEMENT: "AI 개선 제안",
+  AI_CHAT: "AI 대화",
+};
+
+export const PG_LABEL: Record<"TOSSPAYMENTS" | "INICIS", string> = { TOSSPAYMENTS: "토스페이먼츠", INICIS: "KG이니시스" };
+
+export const PAYMENT_STATUS_LABEL: Record<"PENDING" | "PAID" | "FAILED", string> = {
+  PENDING: "확인 중",
+  PAID: "결제 완료",
+  FAILED: "실패",
 };
 
 export const priceLabel = (krw: number) => `월 ${krw.toLocaleString("ko-KR")}원`;

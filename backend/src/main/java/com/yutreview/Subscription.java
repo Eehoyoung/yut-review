@@ -3,13 +3,13 @@ package com.yutreview;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.temporal.ChronoUnit;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import org.springframework.http.HttpStatus;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,18 +25,18 @@ class PlanEntitlementService {
     private static final Map<Plan, Set<Entitlement>> ENTITLEMENTS = new EnumMap<>(Map.of(
             Plan.BASIC, EnumSet.of(Entitlement.BASIC_ANALYTICS),
             Plan.STANDARD, EnumSet.of(Entitlement.BASIC_ANALYTICS, Entitlement.ADVANCED_ANALYTICS,
-                    Entitlement.CSV_EXPORT, Entitlement.BRANDING),
+                    Entitlement.CSV_EXPORT),
             Plan.PRO, EnumSet.allOf(Entitlement.class)));
 
     private static final Map<Plan, Set<AiFeature>> AI_FEATURES = new EnumMap<>(Map.of(
-            Plan.BASIC, EnumSet.noneOf(AiFeature.class),
-            Plan.STANDARD, EnumSet.of(AiFeature.AI_EVENT_COPY, AiFeature.AI_REPORT),
+            Plan.BASIC, EnumSet.of(AiFeature.AI_REPORT),
+            Plan.STANDARD, EnumSet.of(AiFeature.AI_REPORT),
             Plan.PRO, EnumSet.allOf(AiFeature.class)));
 
     /** 등급별 월 기본 한도. 없는 기능은 0이며, 0은 "열려 있지 않다"가 아니라 "쓸 수 없다"로만 쓴다. */
     private static final Map<Plan, Map<AiFeature, Integer>> QUOTAS = new EnumMap<>(Map.of(
-            Plan.BASIC, Map.of(),
-            Plan.STANDARD, Map.of(AiFeature.AI_EVENT_COPY, 20, AiFeature.AI_REPORT, 5),
+            Plan.BASIC, Map.of(AiFeature.AI_REPORT, 5),
+            Plan.STANDARD, Map.of(AiFeature.AI_REPORT, 5),
             Plan.PRO, Map.of(AiFeature.AI_EVENT_COPY, 100, AiFeature.AI_REPORT, 20,
                     AiFeature.AI_IMPROVEMENT, 30, AiFeature.AI_CHAT, 100)));
 
@@ -89,8 +89,8 @@ class PlanEntitlementService {
 }
 
 /**
- * 매장의 현재 요금제를 읽고 바꾼다. 결제(PG) 연동은 이번 범위가 아니라, 등급 변경은 관리자 조작으로만
- * 일어난다. 결제를 붙일 때 이 서비스의 {@link #changePlan} 안쪽만 결제 결과에 연결하면 된다.
+ * 매장의 현재 요금제를 읽고 바꾼다. 유료 전환은 {@link BillingService}(포트원 자동결제)가 하고,
+ * 여기 {@link #changePlan}은 운영자 수동 조정용으로 남는다.
  */
 @Service
 class SubscriptionService {
@@ -141,7 +141,7 @@ class SubscriptionService {
         return subscriptions.save(s);
     }
 
-    /** 신규 가입 매장은 가입 순간부터 14일간 PRO 전체 기능을 사용한다. */
+    /** 가입일을 1일째로 세며, 15일째 00:01(Asia/Seoul)에 BASIC 전환 경계가 온다. */
     @Transactional
     StoreSubscription startSignupTrial(Store store) {
         Instant now = clock.instant();
@@ -152,10 +152,19 @@ class SubscriptionService {
         }
         s.plan = Plan.PRO;
         s.status = SubscriptionStatus.ACTIVE;
-        s.trialEndsAt = now.plus(SIGNUP_TRIAL_DAYS, ChronoUnit.DAYS);
+        LocalDate signupDate = now.atZone(clock.getZone()).toLocalDate();
+        s.trialEndsAt = signupDate.plusDays(SIGNUP_TRIAL_DAYS).atTime(0, 1).atZone(clock.getZone()).toInstant();
+        // 체험 종료일이 첫 결제예정일이다. 결제가 없으면 D+2까지 서비스하고 그 뒤 이용을 제한한다.
+        s.nextBillingAt = s.trialEndsAt;
         s.updatedAt = now;
-        s.note = "신규 가입 14일 PRO 무료체험";
+        s.note = "가입일 기준 14일 PRO 무료체험";
         return subscriptions.save(s);
+    }
+
+    /** 결제 대상에서 뺀다. 현장 테스트용 시드 매장이 16일 뒤 막히지 않게 한다. */
+    @Transactional
+    void exemptFromBilling(Long storeId) {
+        subscriptions.findByStoreId(storeId).ifPresent(s -> s.nextBillingAt = null);
     }
 
     @Transactional
@@ -176,5 +185,24 @@ class SubscriptionService {
         if (admin == null || admin.role != AdminRole.SYSTEM_ADMIN)
             throw new AppException("FORBIDDEN",
                     "요금제 변경은 운영자에게 문의해 주세요.", HttpStatus.FORBIDDEN);
+    }
+}
+
+/** 조회가 없어도 매일 정책 시각에 만료 체험을 BASIC으로 정리한다. */
+@Service
+class SubscriptionTrialScheduler {
+    private final StoreSubscriptionRepository subscriptions;
+    private final SubscriptionService service;
+
+    SubscriptionTrialScheduler(StoreSubscriptionRepository subscriptions, SubscriptionService service) {
+        this.subscriptions = subscriptions;
+        this.service = service;
+    }
+
+    @Scheduled(cron = "0 1 0 * * *", zone = "Asia/Seoul")
+    void downgradeExpiredTrials() {
+        subscriptions.findAll().stream()
+                .filter(s -> s.status == SubscriptionStatus.ACTIVE && s.trialEndsAt != null)
+                .forEach(s -> service.planOf(s.store.id));
     }
 }

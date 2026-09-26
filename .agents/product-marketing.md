@@ -9,7 +9,7 @@
 **What it does:** 손님은 앱 설치 없이 윷을 던지고 상품 쿠폰을 받는다. 사장은 상품·확률·사용 정책을 설정하고 참여, 사용, 반복 참여를 확인한다. 리뷰나 별점은 참여 조건이 아니다.  
 **Product category:** 매장 참여·재방문 이벤트 운영 도구  
 **Product type:** 매장용 B2B SaaS  
-**Business model:** BASIC 9,900원 / STANDARD 19,900원 / PRO 29,900원, 월 구독. 현재 PG 연동 전.
+**Business model:** BASIC 9,900원 / STANDARD 14,900원 / PRO 19,900원 확정 월 구독. 첫 고객 참여일부터 14일 무료체험이며 자동 결제하지 않는다. 현재 PG 연동 전.
 
 ## Target Audience
 

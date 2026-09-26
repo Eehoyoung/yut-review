@@ -30,9 +30,30 @@ Core references:
 - `09_SECURITY_AND_ABUSE.md` — PIN, QR, privacy, abuse protection
 - `10_DEPLOYMENT.md` — deployment assumptions
 - `11_MVP_PLAN.md` — implementation order and completion checklist
+- `12_LOCAL_FIELD_TEST.md` — local Docker/Quick Tunnel field-test path (not production)
+- `DESIGN.md` — current visual system and interaction principles
+- `PRODUCT.md` — public positioning and capability summary
 
 Do not load every document automatically for a tiny task.
 Read the smallest set needed to perform the task correctly.
+
+### Current repository and production reality (2026-09-26)
+
+- The public product is **소담한판 / Sodam Hanpan** at `https://hanpan.sodamlabs.kr`.
+  Keep internal compatibility identifiers such as repository/package names and `YUT_REVIEW` unless a migration is
+  explicitly approved.
+- Production runs the `postgres`, `backend`, `frontend`, and `nginx` Compose services on Lightsail behind Cloudflare.
+  GHCR images and `docker-compose.prod.yml` are the release path; local source state is not proof of deployment.
+- The deployed public landing page and `/api/actuator/health` were reachable on 2026-09-26. This is a point-in-time
+  observation, not a standing guarantee; re-run `scripts/verify-production.sh` after every release.
+- The working tree may contain unreleased operator email-OTP, management-port, SEO, and visual changes. Never describe
+  a feature as live merely because it exists locally. Compare the deployed response/DOM and image tag or commit first.
+- `/` is the public owner-facing landing page. `/admin/**` is the store/operator console, and `/s/{storeToken}/**` is
+  the customer flow. Admin and tokenized customer pages must remain `noindex`; only the public landing/legal content
+  may be indexed. Never place store tokens or coupon tokens in a sitemap.
+- The production design is a restrained Korean small-business SaaS visual system: warm off-white surfaces, navy/teal
+  brand colors, rounded cards, clear Korean copy, and mobile-first customer/game screens. Preserve the redesigned
+  owner landing page and responsive R3F game stage; do not regress to generic scaffolding or replace the 3D game.
 
 ---
 
@@ -192,19 +213,38 @@ without coupling coupon/game domains directly to the vendor SDK.
 
 ---
 
-### Subscription plans and AI (2026-09-04)
+### Subscription plans and AI (updated 2026-09-27)
 
-Three plans exist: `BASIC` 9,900 / `STANDARD` 19,900 / `PRO` 29,900 KRW per month.
+Three plans exist at the confirmed monthly prices: `BASIC` 9,900 / `STANDARD` 14,900 / `PRO` 19,900 KRW.
 
 **The game and the core customer experience are never gated by plan.** Yut throwing, the QR event,
 prize configuration, coupon issue and redemption, the staff PIN and the 2-day cooldown work
 identically on every plan. `Entitlement` deliberately contains none of them; a feature missing from
 that enum is a feature that cannot be sold separately. Differentiation lives only in analytics depth,
-CSV export, branding, and AI.
+CSV export, branding, and AI. `BASIC` includes basic aggregates, 90-day aggregate retention, and AI store analysis
+(`AI_REPORT`). `STANDARD` adds 365-day comparison and CSV export. `PRO` adds branding, AI event copy, AI
+improvement, AI chat, weekly automatic reports, and unlimited aggregate history.
 
 - A store with no subscription row is treated as `BASIC`. Do not backfill; do not let a missing row
   lock a store out.
-- Payment (PG) integration is out of scope. Plan changes happen through the admin API only.
+- Plans are bought with PortOne V2 monthly auto-billing (2026-09-27, user-approved). Card billing keys only,
+  via TossPayments and KG Inicis channels; NICE is out for now. All three plans are sold, `BASIC` included.
+  Only the store `OWNER` pays. The operator plan-change API stays for manual overrides.
+- Each subscription stores `last_paid_at` (최근 결제일) and `next_billing_at` (결제예정일). A successful renewal
+  moves both: last = now, next = previous next + 1 month (the cycle keeps its anchor).
+- A new store's trial end is its first `next_billing_at`. If payment is not confirmed, the store is served
+  through D+2 (KST) and is **restricted from D+3 00:00**. Restriction blocks the whole customer flow
+  (intro, game, coupon view and redemption; code `STORE_PAYMENT_REQUIRED`) and every owner store API except
+  billing/subscription and `GET /stores/{id}` (code `SUBSCRIPTION_PAYMENT_REQUIRED`). Nothing is deleted;
+  paying lifts it immediately. Stores that existed before 2026-09-27 have no `next_billing_at` and are never
+  restricted (user decision). Alimtalk reminders during the grace period come later.
+- Billing rules: never call PortOne inside `@Transactional`; write a `PENDING` payment row before charging;
+  take the per-store billing lock (conditional UPDATE) before any charge; verify the billing key's
+  `customer.id` is `store-{storeId}` and its channel is one we configured. A card registered during the trial
+  is not charged until the trial end. Upgrades charge a new full month now (no proration); downgrades apply
+  at the next billing date; paying during grace keeps the anchor, paying after restriction starts a new cycle.
+- A new store receives PRO from its signup date. Count the signup date as day 1; at 00:01 Asia/Seoul on day 15 the
+  plan becomes BASIC and that moment is the first billing date (see billing rules below). A scheduled job must perform the downgrade even if nobody opens the admin screen.
 - `analytics_retention_days` (BASIC 90 / STANDARD 365 / PRO unlimited) applies to **de-identified
   aggregate analytics only**. Customer PII retention stays at the 120-day policy in
   `PrivacyCleanupService` regardless of plan. Never conflate the two.
@@ -212,15 +252,15 @@ CSV export, branding, and AI.
 
 ### AI rules
 
-Four features: `AI_EVENT_COPY`, `AI_REPORT` (STANDARD+), `AI_IMPROVEMENT`, `AI_CHAT` (PRO only).
+Four features: `AI_REPORT` (BASIC+), and `AI_EVENT_COPY`, `AI_IMPROVEMENT`, `AI_CHAT` (PRO only).
 
 - **Customer personal data never reaches the model.** Names, phone numbers, `phoneHash`,
   `phoneLast4`, coupon tokens, staff PINs, JWTs and API keys are all forbidden.
   `AiContextService` is the only place that builds model input, and it emits aggregates plus public
   labels (store name, public prize names) only. Add new context there and nowhere else.
 - The API key lives on the server. Model IDs are environment variables.
-- The default provider is `FakeLlmProvider`; OpenAI is enabled with `app.ai.provider=openai`. CI must
-  never call the real API.
+- Provider mode defaults to `auto`: without `OPENAI_API_KEY` it uses `FakeLlmProvider`, and with the key it selects
+  OpenAI. Explicit `AI_PROVIDER=fake` must still keep CI and local tests off the network.
 - Quota is consumed with a conditional UPDATE before the model call and refunded when the call fails.
   Never read-then-write; concurrent requests would exceed the limit.
 - Prompt version and model are recorded with every call. Raw prompts and PII are never logged.
@@ -229,7 +269,7 @@ Four features: `AI_EVENT_COPY`, `AI_REPORT` (STANDARD+), `AI_IMPROVEMENT`, `AI_C
 - **AI has no entry point in the customer API.** A provider outage must not affect the QR, game or
   coupon flow, and AI code must not appear in the `/s/{storeToken}` bundle.
 
-Forbidden: PG payment integration, a customer-facing chatbot, automatic review writing, and anything
+Forbidden: a customer-facing chatbot, automatic review writing, and anything
 that induces positive or 5-star reviews as a condition for a benefit.
 
 ## 3. Critical Game Integrity Rules
@@ -285,6 +325,11 @@ Do not replace the required 3D experience with:
 - arbitrary random rotations with no physical interaction
 
 Optimize for mobile Safari, Chrome, and Samsung Internet.
+
+For visual changes, inspect the existing implementation and `DESIGN.md` before editing. Validate at 320, 360, 390,
+and 430 px widths, plus a representative desktop width. Respect safe areas, reduced motion, touch targets, Korean
+line breaks, loading/error/empty states, and the actual canvas-to-result transition. Code review is not device proof;
+state clearly when real Safari, Android Chrome, Samsung Internet, or in-app-browser testing was not performed.
 
 ---
 
@@ -354,6 +399,10 @@ Rules:
 - Prevent repeated submission while mutations are pending.
 - Render server error codes into customer-friendly Korean messages.
 - Customer-facing flows are mobile-first.
+- Keep public marketing metadata, canonical URLs, Open Graph assets, `robots.ts`, and `sitemap.ts` consistent with
+  `https://hanpan.sodamlabs.kr`. Verify their deployed HTTP responses; a successful local build is not deployment proof.
+- Keep `/admin/**` and `/s/{storeToken}/**` out of search indexing. Do not leak identifiers through metadata, JSON-LD,
+  analytics labels, logs, or generated social images.
 
 Do not duplicate backend authorization or business rules as the only enforcement mechanism.
 Frontend checks are UX; backend checks are authoritative.
@@ -418,6 +467,20 @@ Phone storage model:
 Coupon and QR tokens must be unguessable random tokens.
 
 Treat public identifiers as attacker-controlled input.
+
+### System operator authentication
+
+- Store admins use email/password and a Bearer JWT in `sessionStorage`.
+- `SYSTEM_ADMIN` must not use the ordinary password-login endpoint. The operator flow is a six-digit email OTP via
+  `/api/admin/operator-auth/**`, followed by a short-lived JWT containing `session_type=OPERATOR_EMAIL_OTP`.
+- Default OTP and operator-session lifetimes are 120 and 600 seconds. Sessions are fixed-expiry: do not add silent
+  extension or a refresh token. Longer maintenance windows require an explicit temporary deployment setting.
+- Store only hashes of OTP/challenge material, enforce attempt/rate limits, and never log codes or tokens.
+- `/api/admin/operator/**` requires both the `SYSTEM_ADMIN` role and the operator-session claim. A normal admin JWT,
+  an old password-issued operator JWT, or a UI-only check must never satisfy this boundary.
+- The first operator is bootstrapped by email only; its required password column contains an unusable random hash.
+  Do not reintroduce `OPERATOR_BOOTSTRAP_PASSWORD`, WebAuthn/passkey access, IP allowlists, or a fail-open access toggle
+  unless the user explicitly approves a new design and all API, UI, tests, docs, and recovery procedures change together.
 
 ---
 

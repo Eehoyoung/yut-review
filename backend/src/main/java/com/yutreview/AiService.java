@@ -273,6 +273,8 @@ class AiService {
         out.put("plan", plan.name());
         out.put("month", quota.currentMonth());
         out.put("provider", provider.name());
+        out.put("liveProviderReady", provider.liveReady());
+        out.put("models", Map.of("fast", fastModel, "analysis", analysisModel, "chat", chatModel));
         out.put("features", features);
         out.put("recentUsage", usage.recent(store.id));
         out.put("monthlyTokens", usage.monthlyCost(store.id, quota.currentMonth()));

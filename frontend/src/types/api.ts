@@ -35,6 +35,38 @@ export interface Subscription {
   note?: string;
 }
 
+export interface BillingChannel {
+  channelKey: string;
+  pg: "TOSSPAYMENTS" | "INICIS";
+}
+
+export interface BillingPayment {
+  plan: Plan;
+  amount: number;
+  status: "PENDING" | "PAID" | "FAILED";
+  createdAt: string;
+  failureReason: string;
+}
+
+export interface Billing {
+  enabled: boolean;
+  portoneStoreId: string;
+  customer: { customerId: string; fullName: string; email: string; phoneNumber: string };
+  channels: BillingChannel[];
+  /** 날짜에서 계산한 이용 상태. RESTRICTED면 손님 화면과 사장 운영 API가 막혀 있다. */
+  serviceState: "OPEN" | "TRIAL" | "ACTIVE" | "GRACE" | "RESTRICTED";
+  lastPaidAt?: string;
+  nextBillingAt?: string;
+  /** 이 시각부터 이용 제한(결제예정일 D+3 00:00, KST). */
+  restrictedFrom?: string;
+  hasCard?: boolean;
+  autoRenew?: boolean;
+  nextPlan?: Plan | null;
+  pg?: BillingChannel["pg"] | null;
+  renewalFailures?: number;
+  payments: BillingPayment[];
+}
+
 export interface AiFeatureStatus {
   feature: AiFeature;
   allowed: boolean;
@@ -47,6 +79,8 @@ export interface AiStatus {
   plan: Plan;
   month: string;
   provider: string;
+  liveProviderReady: boolean;
+  models: { fast: string; analysis: string; chat: string };
   features: AiFeatureStatus[];
   recentUsage: { feature: AiFeature; model: string; succeeded: boolean; createdAt: string }[];
 }
@@ -256,25 +290,6 @@ export interface OperatorAuditEntry {
   storeId?: number | null;
   note: string | null;
   createdAt: string;
-}
-
-/** 운영자 기기. 공개키는 서버에만 있고 화면으로 내려오지 않는다. */
-export interface OperatorDevice {
-  id: number;
-  name: string;
-  createdAt: string;
-  lastUsedAt: string | null;
-}
-
-/** 지금 이 브라우저가 운영자 콘솔을 쓸 수 있는지, 없다면 무엇이 필요한지. */
-export interface OperatorAccessStatus {
-  /** false면 접근 통제가 꺼져 있다. 모든 요청이 그냥 통과한다. */
-  enabled: boolean;
-  rpId: string;
-  /** 지금 IP가 허용 목록에 있는가. true면 기기 인증 없이 열린다. */
-  ipAllowed: boolean;
-  deviceCount: number;
-  devices: OperatorDevice[];
 }
 
 export interface ApprovalEvent {

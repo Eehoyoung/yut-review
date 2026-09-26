@@ -1,7 +1,9 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import { LogoutButton } from "@/features/admin/LogoutButton";
+import { clearAdminSession } from "@/lib/api";
 
 /**
  * 운영자 콘솔 공통 껍데기.
@@ -15,11 +17,27 @@ const menus: [string, string][] = [
   ["accounts", "계정"],
   ["resources", "자원 현황"],
   ["audit", "활동 기록"],
-  ["devices", "기기"],
+  ["devices", "세션 보안"],
 ];
 
 export function OperatorFrame({ title, children }: { title: string; children: React.ReactNode }) {
   const pathname = usePathname();
+  const [remaining, setRemaining] = useState<number>();
+
+  useEffect(() => {
+    const tick = () => {
+      const expiresAt = sessionStorage.getItem("operatorExpiresAt");
+      const seconds = expiresAt ? Math.max(0, Math.ceil((Date.parse(expiresAt) - Date.now()) / 1000)) : 0;
+      setRemaining(seconds);
+      if (seconds === 0) {
+        clearAdminSession();
+        window.location.replace("/admin/operator/login");
+      }
+    };
+    tick();
+    const timer = window.setInterval(tick, 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   return (
     <main className="admin-shell">
@@ -29,6 +47,11 @@ export function OperatorFrame({ title, children }: { title: string; children: Re
           <h1>{title}</h1>
         </div>
         <div className="sheet-actions">
+          {remaining !== undefined && (
+            <span className="pill" data-tone={remaining <= 120 ? "off" : "brand"} aria-live="polite">
+              세션 {Math.floor(remaining / 60)}:{String(remaining % 60).padStart(2, "0")}
+            </span>
+          )}
           <Link className="btn ghost btn-inline" href="/admin">
             내 매장
           </Link>

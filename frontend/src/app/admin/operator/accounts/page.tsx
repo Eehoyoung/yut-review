@@ -33,7 +33,7 @@ export default function OperatorAccountsPage() {
   const [submitted, setSubmitted] = useState("");
   const [sheet, setSheet] = useState<Sheet | undefined>();
   const [note, setNote] = useState("");
-  const [form, setForm] = useState({ email: "", name: "", password: "", passwordConfirm: "" });
+  const [form, setForm] = useState({ email: "", name: "" });
   const [tried, setTried] = useState(false);
   const [flash, setFlash] = useState("");
 
@@ -50,7 +50,7 @@ export default function OperatorAccountsPage() {
   const closeSheet = () => {
     setSheet(undefined);
     setNote("");
-    setForm({ email: "", name: "", password: "", passwordConfirm: "" });
+    setForm({ email: "", name: "" });
     setTried(false);
   };
 
@@ -97,11 +97,7 @@ export default function OperatorAccountsPage() {
         ? "이메일을 입력해 주세요."
         : !form.name.trim()
           ? "이름을 입력해 주세요."
-          : form.password.length < 10
-            ? "비밀번호는 영문과 숫자를 포함해 10자 이상이어야 합니다."
-            : form.password !== form.passwordConfirm
-              ? "비밀번호가 일치하지 않습니다."
-              : "";
+          : "";
 
   const submitSheet = (event: FormEvent) => {
     event.preventDefault();
@@ -257,7 +253,7 @@ export default function OperatorAccountsPage() {
 
           {sheet?.kind === "create" && (
             <>
-              <p className="notice">매장은 만들지 않습니다. 운영자는 어느 매장에도 속하지 않아야 합니다.</p>
+              <p className="notice">매장은 만들지 않습니다. 이 이메일로 OTP를 받아 로그인하며 비밀번호는 만들지 않습니다.</p>
               <div className="field">
                 <label htmlFor="create-email">이메일</label>
                 <input
@@ -278,27 +274,6 @@ export default function OperatorAccountsPage() {
                   autoComplete="off"
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
-                />
-              </div>
-              <div className="field">
-                <label htmlFor="create-password">비밀번호</label>
-                <input
-                  id="create-password"
-                  type="password"
-                  autoComplete="new-password"
-                  value={form.password}
-                  onChange={(e) => setForm({ ...form, password: e.target.value })}
-                />
-                <small className="hint">영문과 숫자를 포함해 10자 이상.</small>
-              </div>
-              <div className="field">
-                <label htmlFor="create-password-confirm">비밀번호 확인</label>
-                <input
-                  id="create-password-confirm"
-                  type="password"
-                  autoComplete="new-password"
-                  value={form.passwordConfirm}
-                  onChange={(e) => setForm({ ...form, passwordConfirm: e.target.value })}
                 />
               </div>
             </>

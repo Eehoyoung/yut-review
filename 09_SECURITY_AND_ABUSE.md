@@ -175,12 +175,19 @@ DB에는 이름과 정규화 전화번호를 AES-256-GCM으로 암호화하며 �
   것만으로 메모리를 늘릴 수 있었다. 만료된 행은 주기적으로 purge한다.
 - 매장 소유 권한은 가입 즉시 열리지 않는다. 신규 매장은 `PENDING_APPROVAL`이고 운영자 승인 후에만
   QR·PIN·포스터·운영 API가 열린다.
-- `/api/admin/operator/**`는 `SYSTEM_ADMIN` 전용이며 아니면 403 `OPERATOR_ONLY`다. 운영자는 어느 매장의
+- 시스템 운영자는 일반 비밀번호 로그인으로 세션을 받을 수 없다. 등록 이메일로 받은 6자리 OTP만
+  사용하며 OTP 수명은 기본 2분이다. 성공 시 발급되는 운영자 전용 세션은 기본 10분의 고정 만료이고,
+  API 요청이나 화면 활동으로 자동 연장하지 않으며 refresh token도 두지 않는다.
+- 운영자 세션 수명은 장시간 대규모 작업이 미리 예정된 경우에만 서버 환경변수
+  `OPERATOR_SESSION_TTL_SECONDS`로 변경한다. 이미 발급된 세션은 늘어나지 않는다.
+- `/api/admin/operator/**`는 `SYSTEM_ADMIN` 역할과 이메일 OTP 전용 세션을 모두 요구한다. 아니면
+  401 `OPERATOR_SESSION_REQUIRED` 또는 403 `OPERATOR_ONLY`다. 운영자는 어느 매장의
   멤버도 아니므로 이 경로에서는 membership 검사를 하지 않는다. 다른 관리자 매장 API의 membership
   재검증은 그대로다.
 - JWT secret은 최소 32자이며 환경변수 누락 시 시작을 실패시킨다.
 - 관리자 매장 API는 JWT claim만 믿지 않고 DB의 현재 역할과 매장 membership을 매 요청 재검증한다.
-- 관리자 JWT는 브라우저 sessionStorage에만 두며 로그아웃/브라우저 종료 시 폐기한다.
+- 관리자 JWT는 브라우저 sessionStorage에만 두며 로그아웃/브라우저 종료 시 폐기한다. 운영자 화면은
+  서버가 내려준 고정 만료 시각도 sessionStorage에 보관해 남은 시간을 표시하고, 0초가 되면 즉시 지운다.
 
 ## 게임 조작 방지
 금지:
@@ -302,7 +309,7 @@ Store B API는 403
 대응:
 - TLS·HSTS·canonical host는 production override(`docker-compose.prod.yml`)로만 선택된다.
   override 없이 뜬 스택은 운영 ingress가 아니며, 운영 설정이 우연히 default로 대체되지 않게 fail-closed로 둔다.
-- 외부 공개 포트는 80/443뿐이다. postgres/backend/frontend는 host 포트를 publish하지 않는다.
+- 외부 공개 포트는 80/443뿐이다. postgres/backend/frontend는 외부 인터페이스에 host 포트를 publish하지 않는다(backend는 관리 포트 8081만 루프백 `127.0.0.1:18080`에 게시하며 운영 콘솔 collector 전용이다. API·rate limit 우회 경로가 아니다). 외부 actuator는 `/api/actuator/health`만 열린다.
 - QR·포스터·안내 URL은 요청 Host가 아니라 고정된 canonical origin `https://hanpan.sodamlabs.kr`로 만든다.
 - Cloudflare Quick Tunnel은 개발·현장테스트 전용이다. production 설정에 섞지 않는다.
 

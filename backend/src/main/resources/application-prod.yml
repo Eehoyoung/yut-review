@@ -1,12 +1,22 @@
 app:
+  operator-auth:
+    otp-ttl-seconds: ${OPERATOR_OTP_TTL_SECONDS:120}
+    session-ttl-seconds: ${OPERATOR_SESSION_TTL_SECONDS:600}
   public-origin: ${APP_PUBLIC_ORIGIN:https://hanpan.sodamlabs.kr}
   # 운영에서는 환경변수 누락이 보안 기능 비활성화로 이어지지 않게 fail-closed 한다.
   # 개발/field-test의 편의 기본값은 application.yml에 그대로 유지한다.
   business-verification:
     enabled: ${BUSINESS_VERIFICATION_ENABLED:true}
   store-approval-required: ${STORE_APPROVAL_REQUIRED:true}
-  operator-access:
-    enabled: ${OPERATOR_ACCESS_ENABLED:true}
+
+management:
+  # actuator는 관리 포트 8081에서만 열린다(8080 API 포트에는 없음). metrics는 운영 콘솔 collector용이며
+  # 호스트에는 루프백으로 관리 포트만 게시한다. 외부에서는 nginx가 health 외 actuator를 404로 막는다.
+  server.port: 8081
+  endpoints.web.exposure.include: health,metrics
+  metrics.distribution.percentiles.http.server.requests: 0.95
+# 운영 콘솔이 오류 로그를 fingerprint로 묶을 수 있게 JSON 한 줄로 찍는다. 로컬/field-test는 평문 유지.
+logging.structured.format.console: logstash
 
 server:
   forward-headers-strategy: framework

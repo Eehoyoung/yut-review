@@ -55,6 +55,15 @@ interface StoreOutcomeRepository extends JpaRepository<StoreOutcome,Long> {
 }
 interface StoreSubscriptionRepository extends JpaRepository<StoreSubscription,Long> {
     Optional<StoreSubscription> findByStoreId(Long storeId);
+    List<StoreSubscription> findByNextBillingAtBefore(java.time.Instant t);
+    @Modifying @Query("update StoreSubscription s set s.billingLockUntil=:until where s.store.id=:storeId and (s.billingLockUntil is null or s.billingLockUntil<:now)")
+    int lockBilling(@Param("storeId") Long storeId,@Param("now") java.time.Instant now,@Param("until") java.time.Instant until);
+    @Modifying @Query("update StoreSubscription s set s.billingLockUntil=null where s.store.id=:storeId")
+    int unlockBilling(@Param("storeId") Long storeId);
+}
+interface SubscriptionPaymentRepository extends JpaRepository<SubscriptionPayment,Long> {
+    List<SubscriptionPayment> findTop12ByStoreIdOrderByCreatedAtDesc(Long storeId);
+    Optional<SubscriptionPayment> findByPaymentId(String paymentId);
 }
 interface AiMonthlyQuotaRepository extends JpaRepository<AiMonthlyQuota,Long> {
     Optional<AiMonthlyQuota> findByStoreIdAndFeatureAndQuotaMonth(Long storeId,AiFeature feature,String quotaMonth);

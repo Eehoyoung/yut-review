@@ -43,13 +43,27 @@ export default function AiPage() {
 
   return (
     <AdminFrame title="AI 도우미">
+      <section className="panel stack" aria-label="AI 연결 상태">
+        <div className="row">
+          <h2>AI 연결</h2>
+          <span className="pill" data-tone={status.data.liveProviderReady ? "ok" : "wait"}>
+            {status.data.liveProviderReady ? "API 키 연결됨" : "테스트 응답 모드"}
+          </span>
+        </div>
+        <p className="lead">
+          {status.data.liveProviderReady
+            ? `첫 실제 호출 대기 · 분석 ${status.data.models.analysis} · 대화 ${status.data.models.chat}`
+            : "서버에 OPENAI_API_KEY를 추가하면 재배포 후 실제 OpenAI 호출로 자동 전환됩니다."}
+        </p>
+        <p className="hint">API 키 값은 화면·응답·로그에 표시하지 않습니다. 현재 공급자: {status.data.provider}</p>
+      </section>
       {anyAllowed ? (
         <AiInsightCard storeId={id} />
       ) : (
         <section className="panel stack">
           <h2>{PLAN_LABEL[plan]} 요금제에는 AI 기능이 없어요.</h2>
           <p className="lead">
-            스탠다드: 안내 문구·운영 리포트 / 프로: 개선 제안·AI 매니저
+            베이직·스탠다드: AI 매장 분석 / 프로: 이벤트 문구·개선 제안·AI 대화
           </p>
           <Link className="btn secondary" href={`/admin/stores/${id}/plan`}>
             요금제 보기

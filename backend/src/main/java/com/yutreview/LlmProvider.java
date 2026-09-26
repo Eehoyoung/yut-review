@@ -37,8 +37,9 @@ class AiProviderConfig {
                             @Value("${app.ai.openai.base-url:https://api.openai.com/v1}") String baseUrl,
                             @Value("${app.ai.timeout-seconds:45}") long timeoutSeconds) {
         String choice = configured == null ? "" : configured.trim().toLowerCase();
-        if ("openai".equals(choice)) return new OpenAiLlmProvider(apiKey, baseUrl, timeoutSeconds, json);
-        if (!"fake".equals(choice))
+        if ("openai".equals(choice) || ("auto".equals(choice) && apiKey != null && !apiKey.isBlank()))
+            return new OpenAiLlmProvider(apiKey, baseUrl, timeoutSeconds, json);
+        if (!"fake".equals(choice) && !"auto".equals(choice))
             log.warn("app.ai.provider='{}'는 알 수 없는 값이라 AI를 비활성(fake)으로 둡니다. 고객 흐름은 정상입니다.",
                     configured);
         return fake;
@@ -104,6 +105,9 @@ interface LlmProvider {
     LlmResponse continueWithToolResults(LlmRequest request, List<LlmToolExchange> exchanges);
 
     String name();
+
+    /** 실제 외부 호출 준비 여부. 키 값 자체는 어떤 응답이나 로그에도 포함하지 않는다. */
+    default boolean liveReady() { return false; }
 }
 
 /** AI 호출이 실패했을 때. 이 예외는 고객 흐름으로 새지 않고 관리자 화면에서만 보인다. */
@@ -146,6 +150,9 @@ class OpenAiLlmProvider implements LlmProvider {
                 .build();
         this.json = json;
     }
+
+    @Override
+    public boolean liveReady() { return configured; }
 
     @Override
     public String name() {

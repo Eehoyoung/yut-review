@@ -68,6 +68,9 @@ export default function Login() {
         <p className="lead">
           처음이신가요? <Link href="/admin/signup">매장 등록</Link>
         </p>
+        <p className="lead">
+          시스템 운영자인가요? <Link href="/admin/operator/login">이메일 인증으로 로그인</Link>
+        </p>
         <button type="button" className="btn ghost" onClick={() => setRecoveryOpen(true)}>이메일·비밀번호 찾기</button>
       </form>
       <AccountRecoveryDialog open={recoveryOpen} onClose={() => setRecoveryOpen(false)} />

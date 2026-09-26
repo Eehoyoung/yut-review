@@ -819,6 +819,36 @@ form > .success {
   color: var(--ink-muted);
 }
 
+.branding-fieldset {
+  border: 1px solid var(--line-control);
+  border-radius: var(--r-lg);
+  padding: var(--s4);
+  display: grid;
+  gap: var(--s4);
+}
+.branding-fieldset legend { padding: 0 var(--s2); font-weight: 800; color: var(--ink); }
+.branding-fieldset:disabled { opacity: .62; }
+.brand-theme-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s2); }
+.brand-theme-option {
+  min-height: 78px;
+  padding: var(--s3);
+  border: 1px solid var(--line-control);
+  border-radius: var(--r-md);
+  background: var(--panel);
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  cursor: pointer;
+}
+.brand-theme-option:has(input:checked) { border-color: var(--brand); box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand) 20%, transparent); }
+.brand-theme-option input { width: 18px; height: 18px; flex: 0 0 auto; }
+.brand-theme-option span:last-child { display: grid; gap: 2px; }
+.brand-theme-option small { color: var(--ink-muted); line-height: 1.35; }
+.brand-theme-swatch { width: 28px; height: 44px; flex: 0 0 auto; border-radius: 999px; background: linear-gradient(180deg, #162436 0 60%, #fc672d 60%); }
+.brand-theme-option[data-theme="FOREST"] .brand-theme-swatch { background: linear-gradient(180deg, #174c3c 0 60%, #267a5b 60%); }
+.brand-theme-option[data-theme="PLUM"] .brand-theme-swatch { background: linear-gradient(180deg, #512a4b 0 60%, #8a3e72 60%); }
+@media (max-width: 560px) { .brand-theme-grid { grid-template-columns: 1fr; } }
+
 .check {
   display: flex;
   gap: var(--s3);
@@ -1064,6 +1094,80 @@ form > .success {
   border-radius: var(--r-full);
   background: var(--line);
   margin: -8px auto 4px;
+}
+
+/* ---------- 구독 중단 안내 ---------- */
+
+.service-unavailable {
+  min-height: 100dvh;
+  justify-content: center;
+  text-align: center;
+}
+
+.service-unavailable > * {
+  width: 100%;
+}
+
+.service-unavailable .brand {
+  margin-top: var(--s4);
+}
+
+.service-unavailable h1 {
+  max-width: 11em;
+  margin-inline: auto;
+}
+
+.service-unavailable .lead {
+  max-width: 28em;
+  margin: 0 auto var(--s3);
+}
+
+.service-unavailable-mark {
+  width: 132px;
+  height: 112px;
+  margin: 0 auto;
+  position: relative;
+}
+
+.service-unavailable-mark span {
+  position: absolute;
+  width: 20px;
+  height: 92px;
+  border: 2px solid var(--ink);
+  border-radius: var(--r-full);
+  background: var(--wood-light);
+  transform-origin: 50% 80%;
+}
+
+.service-unavailable-mark span:nth-child(1) { left: 18px; top: 12px; transform: rotate(-18deg); }
+.service-unavailable-mark span:nth-child(2) { left: 48px; top: 2px; transform: rotate(-6deg); }
+.service-unavailable-mark span:nth-child(3) { right: 34px; top: 4px; transform: rotate(8deg); }
+.service-unavailable-mark span:nth-child(4) { right: 8px; top: 14px; transform: rotate(19deg); }
+
+.payment-notice-symbol {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border-radius: 16px;
+  background: var(--wood-light);
+  color: var(--ink);
+  font-size: 1.65rem;
+  font-weight: 850;
+}
+
+.payment-notice-copy h2 {
+  font-size: clamp(1.55rem, 7vw, 2rem);
+  line-height: 1.22;
+  letter-spacing: -0.035em;
+}
+
+.payment-notice-copy .eyebrow {
+  margin: 0;
+  color: var(--wood-strong);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
 }
 
 @keyframes sheet-up {

@@ -138,7 +138,7 @@ final class Inputs {
         AdminStoreMembership m=new AdminStoreMembership();m.admin=owner;m.store=s;m.role=MembershipRole.OWNER;m.createdAt=now;memberships.save(m);
         StoreQrCode q=new StoreQrCode();q.store=s;q.publicToken=Tokens.random();q.status=QrStatus.ACTIVE;q.createdAt=now;qrs.save(q);
         config.save(s,GameConfigService.defaults());
-        // 신규 매장은 가입 순간부터 14일간 PRO 전체 기능을 체험하고, 만료 뒤 자동으로 BASIC이 된다.
+        // 가입일을 1일째로 세는 14일 PRO 체험을 즉시 시작한다.
         subscriptions.startSignupTrial(s);
         // 포스터 PNG는 이 흐름에서 가장 비싼 작업이라 여기서 만들지 않는다. 가입은 익명 요청이고,
         // 그 자리에서 큰 이미지를 그리면 요청 한 번에 수백 KB를 쌓는 길이 열린다. 예전에는
@@ -326,8 +326,9 @@ final class Inputs {
 }
 @Service class StoreAccessService {
     private final QrRepository qrs; private final MembershipRepository memberships;
-    StoreAccessService(QrRepository qrs,MembershipRepository memberships){this.qrs=qrs;this.memberships=memberships;}
-    StoreQrCode activeQr(String token){StoreQrCode q=qrs.findByPublicToken(token).orElseThrow(()->new AppException("QR_TOKEN_INVALID","유효하지 않은 QR입니다.",org.springframework.http.HttpStatus.NOT_FOUND));if(q.status==QrStatus.REVOKED)throw new AppException("QR_TOKEN_REVOKED","폐기된 QR입니다.");if(q.store.status!=StoreStatus.ACTIVE)throw new AppException("STORE_INACTIVE","운영 중인 매장이 아닙니다.");return q;}
+    private final ServiceAccessPolicy servicePolicy;
+    StoreAccessService(QrRepository qrs,MembershipRepository memberships,ServiceAccessPolicy servicePolicy){this.qrs=qrs;this.memberships=memberships;this.servicePolicy=servicePolicy;}
+    StoreQrCode activeQr(String token){StoreQrCode q=qrs.findByPublicToken(token).orElseThrow(()->new AppException("QR_TOKEN_INVALID","유효하지 않은 QR입니다.",org.springframework.http.HttpStatus.NOT_FOUND));if(q.status==QrStatus.REVOKED)throw new AppException("QR_TOKEN_REVOKED","폐기된 QR입니다.");if(q.store.status!=StoreStatus.ACTIVE)throw new AppException("STORE_INACTIVE","운영 중인 매장이 아닙니다.");servicePolicy.requireOpenForCustomer(q.store.id);return q;}
     void member(Long adminId,Long storeId){if(adminId==null||!memberships.existsByAdminIdAndStoreId(adminId,storeId))throw new AppException("FORBIDDEN","매장 접근 권한이 없습니다.",org.springframework.http.HttpStatus.FORBIDDEN);}
 }
 @Service class GameResultGenerator {
@@ -484,9 +485,9 @@ interface NotificationService { void couponIssued(Coupon coupon); }
     @Transactional Coupon reveal(String playId){GamePlay g=games.findByPublicId(playId).orElseThrow(()->new AppException("GAME_NOT_FOUND","게임을 찾을 수 없습니다.",org.springframework.http.HttpStatus.NOT_FOUND));if(g.status==GameStatus.CREATED){g.status=GameStatus.REVEALED;g.revealedAt=clock.instant();}return coupons.findByGamePlayId(g.id).orElseThrow();}
 }
 @Service class CouponService {
-    private final CouponRepository coupons;private final PasswordEncoder encoder;private final Clock clock;private final PinAttemptLimiter limiter;
-    CouponService(CouponRepository coupons,PasswordEncoder encoder,Clock clock,PinAttemptLimiter limiter){this.coupons=coupons;this.encoder=encoder;this.clock=clock;this.limiter=limiter;}
-    @Transactional Coupon get(String token){Coupon c=coupons.findByCouponToken(token).orElseThrow(()->new AppException("COUPON_NOT_FOUND","쿠폰을 찾을 수 없습니다.",org.springframework.http.HttpStatus.NOT_FOUND));expire(c);return c;}
-    @Transactional Coupon redeem(String token,String pin,String ip){Coupon c=coupons.findForUpdate(token).orElseThrow(()->new AppException("COUPON_NOT_FOUND","쿠폰을 찾을 수 없습니다.",org.springframework.http.HttpStatus.NOT_FOUND));Instant now=clock.instant();if(c.status==CouponStatus.REDEEMED)throw new AppException("COUPON_ALREADY_REDEEMED","이미 사용한 쿠폰입니다.");expire(c);if(c.status==CouponStatus.EXPIRED)throw new AppException("COUPON_EXPIRED","유효기간이 지난 쿠폰입니다.");if(c.status!=CouponStatus.ISSUED)throw new AppException("COUPON_NOT_ACTIVE","사용할 수 없는 쿠폰입니다.");if(now.isBefore(c.validFrom))throw new AppException("COUPON_NOT_YET_VALID","아직 사용할 수 없는 쿠폰입니다.");limiter.attempt(c.store.id,c.id,ip);if(!encoder.matches(pin,c.store.staffPinHash))throw new AppException("STAFF_PIN_INVALID","직원 PIN이 올바르지 않습니다.");limiter.succeeded(c.store.id,c.id,ip);c.status=CouponStatus.REDEEMED;c.redeemedAt=now;return c;}
+    private final CouponRepository coupons;private final PasswordEncoder encoder;private final Clock clock;private final PinAttemptLimiter limiter;private final ServiceAccessPolicy servicePolicy;
+    CouponService(CouponRepository coupons,PasswordEncoder encoder,Clock clock,PinAttemptLimiter limiter,ServiceAccessPolicy servicePolicy){this.coupons=coupons;this.encoder=encoder;this.clock=clock;this.limiter=limiter;this.servicePolicy=servicePolicy;}
+    @Transactional Coupon get(String token){Coupon c=coupons.findByCouponToken(token).orElseThrow(()->new AppException("COUPON_NOT_FOUND","쿠폰을 찾을 수 없습니다.",org.springframework.http.HttpStatus.NOT_FOUND));servicePolicy.requireOpenForCustomer(c.store.id);expire(c);return c;}
+    @Transactional Coupon redeem(String token,String pin,String ip){Coupon c=coupons.findForUpdate(token).orElseThrow(()->new AppException("COUPON_NOT_FOUND","쿠폰을 찾을 수 없습니다.",org.springframework.http.HttpStatus.NOT_FOUND));servicePolicy.requireOpenForCustomer(c.store.id);Instant now=clock.instant();if(c.status==CouponStatus.REDEEMED)throw new AppException("COUPON_ALREADY_REDEEMED","이미 사용한 쿠폰입니다.");expire(c);if(c.status==CouponStatus.EXPIRED)throw new AppException("COUPON_EXPIRED","유효기간이 지난 쿠폰입니다.");if(c.status!=CouponStatus.ISSUED)throw new AppException("COUPON_NOT_ACTIVE","사용할 수 없는 쿠폰입니다.");if(now.isBefore(c.validFrom))throw new AppException("COUPON_NOT_YET_VALID","아직 사용할 수 없는 쿠폰입니다.");limiter.attempt(c.store.id,c.id,ip);if(!encoder.matches(pin,c.store.staffPinHash))throw new AppException("STAFF_PIN_INVALID","직원 PIN이 올바르지 않습니다.");limiter.succeeded(c.store.id,c.id,ip);c.status=CouponStatus.REDEEMED;c.redeemedAt=now;return c;}
     private void expire(Coupon c){if(c.status==CouponStatus.ISSUED&&clock.instant().isAfter(c.expiresAt))c.status=CouponStatus.EXPIRED;}
 }

@@ -155,6 +155,9 @@ section "애플리케이션"
 HEALTH=$(curl -sS --max-time 15 "$ORIGIN/api/actuator/health" 2>/dev/null)
 printf '%s' "$HEALTH" | grep -q '"status":"UP"' \
   && ok "health UP" || bad "health 응답이 UP이 아닙니다: $HEALTH"
+# metrics는 운영 콘솔 collector가 루프백으로만 읽는다. 외부에 보이면 nginx 차단이 빠진 것이다.
+METRICS=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 "$ORIGIN/api/actuator/metrics" 2>/dev/null)
+[ "$METRICS" = "404" ] && ok "actuator metrics 외부 404" || bad "actuator metrics 외부 응답 코드: $METRICS"
 
 # 운영은 canonical origin을 고정한다. 요청 Host로 QR/포스터 주소를 만들면 안 된다.
 NOTFOUND=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 \
@@ -166,7 +169,8 @@ section "서버 로컬 (이 스크립트를 운영 서버에서 돌릴 때만 �
 # 한 호스트에 다른 프로젝트가 같이 떠 있을 수 있으므로 compose 프로젝트로 좁힌다.
 COMPOSE_PROJECT="${COMPOSE_PROJECT:-yut-review}"
 if command -v docker >/dev/null 2>&1 && docker ps >/dev/null 2>&1; then
-  EXPOSED=$(docker ps --filter "label=com.docker.compose.project=$COMPOSE_PROJECT"     --format '{{.Names}} {{.Ports}}' | grep -E '0\.0\.0\.0:(5432|8080|3000)' || true)
+  EXPOSED=$(docker ps --filter "label=com.docker.compose.project=$COMPOSE_PROJECT"     --format '{{.Names}} {{.Ports}}' | grep -E '0\.0\.0\.0:(5432|8080|3000)|->8080/' || true)
+  # backend는 관리 포트(8081)만 127.0.0.1:18080에 게시한다. API 포트 8080은 루프백에도 게시하면 안 된다.
   [ -z "$EXPOSED" ] && ok "postgres/backend/frontend가 host 포트를 열지 않았습니다" \
     || bad "host에 노출된 포트가 있습니다: $EXPOSED"
 else

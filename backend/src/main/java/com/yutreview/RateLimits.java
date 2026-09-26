@@ -234,7 +234,7 @@ interface RateCounterRepository extends JpaRepository<RateCounter,Long> {
  * 채울 수 있었다. 그래서 신뢰 대역에서 온 요청의 헤더만 해석하고, 나머지는 socket peer를 쓴다.
  */
 @Component class ClientIpResolver {
-    /** 패키지 공개다. 운영자 접근 통제(OperatorAccess)가 같은 파싱과 같은 비교를 쓴다. */
+    /** 패키지 공개다. 프록시 신뢰 경계가 같은 CIDR 파싱과 비교를 쓴다. */
     record Cidr(byte[] address,int bits){
         boolean contains(byte[] candidate){
             if(candidate.length!=address.length)return false;

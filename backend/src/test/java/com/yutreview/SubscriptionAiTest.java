@@ -33,6 +33,7 @@ class SubscriptionAiTest {
     @Autowired GameService games;
     @Autowired PrizeRepository prizes;
     @Autowired SubscriptionService subscriptions;
+    @Autowired SubscriptionTrialScheduler trialScheduler;
     @Autowired StoreSubscriptionRepository subscriptionRows;
     @Autowired PlanEntitlementService entitlements;
     @Autowired AiService ai;
@@ -91,53 +92,55 @@ class SubscriptionAiTest {
         assertFalse(entitlements.has(Plan.BASIC, Entitlement.ADVANCED_ANALYTICS));
         assertFalse(entitlements.has(Plan.BASIC, Entitlement.CSV_EXPORT));
         assertTrue(entitlements.has(Plan.STANDARD, Entitlement.CSV_EXPORT));
-        assertTrue(entitlements.has(Plan.STANDARD, Entitlement.BRANDING));
+        assertFalse(entitlements.has(Plan.STANDARD, Entitlement.BRANDING));
+        assertEquals(9900, Plan.BASIC.monthlyPriceKrw);
+        assertEquals(14900, Plan.STANDARD.monthlyPriceKrw);
+        assertEquals(19900, Plan.PRO.monthlyPriceKrw);
     }
 
     @Test
-    void signupTrialStartsWithProAndFallsBackToBasicAfterFourteenDays() {
+    void signupTrialStartsAtSignupAndFallsBackAtDayFifteenMidnightOne() {
         StoreSubscription trial = subscriptions.startSignupTrial(store);
         assertEquals(Plan.PRO, subscriptions.planOf(store.id));
         assertNotNull(trial.trialEndsAt);
-        assertEquals(SubscriptionService.SIGNUP_TRIAL_DAYS,
-                java.time.Duration.between(trial.startedAt, trial.trialEndsAt).toDays());
+        assertEquals(clock.instant().atZone(clock.getZone()).toLocalDate().plusDays(14),
+                trial.trialEndsAt.atZone(clock.getZone()).toLocalDate());
+        assertEquals(java.time.LocalTime.of(0, 1), trial.trialEndsAt.atZone(clock.getZone()).toLocalTime());
 
         trial.trialEndsAt = clock.instant().minusSeconds(1);
         subscriptionRows.saveAndFlush(trial);
 
-        assertEquals(Plan.BASIC, subscriptions.planOf(store.id));
+        trialScheduler.downgradeExpiredTrials();
         StoreSubscription expired = subscriptionRows.findByStoreId(store.id).orElseThrow();
         assertNull(expired.trialEndsAt);
         assertEquals(Plan.BASIC, expired.plan);
     }
 
     @Test
-    void basicRejectsEveryAiFeature() {
-        for (AiFeature feature : AiFeature.values())
-            assertFalse(entitlements.has(Plan.BASIC, feature), feature + "는 BASIC에서 열려 있으면 안 된다");
+    void basicAllowsStoreAnalysisOnly() {
+        assertTrue(entitlements.has(Plan.BASIC, AiFeature.AI_REPORT));
+        assertEquals(5, entitlements.monthlyQuota(Plan.BASIC, AiFeature.AI_REPORT));
         assertEquals("PLAN_UPGRADE_REQUIRED",
                 assertThrows(AppException.class, () -> ai.eventCopy(store, null)).code);
-        assertEquals("PLAN_UPGRADE_REQUIRED",
-                assertThrows(AppException.class, () -> ai.report(store, null, null)).code);
+        assertTrue(ai.report(store, null, null).containsKey("summary"));
         assertEquals("PLAN_UPGRADE_REQUIRED",
                 assertThrows(AppException.class, () -> ai.improvement(store, null, null)).code);
         assertEquals("PLAN_UPGRADE_REQUIRED",
                 assertThrows(AppException.class, () -> ai.chat(store, "참여 몇 건이야?")).code);
-        // 막힌 호출은 한도를 건드리지 않는다.
-        assertTrue(quotaRows.findByStoreIdAndQuotaMonth(store.id, quota.currentMonth()).isEmpty());
+        // 열린 매장 분석 1회만 한도를 사용한다.
+        assertEquals(1, quotaRows.findByStoreIdAndFeatureAndQuotaMonth(
+                store.id, AiFeature.AI_REPORT, quota.currentMonth()).orElseThrow().used);
     }
 
     @Test
-    void standardAllowsCopyAndReportButNotChatOrImprovement() {
+    void standardKeepsStoreAnalysisButNotProAiFeatures() {
         subscriptions.changePlan(store, Plan.STANDARD, "테스트");
-        Map<String, Object> copy = ai.eventCopy(store, new AiService.EventCopyRequest("친근한", "가족 손님 위주"));
-        assertTrue(copy.containsKey("headline"));
-        assertTrue(copy.containsKey("policyNotice"));
-
         Map<String, Object> report = ai.report(store, LocalDate.now(clock).minusDays(7), LocalDate.now(clock));
         assertTrue(report.containsKey("recommendations"));
         assertTrue(report.containsKey("dataLimitations"));
 
+        assertEquals("PLAN_UPGRADE_REQUIRED",
+                assertThrows(AppException.class, () -> ai.eventCopy(store, null)).code);
         assertEquals("PLAN_UPGRADE_REQUIRED",
                 assertThrows(AppException.class, () -> ai.chat(store, "지난주 어땠어?")).code);
         assertEquals("PLAN_UPGRADE_REQUIRED",
@@ -166,6 +169,7 @@ class SubscriptionAiTest {
                 assertThrows(AppException.class, () -> ai.report(store, null, null)).code);
 
         // 실패한 호출은 한도를 깎지 않는다. 남은 자리가 없으니 하나 되돌아온 뒤 다시 막혀야 한다.
+        subscriptions.changePlan(store, Plan.PRO, "실패 환불 테스트");
         AiMonthlyQuota row = quotaRows
                 .findByStoreIdAndFeatureAndQuotaMonth(store.id, AiFeature.AI_EVENT_COPY, quota.currentMonth())
                 .orElse(null);
@@ -515,14 +519,18 @@ class SubscriptionAiTest {
     }
 
     @Test
-    void brandingTaglineNeedsThePlan() {
-        // 브랜딩은 STANDARD 이상. 안내물 렌더링 자체는 등급과 무관하게 같은 구조다.
+    void brandingTaglineAndPaletteNeedThePlan() {
+        // 브랜딩은 PRO 전용. 안내물 렌더링 자체는 등급과 무관하게 같은 구조다.
         assertFalse(entitlements.has(Plan.BASIC, Entitlement.BRANDING));
-        assertTrue(entitlements.has(Plan.STANDARD, Entitlement.BRANDING));
+        assertFalse(entitlements.has(Plan.STANDARD, Entitlement.BRANDING));
+        assertTrue(entitlements.has(Plan.PRO, Entitlement.BRANDING));
         byte[] plain = StorePosterService.render("테스트포차", "http://localhost:8088/s/token", null);
         byte[] branded = StorePosterService.render("테스트포차", "http://localhost:8088/s/token", "오늘도 고맙습니다");
+        byte[] forest = StorePosterService.render(PosterVariant.GAME,"테스트포차", "http://localhost:8088/s/token",
+                "오늘도 고맙습니다", PosterBrandTheme.FOREST);
         assertTrue(plain.length > 0);
         assertNotEquals(plain.length, branded.length, "문구가 실제로 안내물에 반영된다");
+        assertNotEquals(branded.length, forest.length, "선택한 팔레트가 실제 안내물에 반영된다");
     }
 
     @Test
@@ -556,6 +564,7 @@ class SubscriptionAiTest {
         Map<String, Object> status = ai.status(store);
         assertEquals("STANDARD", status.get("plan"));
         assertEquals("fake", status.get("provider"));
+        assertEquals(false, status.get("liveProviderReady"));
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> features = (List<Map<String, Object>>) status.get("features");
@@ -566,7 +575,7 @@ class SubscriptionAiTest {
 
         Map<String, Object> copy = features.stream()
                 .filter(f -> AiFeature.AI_EVENT_COPY.name().equals(f.get("feature"))).findFirst().orElseThrow();
-        assertEquals(true, copy.get("allowed"));
-        assertEquals(20, copy.get("limitPerMonth"));
+        assertEquals(false, copy.get("allowed"));
+        assertEquals(0, copy.get("limitPerMonth"));
     }
 }

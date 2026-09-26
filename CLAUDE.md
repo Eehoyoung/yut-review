@@ -7,6 +7,10 @@
 
 ## 현재 스택 (문서의 "추천 스택"과 다른 부분 포함)
 
+운영 기준선은 `10_DEPLOYMENT.md`의 날짜가 있는 절을 먼저 본다. 로컬 작업 트리의 기능·설정은 배포
+증거가 아니다. 특히 2026-09-26의 운영자 OTP, 관리 포트, SEO 변경은 공개 DOM/응답과 이미지 태그를
+확인하기 전까지 "배포됨"이라고 쓰지 않는다.
+
 - 백엔드: Java 17 + Spring Boot 3.4.4 + Spring Data JPA + Spring Security + java-jwt, Gradle
 - DB: PostgreSQL 17 (테스트는 H2 PostgreSQL 모드), 스키마는 `ddl-auto=update` (마이그레이션 도구 없음)
 - 프런트: Next.js 15 + React 19 + TypeScript + TanStack Query + Zustand + R3F(+ `@dimforge/rapier3d-compat` 직접 사용)
@@ -183,7 +187,8 @@ docker compose --env-file .env.field-test --profile field-test up -d   # Cloudfl
 - 등급 변경은 `SYSTEM_ADMIN`만. 멤버십 검사를 운영자 검사보다 먼저 두지 말 것(운영자는 어느 매장의
   멤버도 아니라서 자기가 해야 할 변경을 스스로 막게 된다).
 
-기본 공급자는 fake다. 실제 호출은 `AI_PROVIDER=openai`와 `OPENAI_API_KEY`가 있을 때만 일어난다.
+기본 공급자 모드는 auto다. `OPENAI_API_KEY`가 있으면 OpenAI, 없으면 fake를 선택한다.
+CI와 로컬 테스트에서 네트워크 호출을 확실히 막을 때는 `AI_PROVIDER=fake`를 명시한다.
 
 ## 보안점검 반영 (2026-09-22)
 
@@ -209,6 +214,8 @@ docker compose --env-file .env.field-test --profile field-test up -d   # Cloudfl
   **서버에서 `--build`를 붙이지 말 것.** 2GB VM에서 Gradle 빌드가 운영 컨테이너와 메모리를 다툰다.
   `docker-compose.prod.yml`이 `build: !reset null`로 지워 둬서 붙여도 소스 빌드로 새지는 않는다.
   워크플로의 `platforms: linux/amd64`와 Lightsail 인스턴스 아키텍처는 항상 같이 움직여야 한다.
+- nginx 설정은 파일 단위 bind mount다. 서버에서 `git pull`로 `nginx/production.conf`가 바뀌면 컨테이너는 옛 inode를 계속 본다.
+  `nginx -s reload`로는 반영되지 않으므로 `up -d --no-deps --force-recreate nginx`로 재생성한다(2026-09-26 SEO 배포에서 확인).
 - 운영 스크립트: `scripts/generate-production-secrets.sh`(서버에서 키 생성, 화면에 찍지 않음),
   `scripts/verify-production.sh`(배포 후 TLS/DNS/헤더/fail-closed 점검), `scripts/load-test/`(k6).
   계획과 임계값은 `docs/LOAD_TEST_PLAN.md`.
@@ -341,8 +348,8 @@ DB를 버려도 되는 로컬이라면 `docker compose down -v` 후 새 키로 �
 
 `features/admin/LogoutButton.tsx` 하나다. `/admin`, `AdminFrame`, `OperatorFrame` 세 헤더에 붙는다.
 
-- `clearAdminSession()`이 JWT와 **운영자 기기 통행증을 같이** 지운다. JWT만 지우면 통행증이 4시간
-  남아 다음 사람이 같은 브라우저에서 기기 인증을 건너뛴다.
+- `clearAdminSession()`이 JWT와 운영자 고정 만료 시각을 같이 지운다. 운영자 세션이 만료되면
+  `/admin/operator/login`으로 이동해 이메일 OTP를 다시 요구한다.
 - TanStack Query 캐시도 비운다. 안 비우면 다른 계정으로 로그인했을 때 잠깐 남의 매장이 보인다.
 - `router.push`가 아니라 `window.location.assign`이다. 클라이언트 전환은 메모리 상태를 끌고 온다.
 
@@ -358,7 +365,7 @@ DB를 버려도 되는 로컬이라면 `docker compose down -v` 후 새 키로 �
 | `/admin/operator/accounts` | 관리자 계정 목록, 운영자 권한 부여·회수, 운영자 신설 |
 | `/admin/operator/resources` | 자원 현황 + 전화번호 해시 재계산 |
 | `/admin/operator/audit` | 매장 심사와 계정 변경을 합친 활동 기록 |
-| `/admin/operator/devices` | 접근 통제 상태, 기기 등록·인증·삭제 |
+| `/admin/operator/devices` | OTP·고정 세션 보안 상태와 만료 시각 |
 
 - `Operators.java` — `OperatorAuditEvent`(append-only), `OperatorAccountService`,
   `OperatorAccountController`, `OperatorBootstrap`.
@@ -375,51 +382,19 @@ DB를 버려도 되는 로컬이라면 `docker compose down -v` 후 새 키로 �
   각각 200건 상한이고 운영자 동작은 하루 수십 건 규모다.
 - 테스트: `OperatorAccountTest.java` (신설·멱등 부여/회수·잠금 방지 두 경로·검색과 해시 비노출).
 
-### 접근 통제 (`OperatorAccess.java`)
+### 운영자 이메일 OTP와 고정 세션
 
-운영자 계정 하나면 모든 매장의 승인·거부·소유권 이전과 모든 손님의 참여 집계에 닿는다.
-비밀번호 하나가 그 전부를 여는 상태를 두지 않는다. 두 겹이다.
-
-| 상황 | 결과 |
-|---|---|
-| `OPERATOR_ALLOWED_CIDRS` 안 | 그냥 열린다 |
-| 그 밖 + 유효한 통행증 | 열린다 (통행증은 기기 인증 4시간) |
-| 그 밖 + 통행증 없음 | 403 `DEVICE_REQUIRED` |
-
-- `OperatorAccessFilter`가 `/api/admin/operator/**`를 지킨다. `JwtFilter` **뒤**여야 한다 —
-  통행증의 주인과 대조할 계정 id를 그쪽이 넣는다.
-- `access/status`, `access/authenticate-challenge`, `access/authenticate` 셋만 문지기를 지나지
-  않는다. 지나게 하면 기기 인증을 하려면 먼저 기기 인증을 통과해야 하는 순환이 생긴다.
-- **등록(`access/register`)은 문지기를 지난다.** 그래서 첫 기기는 반드시 허용 IP에서 등록한다.
-  아무 데서나 등록되면 기기 인증이 아무것도 막지 않는다. 이 경로를 OPEN에 넣지 말 것.
-- **WebAuthn을 라이브러리 없이 한다.** 어려운 부분은 등록 시 attestationObject의 CBOR 파싱인데,
-  브라우저 `getPublicKey()`가 SPKI(X.509) DER을 바로 주고 Java `KeyFactory`가 읽는다.
-  CBOR 파서나 webauthn 라이브러리를 추가하지 말 것.
-- attestation은 검증하지 않는다(`attestation: "none"`). 알아야 하는 것은 제조사가 아니라
-  "앞으로 이 공개키로 서명하는 쪽만 들여보낸다"이고, 등록 요청은 이미 문지기를 지나온 뒤다.
-- 검증하는 것: clientData의 type·challenge·origin, rpIdHash, User Present 비트, 서명, 서명 카운터.
-  챌린지는 1회용이라 쓰는 즉시 지운다(남기면 같은 서명 재전송으로 통과한다).
-  카운터가 0인 기기는 카운터를 쓰지 않는다는 뜻이라 통과시킨다(대부분의 패스키가 그렇다).
-- 실패 이유를 구분해 주지 않는다. 전부 `DEVICE_ASSERTION_INVALID`다.
-- 통행증은 평문을 저장하지 않고 SHA-256만 남긴다(쿠폰 회수 티켓과 같은 이유).
-  기기를 지우면 그 기기로 받은 통행증도 같이 죽는다.
-- 챌린지·통행증 테이블은 10분마다 만료분을 치운다. 인메모리 맵으로 되돌리지 말 것
-  (만료도 상한도 없어서 단조 증가한다 — `rate_counters`에서 이미 당했다).
-- 테스트: `OperatorAccessTest.java`. 실제 ES256 키쌍으로 assertion을 만들어 서명 검증 경로를
-  통째로 돈다. 위조 서명·재전송·잘못된 rpId/origin·UP 비트·남의 기기·카운터 롤백 전부 확인한다.
-
-#### 잠금 탈출구
-
-**`OPERATOR_ACCESS_ENABLED=false`가 유일하다.** 가정용 인터넷 IP는 바뀌고 기기는 잃어버린다.
-둘 다 일어나면 화면으로는 복구할 방법이 없다. 서버 SSH가 이미 신뢰의 뿌리라 여기에 탈출구를
-두는 것이 새 구멍을 만들지 않는다. 이 변수를 지우거나 "항상 true"로 하드코딩하지 말 것.
-
-켜는 순서를 지킨다. 순서를 어기면 그 자리에서 잠긴다.
-
-1. `OPERATOR_ALLOWED_CIDRS`에 지금 IP를 넣고 **`ENABLED=false`인 채로** 재기동
-2. `/admin/operator/devices`에서 "지금 이 위치 = 허용 IP"인지 확인
-3. 노트북과 휴대폰 **각각 등록**(하나만 등록하고 잃으면 허용 IP 밖에서 못 들어온다)
-4. `OPERATOR_ACCESS_ENABLED=true`로 재기동
+- `SYSTEM_ADMIN`은 일반 `/api/admin/auth/login` 비밀번호 로그인을 사용할 수 없다.
+- `/api/admin/operator-auth/request`가 등록 이메일로 6자리 OTP를 보내며 기본 유효시간은 120초다.
+- OTP는 최대 5회 확인, 1회용이며 DB에는 토큰과 코드의 SHA-256만 저장한다.
+- 성공하면 `session_type=OPERATOR_EMAIL_OTP`인 전용 JWT를 발급한다. 기본 수명은 600초다.
+- 요청 활동으로 만료를 미루지 않고 refresh token도 없다. 만료 후 OTP부터 다시 로그인한다.
+- 장시간 작업 때만 `OPERATOR_SESSION_TTL_SECONDS`를 배포 환경에서 바꾸고 작업 후 600으로 복구한다.
+- `OperatorAccessFilter`는 `/api/admin/operator/**`에서 역할뿐 아니라 전용 세션 claim과 고정 만료를
+  검증한다. 일반 관리자 JWT나 과거 운영자 비밀번호 JWT로 통과시키지 말 것.
+- 운영자 계정 신설은 비밀번호를 받지 않는다. DB non-null 칸에는 로그인에 사용할 수 없는 무작위
+  폐기 해시만 저장한다.
+- 테스트: `OperatorOtpAuthTest.java`가 OTP 수명·1회성·10분 토큰·일반 비밀번호 로그인 차단을 확인한다.
 
 ### 첫 운영자 주입
 
@@ -431,15 +406,12 @@ sh scripts/create-operator.sh                      # operator@sodamlabs.kr
 sh scripts/create-operator.sh admin@example.com    # 이메일 지정
 ```
 
-`generate-production-secrets.sh`와 달리 **비밀번호를 화면에 한 번 찍는다.** 저쪽 값들은 사람이
-볼 일이 없어서 감추는 것이 이득이지만, 이 값은 사람이 로그인에 써야 한다. 감추면 쓸 수가 없다.
-
-그래서 이 스크립트로는 비밀번호를 **바꿀 수 없다.** 잊었으면 DB에서 그 계정의 role을
-STORE_ADMIN으로 내린 뒤 다시 돌린다.
+스크립트는 이메일만 받아 `OPERATOR_BOOTSTRAP_EMAIL`로 첫 운영자를 만든다. 비밀번호를 생성하거나
+출력하지 않는다. 운영자 로그인은 등록 이메일로 받는 OTP만 사용한다.
 
 운영자가 **한 명이라도 있으면 아무 일도 하지 않는다.** 이메일이 아니라 역할 수로 보기 때문에,
 운영자가 권한을 잃은 뒤 재기동에서 조용히 되돌아오는 일이 없다. 값은 로그에 찍지 않는다.
-계정이 만들어지면 두 변수를 지우고 재기동한다. 이후 운영자는 화면에서 만든다.
+계정이 만들어지면 bootstrap 이메일 변수를 지우고 재기동한다. 이후 운영자는 화면에서 만든다.
 
 ## 스키마 변경
 
@@ -466,3 +438,69 @@ STORE_ADMIN으로 내린 뒤 다시 돌린다.
 
 `admin_users.login_id` 컬럼은 `ddl-auto=update`가 못 지워서 nullable인 채로 DB에 남아 있다.
 쓰는 코드는 없다.
+
+## 운영 콘솔(Sodam Ops Console) 연동 기록
+
+**2026-09-26 — 사용자 승인 작업.** 소담랩스 운영 콘솔(`C:\SodamLabs\ops-console`, Phase 2 관측)이 이 서비스의
+앱 메트릭과 오류 로그를 모을 수 있게 prod 설정만 바꿨다. 로컬/field-test 동작은 그대로다.
+
+- `application-prod.yml`: actuator를 **관리 포트 8081로 분리**(`management.server.port`), 노출은 `health,metrics`,
+  `http.server.requests` p95 백분위 활성화, `logging.structured.format.console: logstash`(Spring Boot 내장 JSON 로그).
+  API 포트 8080에는 prod에서 actuator가 없다.
+- `SecurityConfig.java`: `/actuator/metrics`, `/actuator/metrics/**` permitAll. 보안 체인은 관리 포트에도 적용되며
+  `ManagementPortTest`가 관리 포트 health·metrics 200, API 포트 actuator 비노출을 확인한다.
+- `nginx/production.conf`: 외부 actuator는 `= /api/actuator/health`만 `backend:8081`로 프록시하고 나머지
+  `/api/actuator/`는 404. 운영 콘솔 Phase 1이 이 health 경로를 1분마다 외부 점검하므로 지우지 말 것.
+- `docker-compose.prod.yml`: backend `127.0.0.1:18080:8081`. **루프백에는 관리 포트만 게시한다.** API 포트 8080은
+  게시하지 않으므로 이 통로로 nginx rate limit·client-IP 정책을 우회할 수 없다. 호스트 collector
+  (`ops-console/collector/collect.sh`, `APP_METRICS_URL=http://127.0.0.1:18080/actuator/metrics`)가 읽는다.
+  backend healthcheck(base의 TCP 8080 접속)는 API 포트 생존 확인이라 그대로 둔다.
+- `scripts/verify-production.sh`: 외부 `/api/actuator/metrics` 404 확인, 8080이 루프백 포함 어디에도 게시되지 않았는지 확인.
+  `10_DEPLOYMENT.md`, `09_SECURITY_AND_ABUSE.md`의 포트 문구를 위와 맞췄다.
+
+왜: 외부 health 점검만으로는 느림·자원 고갈·반복 오류의 원인을 좁힐 수 없다(ops-console PHASE_2 문서).
+외부 노출 변화: 없다. 외부 actuator는 오히려 health 하나로 줄었다.
+로그 원문은 콘솔이 저장 전에 마스킹하지만, 개인정보를 로그에 찍지 않는 원칙(AGENTS.md §8)은 그대로다.
+
+롤백: `management.server.port`·exposure·structured logging 줄, nginx의 health 전용 location(원래
+`location /api/actuator/ { proxy_pass http://backend:8080/actuator/; ... }`), compose의 `ports` 블록을 되돌리고
+재배포(`docker compose ... up -d`). 8081 분리만 되돌릴 때는 nginx 프록시 대상도 반드시 8080으로 함께 되돌린다.
+collector 중지는 호스트의 `/etc/cron.d/sodam-ops` 삭제로 충분하다.
+
+## 요금제 자동결제 (2026-09-27)
+
+포트원 V2 빌링키 월 자동결제. 규칙 원문은 AGENTS.md, 계약은 `05_API_SPEC.md`에 있다. 구현 위치만 적는다.
+
+- `Billing.java` — `PortOneClient`(REST: 빌링키 조회·삭제, 빌링키 결제, 결과 재조회), `BillingService`,
+  `BillingRenewalScheduler`(매일 00:10 KST), `BillingController`(`/api/admin/stores/{id}/billing`).
+- 결제 상태는 `store_subscriptions`의 nullable 칸(`billing_key`, `last_paid_at`, `next_billing_at`, `next_plan`,
+  `auto_renew`, `renewal_failures`, `billing_lock_until`)과 `subscription_payments`(결제 한 건 = 한 행)에 있다.
+- 이용 상태(`ServiceState`)는 저장하지 않고 `ServiceAccessPolicy`가 날짜에서 계산한다. 스케줄러가 늦어도 판정이
+  밀리지 않는다. 손님 차단은 `StoreAccessService.activeQr`와 `CouponService.get/redeem`, 사장 차단은
+  `ServiceAccessWebConfig` 인터셉터 한 곳이다. 새 사장 API를 만들어도 자동으로 막힌다.
+- 2026-09-27 이전 매장은 `next_billing_at`이 비어 있어 결제·제한 대상이 아니다(사용자 결정). 현장 테스트 시드
+  매장도 `exemptFromBilling`으로 뺀다. 안내 화면(`StoreIntro`, 대시보드 결제 안내)은 Codex가 만들었고
+  오류 코드 `STORE_PAYMENT_REQUIRED` / `SUBSCRIPTION_PAYMENT_REQUIRED`, `serviceSuspended`로 연결된다.
+- 화면: `app/admin/stores/[storeId]/plan/page.tsx`가 `@portone/browser-sdk/v2`로 결제창을 연다. 모바일은
+  `redirectUrl`로 돌아와 `billingKey` 쿼리로 결제를 마저 한다.
+- PG: 서버는 토스페이먼츠 + KG이니시스(카드)를 모두 지원하지만, **화면은 KG이니시스 단일**이다(2026-09-27 사용자 결정).
+  `plan/page.tsx`의 billing 쿼리 `select`가 INICIS 채널만 남긴다. 토스를 다시 열 때는 그 한 줄만 지운다.
+  NICE는 결제창 빌링키가 간편결제만이라 뺐다.
+- 환경 변수 `PORTONE_API_SECRET`, `PORTONE_STORE_ID`, `PORTONE_TOSS_CHANNEL_KEY`, `PORTONE_INICIS_CHANNEL_KEY`.
+  하나라도 비면 결제 버튼이 숨고 기존처럼 운영자 조작만 남는다. field-test 예시에는 공용 테스트 채널 키가 들어 있다.
+- CSP에 `cdn.portone.io`(script)와 `*.iamport.co`·`service.iamport.kr`(connect/frame)를 열었다. 빼면 결제창이 안 뜬다.
+- 테스트: `BillingTest.java` 14건(가짜 포트원 서버). 체험 종료일=첫 결제예정일, 체험 중 등록은 종료일 청구,
+  결제일 교체, 남의 빌링키 거부, 대표만, 거절 시 무변경, 기간 중 내리기, 갱신 중복 청구 방지, D+2 유예 뒤 제한,
+  기존 매장 비대상, 재결제로 해제, 사장·손님 차단 경로(MockMvc), 해지, 동시 결제 거부.
+
+되돌리면 안 되는 지점:
+
+- 포트원 호출을 `@Transactional` 안에 넣지 말 것. 쓰기는 `TransactionTemplate`으로 짧게 감싼다.
+- PG를 부르기 전 PENDING 행을 남기는 순서를 바꾸지 말 것. 결제 후 우리 쪽 기록이 실패해도 대조할 흔적이 남는다.
+- 갱신 paymentId(`renew-{storeId}-{paidThrough}-{failures}`)를 무작위로 바꾸지 말 것. 스케줄러가 두 번 돌아도
+  포트원이 `ALREADY_PAID`로 막아 주는 것이 이 결정론 덕분이다.
+- 빌링키 검증(`customer.id`, 채널)을 빼지 말 것. 다른 매장의 빌링키로 결제를 끼워 넣을 수 있다.
+- 이용 제한을 저장된 상태 칸으로 판정하지 말 것. 날짜 계산 한 곳(`ServiceAccessPolicy`)이 정본이다.
+- 손님 오류 문구에 결제 얘기를 넣지 말 것. 사장의 결제 문제를 손님에게 알리지 않는다.
+
+아직 없는 것: 환불·부분취소 API(포트원 콘솔에서 처리), 웹훅(동기 응답과 재조회로 대신한다), PENDING 자동 대조.

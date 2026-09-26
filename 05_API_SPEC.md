@@ -362,6 +362,42 @@ PUT  /api/admin/stores/{storeId}
 승인 전에도 허용한다.
 
 ## 운영자 API
+
+### 시스템 운영자 이메일 OTP 로그인
+
+일반 매장 관리자 비밀번호 로그인과 분리한다. `SYSTEM_ADMIN`은
+`POST /api/admin/auth/login`을 사용할 수 없으며 `OPERATOR_OTP_REQUIRED`를 받는다.
+
+```http
+POST /api/admin/operator-auth/request
+{ "email": "operator@example.com" }
+```
+
+응답은 계정 존재 여부를 구분하지 않는다. 등록된 `SYSTEM_ADMIN`이면 6자리 인증번호를 메일로 보내며
+인증번호는 기본 120초 동안 유효하다.
+
+```json
+{ "challengeToken": "opaque", "maskedEmail": "op***@example.com", "expiresInSeconds": 120 }
+```
+
+```http
+POST /api/admin/operator-auth/verify
+{ "challengeToken": "opaque", "code": "123456" }
+```
+
+성공하면 운영자 전용 Bearer JWT를 반환한다. 기본 수명은 600초이며 요청 활동으로 자동 연장하거나
+갱신 토큰을 발급하지 않는다. 만료 후에는 이메일 OTP 로그인을 처음부터 다시 수행한다.
+
+```json
+{ "accessToken": "...", "tokenType": "Bearer", "expiresInSeconds": 600, "expiresAt": "..." }
+```
+
+긴 운영 작업이 예정된 경우 배포 환경의 `OPERATOR_SESSION_TTL_SECONDS`를 변경한 뒤 재배포한다.
+변경은 새로 발급되는 세션에만 적용된다. OTP 수명은 `OPERATOR_OTP_TTL_SECONDS`이며 기본값은 120초다.
+
+오류: `OPERATOR_OTP_INVALID`, `OPERATOR_OTP_RATE_LIMITED`,
+`OPERATOR_OTP_EMAIL_UNAVAILABLE`, `OPERATOR_SESSION_REQUIRED`.
+
 ```http
 GET  /api/admin/operator/summary
 GET  /api/admin/operator/monitoring
@@ -377,13 +413,6 @@ POST /api/admin/operator/admins
 POST /api/admin/operator/admins/{adminId}/grant
 POST /api/admin/operator/admins/{adminId}/revoke
 GET  /api/admin/operator/audit
-GET    /api/admin/operator/access/status
-GET    /api/admin/operator/access/devices
-POST   /api/admin/operator/access/register-challenge
-POST   /api/admin/operator/access/register
-POST   /api/admin/operator/access/authenticate-challenge
-POST   /api/admin/operator/access/authenticate
-DELETE /api/admin/operator/access/devices/{deviceId}
 ```
 
 ### 계정 — `/api/admin/operator/admins`
@@ -391,7 +420,8 @@ DELETE /api/admin/operator/access/devices/{deviceId}
 목록은 `{id, email, name, role, storeCount, createdAt}`만 내려간다. `passwordHash`는 어떤 경로로도
 나가지 않는다. `q`는 이메일과 이름을 대소문자 무시로 부분 일치시킨다.
 
-`POST /admins`는 `{email, name, password, passwordConfirm, note?}`를 받아 `SYSTEM_ADMIN`을 만든다.
+`POST /admins`는 `{email, name, note?}`를 받아 `SYSTEM_ADMIN`을 만든다. 운영자는 이메일 OTP로만
+로그인하므로 화면이나 API에서 비밀번호를 만들거나 받지 않는다.
 **매장은 만들지 않는다** — 운영자가 어느 매장의 멤버가 되면 자기 매장을 스스로 심사할 수 있다.
 비밀번호 규칙은 일반 가입과 같다(영문+숫자 10자 이상, `WEAK_PASSWORD`/`PASSWORD_MISMATCH`).
 
@@ -452,43 +482,6 @@ DELETE /api/admin/operator/access/devices/{deviceId}
 
 검증이 꺼져 있으면 `openingDate`는 보내지 않아도 되고 보내도 저장되지 않는다.
 중복 사업자등록번호(`DUPLICATE_BUSINESS_NUMBER`)는 이 설정과 무관하게 항상 막힌다.
-
-### 접근 통제 — `/api/admin/operator/access/**`
-
-`OPERATOR_ACCESS_ENABLED=true`면 `/api/admin/operator/**` 전체가 문지기를 지난다.
-
-| 상황 | 결과 |
-|---|---|
-| 클라이언트 IP가 `OPERATOR_ALLOWED_CIDRS` 안 | 통과 |
-| 그 밖 + `X-Operator-Device` 헤더가 유효한 통행증 | 통과 |
-| 그 밖 + 통행증 없음/만료 | 403 `DEVICE_REQUIRED` |
-
-`status`, `authenticate-challenge`, `authenticate` 셋만 문지기를 지나지 않는다. 지나게 하면
-기기 인증을 하려면 먼저 기기 인증을 통과해야 하는 순환이 생긴다. **`register`는 지난다** —
-첫 기기는 허용 IP에서만 등록된다.
-
-등록: `register-challenge`가 `{challenge, rpId, timeoutMs}`를 준다. 브라우저 `navigator.credentials
-.create()`의 결과에서 `getPublicKey()`(SPKI DER)와 `getPublicKeyAlgorithm()`을 꺼내
-`{name, credentialId, publicKey, algorithm, clientDataJson}`으로 보낸다. 서버는 attestation을
-받지도 검증하지도 않는다.
-
-인증: `authenticate-challenge`가 `{challenge, rpId, allowCredentials, timeoutMs}`를 준다.
-`navigator.credentials.get()` 결과를 `{credentialId, clientDataJson, authenticatorData, signature}`로
-보내면 `{deviceToken, expiresAt, deviceName}`이 온다. **`deviceToken` 평문은 이때 한 번만 내려간다**
-(서버는 SHA-256만 저장한다). 수명 4시간.
-
-서버가 검증하는 것: clientData의 `type`·`challenge`·`origin`, `rpIdHash`, User Present 비트,
-서명, 서명 카운터. 챌린지는 1회용이라 쓰는 즉시 지운다. 실패는 이유를 구분하지 않고 전부
-`DEVICE_ASSERTION_INVALID`(403)다.
-
-| 코드 | 언제 |
-|---|---|
-| `DEVICE_REQUIRED` | 허용 IP 밖인데 통행증이 없다 |
-| `DEVICE_ASSERTION_INVALID` | 기기 인증 실패 (이유는 구분하지 않는다) |
-| `DEVICE_CHALLENGE_INVALID` | 등록 챌린지가 만료·불일치 |
-| `DEVICE_ALREADY_REGISTERED` | 같은 자격증명이 이미 있다 |
-| `DEVICE_KEY_INVALID` | 공개키를 SPKI로 읽을 수 없다 |
-| `DEVICE_NOT_FOUND` | 남의 기기이거나 없는 기기 |
 
 ### 자원 현황 — `GET /api/admin/operator/monitoring`
 
@@ -735,10 +728,29 @@ Request(PUT):
 { "plan": "STANDARD", "note": "" }
 ```
 
-신규 가입 매장은 가입 시점부터 14일간 `PRO` 무료체험으로 시작하며, 응답에
-`trial: true`, `trialEndsAt`(ISO-8601)을 포함한다. 만료 후에는 자동 결제 없이 `BASIC`으로 전환된다.
-구독 행이 없는 매장도 `BASIC`으로 응답한다. 결제(PG) 연동은 범위 밖이라 그 밖의 등급 변경은
-관리자 조작으로만 일어난다.
+신규 가입 매장의 `PRO` 무료체험은 가입일을 1일째로 14일간 적용된다. 가입 응답 이후 즉시
+`trial: true`, `trialEndsAt`(15일째 00:01, `Asia/Seoul`을 ISO-8601로 변환)을 반환한다.
+결제가 없으면 해당 시각에 자동 결제 없이 `BASIC`으로 전환된다.
+구독 행이 없는 매장도 `BASIC`으로 응답한다. 위 `PUT`은 운영자 수동 조정용이며, 매장의 유료 전환은
+아래 결제 API로만 일어난다.
+
+### 요금제 결제 (포트원 V2 빌링키)
+```http
+GET  /api/admin/stores/{storeId}/billing              # 멤버: 결제창 파라미터, 결제 상태, 최근 12건
+POST /api/admin/stores/{storeId}/billing/checkout     # 대표만: { "plan": "PRO", "billingKey": "..." }
+PUT  /api/admin/stores/{storeId}/billing/auto-renew   # 대표만: { "on": false }
+```
+- 세 등급 모두 판다. 대표가 아니면 403 `FORBIDDEN`. 체험 중 등록은 청구하지 않고 체험 종료일에 청구한다.
+- `GET` 응답: `serviceState`(`OPEN|TRIAL|ACTIVE|GRACE|RESTRICTED`), `lastPaidAt`, `nextBillingAt`,
+  `restrictedFrom`(D+3 00:00 KST), `hasCard`, `autoRenew`, `nextPlan`, `pg`, `payments[]`.
+- 빌링키의 `customer.id`가 `store-{storeId}`가 아니거나 설정한 채널이 아니면 `BILLING_KEY_INVALID`.
+- 카드 거절 402 `PAYMENT_DECLINED`, 결과 미확인 502 `PAYMENT_PENDING`, 동시 결제 409 `BILLING_BUSY`,
+  포트원 미설정·장애 503 `BILLING_UNAVAILABLE`.
+- 매일 00:10(Asia/Seoul) 결제예정일(KST 날짜)이 된 매장을 청구한다. 성공하면 `lastPaidAt`=지금,
+  `nextBillingAt`=이전 예정일+1개월. 실패하면 D+2까지 매일 다시 시도한다.
+- 이용 제한(D+3 00:00부터): 손님 API는 403 `STORE_PAYMENT_REQUIRED`, 사장의 매장 API는 402
+  `SUBSCRIPTION_PAYMENT_REQUIRED`. `/billing`, `/subscription`, `GET /admin/stores/{id}`(`serviceSuspended`)는 열려 있다.
+  `GET /admin/stores` 목록에 `serviceState`가 붙는다.
 
 `analyticsRetentionDays`는 **비식별 집계**에만 적용된다. 고객 개인정보 보존은 요금제와 무관하게
 120일 기준을 유지한다.
@@ -799,11 +811,15 @@ GET /api/admin/stores/{storeId}/analytics/detailed?from=&to=
 GET /api/admin/stores/{storeId}/analytics/export/{daily|prize}?from=&to=
 ```
 
-둘 다 STANDARD 이상이며, 없으면 402 `PLAN_UPGRADE_REQUIRED`다. CSV는 집계만 담고 참여자 명단을
-내려주지 않는다. 시간대는 매장 시간(Asia/Seoul) 기준으로 집계한다.
+상세 비교 분석과 CSV는 STANDARD 이상이며, 없으면 402 `PLAN_UPGRADE_REQUIRED`다. CSV는 집계만 담고
+참여자 명단을 내려주지 않는다. 시간대는 매장 시간(Asia/Seoul) 기준으로 집계한다.
 
-`PUT /api/admin/stores/{storeId}`의 `posterTagline`은 브랜딩 권한(STANDARD 이상)이 필요하다.
-권한 없이 값을 바꾸려 하면 무시가 아니라 402로 거부한다.
+`PUT /api/admin/stores/{storeId}`의 `posterTagline`과 `posterBrandTheme`은 브랜딩 권한(PRO)이 필요하다.
+`posterBrandTheme`은 `SODAM`, `FOREST`, `PLUM` 중 하나다. 권한 없이 값을 바꾸려 하면 무시가 아니라
+402로 거부하며, 저장 후 서버가 A6 안내물을 새 팔레트와 문구로 다시 생성한다.
+
+`GET /api/admin/stores/{storeId}/ai/status`는 키를 노출하지 않고 `provider`, `liveProviderReady`, `models`를
+반환한다. 기본 `AI_PROVIDER=auto`에서는 `OPENAI_API_KEY`가 있으면 OpenAI, 없으면 fake를 선택한다.
 
 고객 API에는 AI 엔드포인트가 없다. 공급자 장애가 QR·게임·쿠폰 흐름에 전파되지 않아야 한다.
 

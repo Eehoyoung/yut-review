@@ -21,7 +21,7 @@ enum CouponStatus { ISSUED, REDEEMED, EXPIRED, CANCELLED }
  * 차등은 분석 깊이, AI, 브랜딩 같은 매장 운영 기능에서만 만든다.
  */
 enum Plan {
-    BASIC(9900, 90), STANDARD(19900, 365), PRO(29900, 0);
+    BASIC(9900, 90), STANDARD(14900, 365), PRO(19900, 0);
     final int monthlyPriceKrw;
     /** 분석용 집계 데이터를 거슬러 볼 수 있는 일수. 0은 상한 없음(장기 집계). 고객 개인정보 보존은 별개다. */
     final int analyticsRetentionDays;
@@ -35,6 +35,8 @@ enum SubscriptionStatus { ACTIVE, CANCELLED }
 enum Entitlement { BASIC_ANALYTICS, ADVANCED_ANALYTICS, CSV_EXPORT, BRANDING }
 /** 과금·쿼터 단위가 되는 AI 기능. */
 enum AiFeature { AI_EVENT_COPY, AI_REPORT, AI_IMPROVEMENT, AI_CHAT }
+/** PRO 안내물에 적용하는 검증된 고대비 팔레트. 임의 색상 입력으로 QR 가독성이 깨지지 않게 프리셋만 허용한다. */
+enum PosterBrandTheme { SODAM, FOREST, PLUM }
 enum MarketingService { YUT_REVIEW, REVIEW_PILOT, SODAM }
 enum AccountRecoveryPurpose { FIND_EMAIL, RESET_PASSWORD }
 
@@ -79,8 +81,10 @@ enum AccountRecoveryPurpose { FIND_EMAIL, RESET_PASSWORD }
     /** YYYYMMDD. 국세청 규격이 그렇고, 날짜 연산을 하지 않아 문자열로 둔다. */
     @Column(name="opening_date",length=8) String openingDate;
     @Column(name="business_verified_at") Instant businessVerifiedAt;
-    /** 안내물에 넣는 매장 한 줄. STANDARD 이상(브랜딩 권한)에서만 설정된다. */
+    /** 안내물에 넣는 매장 한 줄. PRO 브랜딩 권한에서만 설정된다. */
     @Column(length=60) String posterTagline;
+    /** 기존 매장은 null을 SODAM으로 해석한다. */
+    @Enumerated(EnumType.STRING) @Column(name="poster_brand_theme",length=20) PosterBrandTheme posterBrandTheme;
     @Column(nullable=false) String staffPinHash;
     @Enumerated(EnumType.STRING) @Column(nullable=false) StoreStatus status;
     @Column(nullable=false) Instant createdAt; @Column(nullable=false) Instant updatedAt;
@@ -167,10 +171,45 @@ enum AccountRecoveryPurpose { FIND_EMAIL, RESET_PASSWORD }
     @Enumerated(EnumType.STRING) @Column(nullable=false,length=20) Plan plan;
     @Enumerated(EnumType.STRING) @Column(nullable=false,length=20) SubscriptionStatus status;
     @Column(nullable=false) Instant startedAt; @Column(nullable=false) Instant updatedAt;
-    /** 신규 가입 시 제공하는 PRO 체험 종료 시각. null이면 체험 구독이 아니다. */
+    /** 가입일 기준 PRO 체험 종료 시각. null이면 체험 구독이 아니다. */
     @Column(name="trial_ends_at") Instant trialEndsAt;
-    /** 결제 연동 전이라 관리자가 바꾼 사유만 남긴다. */
+    /** 마지막 변경 사유(운영자 조작, 체험 종료, 결제). */
     @Column(length=200) String note;
+    /**
+     * 포트원 빌링키. 카드 번호가 아니라 PG가 준 대리값이다. 아래 결제 칸은 모두 nullable이다 —
+     * `ddl-auto=update`가 기존 행에 NOT NULL 컬럼을 붙이지 못하고, 결제하지 않은 매장이 대부분이다.
+     */
+    @Column(name="billing_key",length=200) String billingKey;
+    @Column(name="billing_channel_key",length=100) String billingChannelKey;
+    /** 마지막으로 결제가 성공한 시각. */
+    @Column(name="last_paid_at") Instant lastPaidAt;
+    /**
+     * 다음 결제예정일. 이 날짜(KST)부터 D+2까지 결제를 시도하며 서비스하고, D+3 00:00부터 이용을 제한한다.
+     * null이면 결제 대상이 아니다 — 2026-09-27 이전 가입 매장은 그대로 둔다(사용자 결정).
+     */
+    @Column(name="next_billing_at") Instant nextBillingAt;
+    /** 결제 기간 중 내리기를 고르면 다음 갱신에서 이 등급으로 청구한다. */
+    @Enumerated(EnumType.STRING) @Column(name="next_plan",length=20) Plan nextPlan;
+    @Column(name="auto_renew") Boolean autoRenew;
+    @Column(name="renewal_failures") Integer renewalFailures;
+    /** 같은 매장의 결제가 동시에 두 번 나가지 않게 잡는 짧은 잠금(조건부 UPDATE). */
+    @Column(name="billing_lock_until") Instant billingLockUntil;
+}
+enum SubscriptionPaymentStatus { PENDING, PAID, FAILED }
+/**
+ * 요금제 결제 한 건. PG를 부르기 **전에** PENDING으로 먼저 남긴다. 결제는 됐는데 우리 쪽 기록이
+ * 실패하는 경우, 이 행이 PENDING으로 남아 포트원 콘솔과 대조할 실마리가 된다.
+ */
+@Entity @Table(name="subscription_payments",indexes=@Index(columnList="store_id,created_at")) class SubscriptionPayment {
+    @Id @GeneratedValue(strategy=GenerationType.IDENTITY) Long id;
+    @ManyToOne(optional=false) @JoinColumn(name="store_id") Store store;
+    @Column(name="payment_id",nullable=false,unique=true,length=64) String paymentId;
+    @Enumerated(EnumType.STRING) @Column(nullable=false,length=20) Plan plan;
+    @Column(nullable=false) int amount;
+    @Enumerated(EnumType.STRING) @Column(nullable=false,length=20) SubscriptionPaymentStatus status;
+    @Column(name="failure_reason",length=200) String failureReason;
+    @Column(name="created_at",nullable=false) Instant createdAt;
+    @Column(name="paid_at") Instant paidAt;
 }
 @Entity @Table(name="admin_recovery_challenges",indexes=@Index(columnList="expires_at")) class AdminRecoveryChallenge {
     @Id @GeneratedValue(strategy=GenerationType.IDENTITY) Long id;

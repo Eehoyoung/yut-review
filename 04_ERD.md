@@ -321,6 +321,10 @@ INDEX(store_id, created_at)
 
 ## 스키마 변경 방식
 
+`stores.poster_brand_theme`은 nullable 문자열 컬럼이며 기존 행의 null은 `SODAM`으로 해석한다. PRO 매장이
+`SODAM`, `FOREST`, `PLUM` 중 하나를 저장하면 서버 생성 A6 안내물에 적용한다. 임의 색상값은 QR 가독성과
+대비를 깨뜨릴 수 있어 저장하지 않는다.
+
 이번 변경은 전부 `ddl-auto=update`가 안전하게 처리할 수 있는 것만 골랐다. 새 테이블 4개 추가,
 `stores`는 `status` 문자열 값 2종(`PENDING_APPROVAL`, `REJECTED`)이 늘어난 것뿐이고 컬럼 변경이 없다.
 거부 사유는 `stores`에 따로 두지 않고 `store_approval_events`의 마지막 `REJECT` 행에서 읽는다.
