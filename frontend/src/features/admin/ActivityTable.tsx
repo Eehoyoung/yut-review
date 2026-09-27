@@ -31,8 +31,8 @@ export function ActivityTable({ rows, kind }: { rows: ActivityRow[]; kind: "play
     );
 
   return (
-    <div className="panel table-wrap" tabIndex={0} role="region" aria-label={kind === "play" ? "참여 내역 표" : "쿠폰 내역 표"}>
-      <table className="table">
+    <div className="panel table-wrap activity-table-wrap" tabIndex={0} role="region" aria-label={kind === "play" ? "참여 내역 표" : "쿠폰 내역 표"}>
+      <table className="table activity-table">
         <thead>
           <tr>
             <th>고객</th>
@@ -44,16 +44,20 @@ export function ActivityTable({ rows, kind }: { rows: ActivityRow[]; kind: "play
         <tbody>
           {rows.map((r, i) => (
             <tr key={r.id ?? r.playId ?? r.token ?? i}>
-              <td>
+              <td data-label="고객" className="activity-customer">
                 {r.customerName ?? "-"} {r.phoneLast4 && `(**${r.phoneLast4})`}
               </td>
-              <td>
+              <td data-label={kind === "play" ? "결과" : "상품"} className="activity-outcome">
                 {kind === "play"
                   ? labelOf(YUT_LABEL, r.result) + (r.prizeRank ? ` · ${rankLabel(r.prizeRank)}` : "")
                   : r.prizeName ?? "-"}
               </td>
-              <td>{labelOf(kind === "play" ? PLAY_STATUS_LABEL : COUPON_STATUS_LABEL, r.status)}</td>
-              <td>{new Date(r.playedAt ?? r.issuedAt ?? "").toLocaleString("ko-KR")}</td>
+              <td data-label="상태" className="activity-status">
+                <span className="pill" data-tone={r.status === "REDEEMED" || r.status === "REVEALED" ? "ok" : "off"}>
+                  {labelOf(kind === "play" ? PLAY_STATUS_LABEL : COUPON_STATUS_LABEL, r.status)}
+                </span>
+              </td>
+              <td data-label="일시" className="activity-date">{new Date(r.playedAt ?? r.issuedAt ?? "").toLocaleString("ko-KR")}</td>
             </tr>
           ))}
         </tbody>
@@ -65,9 +69,9 @@ export function ActivityTable({ rows, kind }: { rows: ActivityRow[]; kind: "play
 export function ActivityPager({ page, totalPages, onChange }: { page: number; totalPages: number; onChange: (page: number) => void }) {
   if (totalPages <= 1) return null;
   return (
-    <nav className="actions" aria-label="목록 페이지">
+    <nav className="actions activity-pager" aria-label="목록 페이지">
       <button type="button" className="btn secondary" disabled={page === 0} onClick={() => onChange(page - 1)}>이전</button>
-      <span aria-label={`${page + 1}쪽 / 총 ${totalPages}쪽`}>{page + 1} / {totalPages}</span>
+      <span className="activity-page-count" aria-label={`${page + 1}쪽 / 총 ${totalPages}쪽`}><b>{page + 1}</b> / {totalPages}</span>
       <button type="button" className="btn secondary" disabled={page + 1 >= totalPages} onClick={() => onChange(page + 1)}>다음</button>
     </nav>
   );

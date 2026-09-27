@@ -1,4 +1,5 @@
 "use client";
+import Image from "next/image";
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -24,8 +25,11 @@ export default function Login() {
   });
 
   return (
-    <main className="screen">
-      <p className="brand">소담한판</p>
+    <main className="screen admin-login-screen">
+      <div className="admin-login-brand">
+        <Image src="/brand/sodam-wordmark.webp" width={1200} height={760} alt="소담" priority />
+        <p>소담한판 매장 운영</p>
+      </div>
       <h1>관리자 로그인</h1>
       <form
         className="panel stack"
@@ -67,9 +71,6 @@ export default function Login() {
         </button>
         <p className="lead">
           처음이신가요? <Link href="/admin/signup">매장 등록</Link>
-        </p>
-        <p className="lead">
-          시스템 운영자인가요? <Link href="/admin/operator/login">이메일 인증으로 로그인</Link>
         </p>
         <button type="button" className="btn ghost" onClick={() => setRecoveryOpen(true)}>이메일·비밀번호 찾기</button>
       </form>

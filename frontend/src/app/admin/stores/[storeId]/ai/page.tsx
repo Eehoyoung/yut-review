@@ -43,22 +43,20 @@ export default function AiPage() {
 
   return (
     <AdminFrame title="AI 도우미">
-      <section className="panel stack" aria-label="AI 연결 상태">
-        <div className="row">
-          <h2>AI 연결</h2>
-          <span className="pill" data-tone={status.data.liveProviderReady ? "ok" : "wait"}>
-            {status.data.liveProviderReady ? "API 키 연결됨" : "테스트 응답 모드"}
-          </span>
-        </div>
-        <p className="lead">
-          {status.data.liveProviderReady
-            ? `첫 실제 호출 대기 · 분석 ${status.data.models.analysis} · 대화 ${status.data.models.chat}`
-            : "서버에 OPENAI_API_KEY를 추가하면 재배포 후 실제 OpenAI 호출로 자동 전환됩니다."}
-        </p>
-        <p className="hint">API 키 값은 화면·응답·로그에 표시하지 않습니다. 현재 공급자: {status.data.provider}</p>
+      <section className="panel stack admin-section" aria-labelledby="ai-start-title">
+        <p className="eyebrow">매장 운영 질문</p>
+        <h2 id="ai-start-title">무엇을 확인할까요?</h2>
+        <p className="lead">참여 흐름을 분석하고, 다음 이벤트에 적용할 개선안을 찾을 수 있어요.</p>
+        <ul className="included" aria-label="AI 도우미로 할 수 있는 일">
+          <li>최근 참여와 쿠폰 사용 흐름 분석</li>
+          <li>한 번에 검증할 개선 실험 제안</li>
+          <li>매장 안내 문구 작성</li>
+        </ul>
       </section>
       {anyAllowed ? (
-        <AiInsightCard storeId={id} />
+        <section className="admin-section" aria-label="최근 AI 분석">
+          <AiInsightCard storeId={id} />
+        </section>
       ) : (
         <section className="panel stack">
           <h2>{PLAN_LABEL[plan]} 요금제에는 AI 기능이 없어요.</h2>
@@ -72,7 +70,7 @@ export default function AiPage() {
       )}
 
       {anyAllowed && (
-        <>
+        <section className="stack admin-section" aria-label="AI 작업 도구">
           <AiReportCard storeId={id} />
           <AiImprovementCard storeId={id} />
           <AiEventCopyDialog storeId={id} />
@@ -80,7 +78,7 @@ export default function AiPage() {
           <p className="hint">
             AI에는 익명 집계만 전달합니다. 고객 이름과 전화번호는 전달하지 않습니다. 사용량 기준: {status.data.month}
           </p>
-        </>
+        </section>
       )}
     </AdminFrame>
   );

@@ -97,8 +97,8 @@ export default function QrPage() {
   return (
     <AdminFrame title="QR 안내물">
       {(q.isError || poster.isError) && <p className="error">{q.isError ? errorMessage(q.error) : "QR 안내물을 불러오지 못했어요. 다시 시도해 주세요."}</p>}
-      <section className="poster-workspace">
-        <div className="poster-preview">
+      <section className="poster-workspace owner-poster-workspace" aria-labelledby="poster-workspace-title">
+        <div className="poster-preview" aria-label="선택한 안내물 미리보기">
           {preview ? (
             <Image src={preview} width={620} height={874} unoptimized alt="매장명이 포함된 A6 QR 안내물 미리보기" />
           ) : (
@@ -111,8 +111,8 @@ export default function QrPage() {
           )}
         </div>
         <div className="stack poster-controls">
-          <div>
-            <h2>매장용 A6 안내물</h2>
+          <div className="owner-section-heading">
+            <h2 id="poster-workspace-title">매장용 A6 안내물</h2>
             <p className="lead">세 가지 안내물 모두 같은 QR이에요. 자리에 맞는 것을 골라 저장하거나 공유하세요.</p>
           </div>
           <fieldset className="poster-variants">
@@ -132,13 +132,7 @@ export default function QrPage() {
           {message && <p className="success" role="status">{message}</p>}
           {(regenerate.isError || regenerateQr.isError) && <p className="error" role="alert">{errorMessage(regenerate.error ?? regenerateQr.error)}</p>}
           <p className="notice">안내물 QR 주소: <span className="wrap-anywhere">{url}</span></p>
-          {originChanged && <p className="error" role="alert">접속 주소가 바뀌었습니다. 안내물을 다시 만들어 주세요.</p>}
-          <button className="btn ghost" disabled={regenerate.isPending} onClick={() => regenerate.mutate()}>
-            {regenerate.isPending ? "다시 만드는 중" : "안내물 다시 만들기"}
-          </button>
-          <button className="btn ghost" disabled={regenerateQr.isPending} onClick={() => setAskingRegenQr(true)}>
-            QR 토큰 재발급
-          </button>
+          {originChanged && <p className="error" role="alert">안내물의 접속 주소와 현재 접속 주소가 다릅니다. 관리자에게 확인해 주세요.</p>}
         </div>
       </section>
 

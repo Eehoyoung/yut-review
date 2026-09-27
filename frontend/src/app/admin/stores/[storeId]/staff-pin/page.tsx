@@ -21,8 +21,11 @@ export default function StaffPin() {
 
   return (
     <AdminFrame title="직원 PIN">
-      <div className="panel stack">
-        <p className="lead">새 PIN은 발급 직후 한 번만 표시됩니다.</p>
+      <section className="panel stack staff-pin-panel" aria-labelledby="staff-pin-heading">
+        <div className="owner-section-heading">
+          <h2 id="staff-pin-heading">쿠폰 사용용 직원 PIN</h2>
+          <p className="lead">손님의 쿠폰을 사용할 때만 입력합니다. 새 PIN은 발급 직후 한 번만 표시됩니다.</p>
+        </div>
         {pin && (
           <>
             <p className="pin-readout" aria-label="새 직원 PIN">
@@ -41,7 +44,8 @@ export default function StaffPin() {
         <button className="btn secondary" onClick={() => setAsking(true)}>
           직원 PIN 재발급
         </button>
-      </div>
+        <p className="hint">재발급하면 기존 PIN은 즉시 사용할 수 없습니다.</p>
+      </section>
 
       <Dialog open={asking} onClose={() => setAsking(false)} labelledBy="regen-title">
         <div className="stack">

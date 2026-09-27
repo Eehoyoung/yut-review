@@ -68,10 +68,21 @@ export default function AnalyticsPage() {
 
   return (
     <AdminFrame title="통계">
-      <dl className="stats">
+      <header className="admin-page-intro analytics-intro">
+        <div>
+          <p className="eyebrow">운영 흐름</p>
+          <h2>참여가 혜택 사용으로 이어지는지 보세요</h2>
+        </div>
+        <p className="lead">숫자는 선택한 기간과 보관 범위 안에서 집계됩니다. 고객 개인 정보는 분석에 포함하지 않습니다.</p>
+      </header>
+
+      <dl className="stats analytics-summary" aria-label="전체 운영 요약">
         <div>
           <dt>전체 참여</dt>
-          <dd>{summary.data.totalPlays}</dd>
+          <dd>
+            {summary.data.totalPlays}
+            <small>건</small>
+          </dd>
         </div>
         <div>
           <dt>쿠폰 사용률</dt>
@@ -79,8 +90,11 @@ export default function AnalyticsPage() {
         </div>
       </dl>
 
-      <section className="panel stack">
-        <h2>결과별 참여</h2>
+      <section className="panel stack analytics-result-panel" aria-labelledby="result-count-title">
+        <div className="panel-heading">
+          <p className="eyebrow">전체 누적</p>
+          <h2 id="result-count-title">결과별 참여</h2>
+        </div>
         <div className="list">
           {Object.entries(summary.data.results ?? {}).map(([name, count]) => (
             <div className="list-item" key={name}>
@@ -92,8 +106,11 @@ export default function AnalyticsPage() {
       </section>
 
       {!advanced && (
-        <section className="panel stack">
-          <h2>상세 분석</h2>
+        <section className="panel stack analytics-locked" aria-labelledby="advanced-title">
+          <div className="panel-heading">
+            <p className="eyebrow">더 깊게 보기</p>
+            <h2 id="advanced-title">상세 분석</h2>
+          </div>
           <p className="lead">
             시간대·요일·상품별 사용률과 재참여율은 스탠다드부터 볼 수 있습니다.
           </p>
@@ -105,18 +122,24 @@ export default function AnalyticsPage() {
 
       {advanced && (
         <>
-          <div className="preset-row" role="group" aria-label="조회 기간">
-            {RANGES.map((r) => (
-              <button
-                key={r.days}
-                type="button"
-                className={days === r.days ? "btn secondary is-on" : "btn secondary"}
-                aria-pressed={days === r.days}
-                onClick={() => setDays(r.days)}
-              >
-                최근 {r.label}
-              </button>
-            ))}
+          <div className="analytics-toolbar">
+            <div>
+              <p className="eyebrow">조회 기간</p>
+              <p className="hint">기간을 바꾸면 아래 분석이 함께 갱신됩니다.</p>
+            </div>
+            <div className="preset-row" role="group" aria-label="조회 기간">
+              {RANGES.map((r) => (
+                <button
+                  key={r.days}
+                  type="button"
+                  className={days === r.days ? "btn secondary is-on" : "btn secondary"}
+                  aria-pressed={days === r.days}
+                  onClick={() => setDays(r.days)}
+                >
+                  최근 {r.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           {detailed.isPending && <div className="skeleton" style={{ height: 220 }} />}
@@ -129,8 +152,9 @@ export default function AnalyticsPage() {
           {detailed.data && (
             <>
               {comparison && (
-                <section className="panel stack" aria-labelledby="comparison-title">
-                  <div>
+                <section className="panel stack analytics-comparison" aria-labelledby="comparison-title">
+                  <div className="panel-heading">
+                    <p className="eyebrow">변화 확인</p>
                     <h2 id="comparison-title">직전 같은 기간과 비교</h2>
                     <p className="lead">선택한 {days}일과 바로 앞 {days}일을 비교합니다.</p>
                   </div>
@@ -151,9 +175,12 @@ export default function AnalyticsPage() {
                 </section>
               )}
 
-              <section className="panel stack">
-                <div className="row">
-                  <h2>시간대별 참여</h2>
+              <section className="panel stack analytics-timing" aria-labelledby="timing-title">
+                <div className="row panel-heading">
+                  <div>
+                    <p className="eyebrow">방문 흐름</p>
+                    <h2 id="timing-title">언제 많이 참여했나요?</h2>
+                  </div>
                   {detailed.data.window.clampedByPlanRetention && (
                     <span className="pill" data-tone="off">보관기간까지</span>
                   )}
@@ -163,8 +190,11 @@ export default function AnalyticsPage() {
                 <WeekdayBars byWeekday={detailed.data.weekday.playsByWeekday} />
               </section>
 
-              <section className="panel stack">
-                <h2>상품별 사용률</h2>
+              <section className="panel stack analytics-prizes" aria-labelledby="prize-performance-title">
+                <div className="panel-heading">
+                  <p className="eyebrow">혜택 성과</p>
+                  <h2 id="prize-performance-title">상품별 사용률</h2>
+                </div>
                 <div className="list">
                   {detailed.data.prizePerformance.prizes.map((p) => (
                     <div className="list-item" key={p.prizeRank}>
@@ -179,8 +209,11 @@ export default function AnalyticsPage() {
                 </div>
               </section>
 
-              <section className="panel stack">
-                <h2>재참여</h2>
+              <section className="panel stack analytics-repeat" aria-labelledby="repeat-title">
+                <div className="panel-heading">
+                  <p className="eyebrow">다시 찾은 고객</p>
+                  <h2 id="repeat-title">재참여</h2>
+                </div>
                 <div className="list">
                   <div className="list-item">
                     <span className="lead">참여자</span>
@@ -199,8 +232,11 @@ export default function AnalyticsPage() {
               </section>
 
               {summary.data.csvExports?.length ? (
-                <section className="panel stack">
-                  <h2>엑셀로 내려받기</h2>
+                <section className="panel stack analytics-export" aria-labelledby="export-title">
+                  <div className="panel-heading">
+                    <p className="eyebrow">자료 보관</p>
+                    <h2 id="export-title">엑셀로 내려받기</h2>
+                  </div>
                   <p className="lead">집계만 담깁니다. 손님 이름과 전화번호는 들어가지 않습니다.</p>
                   <div className="preset-row">
                     {[

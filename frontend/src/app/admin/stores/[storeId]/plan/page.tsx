@@ -170,9 +170,9 @@ export default function PlanPage() {
   return (
     <AdminFrame title="요금제">
       {/* 지금 무엇을 쓰고 있는지가 첫 줄. 비교표보다 먼저 온다. */}
-      <section className="insight">
+      <section className="insight admin-section" aria-labelledby="current-plan-title">
         <p className="insight-when">사용 중</p>
-        <h2 className="insight-title">
+        <h2 className="insight-title" id="current-plan-title">
           {PLAN_LABEL[now]} · {priceLabel(current.data.monthlyPriceKrw)}
         </h2>
         <p className="insight-summary">{PLAN_TAGLINE[now]}</p>
@@ -184,8 +184,9 @@ export default function PlanPage() {
       </section>
 
       {canPay && (
-        <section className="panel stack">
-          <h2>결제</h2>
+        <section className="panel stack admin-section" aria-labelledby="billing-title">
+          <p className="eyebrow">결제 관리</p>
+          <h2 id="billing-title">등록 카드와 자동결제</h2>
           {state === "RESTRICTED" && (
             <p className="error" role="alert">
               결제가 확인되지 않아 이용이 중지됐어요. 카드를 등록해 결제하면 바로 다시 열려요.
@@ -270,8 +271,9 @@ export default function PlanPage() {
         </section>
       )}
 
-      <section className="panel stack">
-        <h2>모든 요금제 공통</h2>
+      <section className="panel stack admin-section" aria-labelledby="core-features-title">
+        <p className="eyebrow">핵심 운영 기능</p>
+        <h2 id="core-features-title">모든 요금제 공통</h2>
         <p className="lead">
           게임, QR, 상품, 쿠폰은 모든 요금제에서 같습니다.
         </p>
@@ -282,6 +284,12 @@ export default function PlanPage() {
         </ul>
       </section>
 
+      <section className="stack admin-section" aria-labelledby="plan-comparison-title">
+        <div className="stack">
+          <p className="eyebrow">요금제 비교</p>
+          <h2 id="plan-comparison-title">운영에 필요한 범위를 고르세요</h2>
+          <p className="lead">게임과 쿠폰은 그대로 두고, 분석 기간과 운영 도구만 달라집니다.</p>
+        </div>
       {ORDER.map((plan, i) => {
         const option = byPlan.get(plan);
         if (!option) return null;
@@ -354,6 +362,7 @@ export default function PlanPage() {
           </section>
         );
       })}
+      </section>
 
       {(sdkError || checkout.isError || autoRenew.isError) && (
         <p className="error" role="alert">

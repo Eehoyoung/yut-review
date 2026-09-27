@@ -1,19 +1,15 @@
 "use client";
+import Image from "next/image";
 import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
 import { LogoutButton } from "@/features/admin/LogoutButton";
 
-const menus = [
-  ["dashboard", "대시보드"],
-  ["prizes", "상품 설정"],
-  ["qr", "QR 안내물"],
-  ["staff-pin", "직원 PIN"],
-  ["game-plays", "참여 내역"],
-  ["coupons", "쿠폰 내역"],
-  ["analytics", "통계"],
-  ["ai", "AI 도우미"],
-  ["plan", "요금제"],
-];
+const menuGroups = [
+  { label: "운영", items: [["dashboard", "대시보드"], ["prizes", "상품 설정"], ["qr", "QR 안내물"]] },
+  { label: "현장 관리", items: [["staff-pin", "직원 PIN"], ["game-plays", "참여 내역"], ["coupons", "쿠폰 내역"]] },
+  { label: "분석", items: [["analytics", "통계"], ["ai", "AI 도우미"]] },
+  { label: "계정", items: [["plan", "요금제"]] },
+] as const;
 
 export function AdminFrame({ title, children }: { title: string; children: React.ReactNode }) {
   const id = String(useParams().storeId);
@@ -29,28 +25,58 @@ export function AdminFrame({ title, children }: { title: string; children: React
         남은 방법은 화면마다 layout.tsx를 두는 것뿐인데, 파일 아홉 개를 늘릴 만한 값이 아니다.
         여러 탭을 동시에 여는 사용이 실제로 생기면 그때 layout.tsx를 추가한다.
       */}
-      <header className="admin-head">
-        <h1>{title}</h1>
-        <div className="sheet-actions">
-          <Link className="btn secondary btn-inline" href="/admin">
-            매장 변경
-          </Link>
+      <aside className="admin-rail">
+        <Link className="admin-brand" href="/admin" aria-label="소담한판 매장 선택으로 이동">
+          <Image src="/brand/sodam-wordmark.webp" width={1200} height={760} alt="소담" priority />
+          <span><b>소담한판</b><small>매장 운영</small></span>
+        </Link>
+        <nav className="admin-nav" aria-label="매장 관리 메뉴">
+          {menuGroups.map((group) => (
+            <div className="admin-nav-group" key={group.label}>
+              <p>{group.label}</p>
+              {group.items.map(([path, label]) => {
+                const href = `/admin/stores/${id}/${path}`;
+                const current = pathname === href;
+                return <Link key={path} href={href} aria-current={current ? "page" : undefined}>{label}</Link>;
+              })}
+            </div>
+          ))}
+        </nav>
+        <div className="admin-rail-actions">
+          <Link className="admin-text-action" href="/admin">매장 변경</Link>
           <LogoutButton />
         </div>
-      </header>
-      {/* 메뉴가 일곱 개라 지금 어디에 있는지 표시가 없으면 방향을 잃는다. */}
-      <nav className="nav" aria-label="매장 관리 메뉴">
-        {menus.map(([path, label]) => {
-          const href = `/admin/stores/${id}/${path}`;
-          const current = pathname === href;
-          return (
-            <Link key={path} href={href} aria-current={current ? "page" : undefined}>
-              {label}
-            </Link>
-          );
-        })}
-      </nav>
-      {children}
+      </aside>
+      <section className="admin-workspace">
+        <header className="admin-head">
+          <div>
+            <p className="admin-kicker">매장 운영</p>
+            <h1>{title}</h1>
+          </div>
+          <div className="admin-head-actions">
+            <Link className="admin-text-action" href="/admin">매장 변경</Link>
+            <LogoutButton />
+          </div>
+          <details className="admin-mobile-menu">
+            <summary>전체 메뉴</summary>
+            <nav aria-label="모바일 매장 관리 메뉴">
+              {menuGroups.map((group) => (
+                <div className="admin-mobile-nav-group" key={group.label}>
+                  <p>{group.label}</p>
+                  <div>
+                    {group.items.map(([path, label]) => {
+                      const href = `/admin/stores/${id}/${path}`;
+                      const current = pathname === href;
+                      return <Link key={path} href={href} aria-current={current ? "page" : undefined}>{label}</Link>;
+                    })}
+                  </div>
+                </div>
+              ))}
+            </nav>
+          </details>
+        </header>
+        <div className="admin-content">{children}</div>
+      </section>
     </main>
   );
 }

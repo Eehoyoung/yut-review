@@ -165,7 +165,7 @@ function CouponValidityForm({ storeId }: { storeId: string }) {
 
   return (
     <form
-      className="panel stack"
+      className="panel stack coupon-validity-panel"
       noValidate
       onSubmit={(e: FormEvent) => {
         e.preventDefault();
@@ -299,13 +299,14 @@ export default function Prizes() {
   return (
     <AdminFrame title="상품 설정">
       <form
-        className="stack"
+        className="stack prize-settings-form"
         onSubmit={(e: FormEvent) => {
           e.preventDefault();
           if (!blocked) save.mutate();
         }}
       >
-        <section className="panel stack">
+        <div className="prize-settings-workspace">
+          <section className="panel stack outcome-config-panel">
           <h2>등급 수와 확률</h2>
           <p className="lead">
             확률은 도·개·걸·윷·모 결과별로 설정합니다. 각 결과에 상품 등급을 연결하세요.
@@ -385,9 +386,9 @@ export default function Prizes() {
               </div>
             ))}
           </div>
-        </section>
+          </section>
 
-        <section className="panel stack">
+          <section className="panel stack prize-config-panel">
           <div className="row">
             <h2>등급별 상품</h2>
             <span className="pill" data-tone="wood">{draft.ladder}개</span>
@@ -454,7 +455,8 @@ export default function Prizes() {
               </div>
             </div>
           ))}
-        </section>
+          </section>
+        </div>
 
         {blocked && (
           <p className="error" role="status">
@@ -473,7 +475,7 @@ export default function Prizes() {
         )}
         {/* 막혀 있어도 버튼은 살려 둔다. 이유는 바로 위에 늘 떠 있고, disabled 버튼은
             탭 순서에서 빠져 화면낭독기가 그 존재조차 못 찾는다. */}
-        <button className="btn" disabled={save.isPending}>
+        <button className="btn prize-save-action" disabled={save.isPending}>
           {save.isPending ? "저장 중" : "저장"}
         </button>
       </form>

@@ -21,22 +21,18 @@ export function HourlyBars({ byHour }: { byHour: Record<string, number> }) {
     return <p className="hint">이 기간에는 참여가 없어 시간대를 볼 수 없습니다.</p>;
 
   return (
-    <figure className="chart">
+    <figure className="chart analytics-chart">
       <figcaption className="chart-lede">
         가장 붐빈 시간 <b>{hours[peakIndex]}시</b> · {max}건
       </figcaption>
-      <div className="bars" role="img" aria-label={`시간대별 참여 분포. 가장 붐빈 시간은 ${hours[peakIndex]}시 ${max}건.`}>
+      <div className="bars" aria-hidden="true">
         {hours.map((hour, i) => (
           <div
             key={hour}
             className={i === peakIndex ? "bar is-peak" : "bar"}
             style={{ height: `${max ? Math.max(counts[i] / max, counts[i] > 0 ? 0.06 : 0) * 100 : 0}%` }}
             title={`${hour}시 ${counts[i]}건`}
-          >
-            <span className="visually-hidden">
-              {hour}시 {counts[i]}건
-            </span>
-          </div>
+          />
         ))}
       </div>
       {/* 눈금은 읽는 데 필요한 만큼만. 24개를 다 적으면 막대보다 글자가 많아진다. */}
@@ -82,11 +78,11 @@ export function WeekdayBars({ byWeekday }: { byWeekday: Record<string, number> }
   if (total === 0) return <p className="hint">이 기간에는 참여가 없어 요일을 볼 수 없습니다.</p>;
 
   return (
-    <div className="weekday">
+    <div className="weekday" role="list" aria-label="요일별 참여">
       {days.map((day, i) => (
-        <div className="weekday-row" key={day}>
+        <div className="weekday-row" key={day} role="listitem" aria-label={`${day} ${counts[i]}건`}>
           <span className="weekday-name">{day}</span>
-          <span className="weekday-track">
+          <span className="weekday-track" aria-hidden="true">
             <span
               className={day === peak ? "weekday-fill is-peak" : "weekday-fill"}
               style={{ width: `${max ? (counts[i] / max) * 100 : 0}%` }}

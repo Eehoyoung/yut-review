@@ -106,7 +106,7 @@ export default function Dashboard() {
         <button className="btn ghost" type="button" onClick={() => setShowPaymentNotice(false)}>나중에 확인</button>
       </Dialog>
 
-      <section className="panel stack launch-pad" aria-labelledby="launch-title">
+      <section className="panel stack launch-pad owner-action-panel" aria-labelledby="launch-title">
         <div>
           <h2 id="launch-title">이벤트 시작 3단계</h2>
           <p className="lead">기본 상품과 QR은 이미 준비되어 있습니다.</p>
@@ -126,27 +126,36 @@ export default function Dashboard() {
         <p className="error" role="alert">{errorMessage(summary.error ?? store.error)}</p>
       )}
 
-      <dl className="stats" aria-label="이벤트 운영 현황">
-        <div><dt>오늘 참여</dt><dd>{summary.data?.todayPlays ?? "-"}</dd></div>
-        <div><dt>전체 참여</dt><dd>{summary.data?.totalPlays ?? "-"}</dd></div>
-        <div>
-          <dt>쿠폰 사용률</dt>
-          <dd>{redemptionRate === null ? "—" : `${redemptionRate}%`}</dd>
+      <section className="owner-status-section" aria-labelledby="operation-status-title">
+        <div className="owner-section-heading">
+          <h2 id="operation-status-title">운영 현황</h2>
+          <p className="hint">참여와 쿠폰 사용 흐름을 한눈에 확인하세요.</p>
         </div>
-      </dl>
+        <dl className="stats owner-status-strip" aria-label="이벤트 운영 현황">
+          <div><dt>오늘 참여</dt><dd>{summary.data?.todayPlays ?? "-"}</dd></div>
+          <div><dt>전체 참여</dt><dd>{summary.data?.totalPlays ?? "-"}</dd></div>
+          <div>
+            <dt>쿠폰 사용률</dt>
+            <dd>{redemptionRate === null ? "—" : `${redemptionRate}%`}</dd>
+          </div>
+        </dl>
+      </section>
 
       {summary.data?.totalPlays === 0 && (
         <p className="notice">아직 참여가 없습니다. QR을 비치하면 첫 참여가 여기에 표시됩니다.</p>
       )}
 
       <form
-        className="panel stack"
+        className="panel stack owner-settings-panel"
         onSubmit={(event: FormEvent) => {
           event.preventDefault();
           save.mutate();
         }}
       >
-        <h2>매장 기본 정보</h2>
+        <div className="owner-section-heading">
+          <h2>매장 기본 정보</h2>
+          <p className="hint">손님 화면과 안내물에 표시되는 정보를 관리합니다.</p>
+        </div>
         <div className="field">
           <label htmlFor="store-name">매장명</label>
           <input id="store-name" value={name} onChange={(event) => setName(event.target.value)} required />
