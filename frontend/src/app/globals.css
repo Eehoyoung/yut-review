@@ -884,6 +884,33 @@ form > .success {
 .consent-summary a { width: fit-content; font-weight: 700; }
 .consent-summary legend { padding: 0; color: var(--ink); }
 
+.consent-details {
+  border-radius: var(--r-md);
+  background: var(--panel-2);
+  color: var(--ink-2);
+  font-size: var(--t-sm);
+}
+
+.consent-details summary {
+  display: flex;
+  min-height: 48px;
+  padding: var(--s3);
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  color: var(--ink);
+  font-weight: 700;
+  cursor: pointer;
+  list-style: none;
+}
+
+.consent-details summary::-webkit-details-marker { display: none; }
+.consent-details summary::after { content: "\2304"; font-size: 18px; line-height: 1; }
+.consent-details[open] summary::after { transform: rotate(180deg); }
+.consent-details[open] > .consent-summary { padding-top: 0; }
+.consent-details > .consent-summary { background: transparent; }
+.consent-details summary:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+
 /* ---------- 상태 표시 ---------- */
 
 .error,

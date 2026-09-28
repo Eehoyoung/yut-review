@@ -132,13 +132,16 @@ export default function Identify() {
             <input id="agree" type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} required />
             <span><b>[필수]</b> 개인정보 수집·이용에 동의합니다.</span>
           </label>
-          <div className="consent-summary" aria-describedby="agree">
-            <p><b>수집:</b> 이름, 휴대폰 번호, 참여·게임·쿠폰 정보</p>
-            <p><b>목적:</b> 참여 제한 확인, 게임·쿠폰 제공 및 사용 처리</p>
-            <p><b>보유:</b> 참여일 포함 120일. 유효한 미사용 쿠폰은 만료 후 익명화</p>
-            <p>동의를 거부할 수 있으나 이벤트에는 참여할 수 없습니다.</p>
-            <Link href="/legal/customer-privacy" target="_blank">개인정보 수집·이용 안내 전문</Link>
-          </div>
+          <details className="consent-details">
+            <summary>개인정보 수집·이용 안내</summary>
+            <div className="consent-summary" aria-describedby="agree">
+              <p><b>수집:</b> 이름, 휴대폰 번호, 참여·게임·쿠폰 정보</p>
+              <p><b>목적:</b> 참여 제한 확인, 게임·쿠폰 제공 및 사용 처리</p>
+              <p><b>보유:</b> 참여일 포함 120일. 유효한 미사용 쿠폰은 만료 후 익명화</p>
+              <p>동의를 거부할 수 있으나 이벤트에는 참여할 수 없습니다.</p>
+              <Link href="/legal/customer-privacy" target="_blank">개인정보 수집·이용 안내 전문</Link>
+            </div>
+          </details>
         </div>
 
         {cooldown && (

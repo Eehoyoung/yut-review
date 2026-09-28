@@ -254,22 +254,33 @@ export default function SignUp() {
           <input id="privacyAgreed" type="checkbox" checked={privacyAgreed} onChange={(e) => setPrivacyAgreed(e.target.checked)} required />
           <span><b>[필수]</b> <Link href="/legal/privacy" target="_blank">개인정보 수집·이용 및 처리방침</Link>에 동의합니다.</span>
         </label>
-        <div className="consent-summary">
-          <p><b>수집:</b> 대표자 이름, 연락처, 이메일, 매장명, 사업자등록번호</p>
-          <p><b>목적:</b> 회원가입, 로그인, 매장 운영과 고객 지원</p>
-          <p><b>보유:</b> 서비스 이용 중 및 관계 법령상 보존 기간</p>
-          <p>동의를 거부할 수 있으나 회원가입은 할 수 없습니다.</p>
-        </div>
+        <details className="consent-details">
+          <summary>개인정보 수집·이용 안내</summary>
+          <div className="consent-summary">
+            <p><b>수집:</b> 대표자 이름, 연락처, 이메일, 매장명, 사업자등록번호</p>
+            <p><b>목적:</b> 회원가입, 로그인, 매장 운영과 고객 지원</p>
+            <p><b>보유:</b> 서비스 이용 중 및 관계 법령상 보존 기간</p>
+            <p>동의를 거부할 수 있으나 회원가입은 할 수 없습니다.</p>
+          </div>
+        </details>
         <fieldset className="consent-summary">
           <legend><b>광고성 문자 수신 선택</b></legend>
-          <p>소담랩스가 대표 연락처를 아래 서비스의 광고·혜택 안내에 이용하는 데 서비스별로 선택 동의합니다. 동의하지 않아도 가입과 서비스 이용에 불이익이 없습니다.</p>
           {marketingServices.map((item) => (
             <label className="check" key={item.service}>
               <input type="checkbox" checked={Boolean(marketing[item.key])} onChange={(e) => setMarketing({ ...marketing, [item.key]: e.target.checked })} />
-              <span><b>[선택]</b> {item.name} 광고성 문자 수신 동의 <small className="hint">— {item.description}</small></span>
+              <span><b>[선택]</b> {item.name} 광고성 문자 수신 동의</span>
             </label>
           ))}
-          <p><Link href="/legal/marketing" target="_blank">수집·이용 목적, 보유기간과 철회 방법 자세히 보기</Link></p>
+          <details className="consent-details">
+            <summary>광고성 문자 수신 안내</summary>
+            <div className="consent-summary">
+              <p>소담랩스가 대표 연락처를 선택한 서비스의 광고·혜택 안내에 이용합니다. 동의하지 않아도 가입과 서비스 이용에 불이익이 없습니다.</p>
+              <ul>
+                {marketingServices.map((item) => <li key={item.service}><b>{item.name}</b> — {item.description}</li>)}
+              </ul>
+              <p><Link href="/legal/marketing" target="_blank">수집·이용 목적, 보유기간과 철회 방법 자세히 보기</Link></p>
+            </div>
+          </details>
         </fieldset>
         {tried && blocked && (
           <p className="notice" role="status">
