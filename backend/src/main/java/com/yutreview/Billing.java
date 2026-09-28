@@ -15,6 +15,8 @@ import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -236,6 +238,43 @@ enum ServiceState { OPEN, TRIAL, ACTIVE, GRACE, RESTRICTED }
 
     static String customerId(Long storeId){return "store-"+storeId;}
 
+    record CheckoutPrice(int amount,boolean immediate,boolean prorated){}
+
+    /**
+     * 결제 화면과 실제 청구가 같은 금액을 보도록 서버가 즉시 청구액을 계산한다.
+     * 유료기간 상향은 다음 결제일을 유지하고 남은 기간의 요금 차액만 일할 계산한다.
+     */
+    CheckoutPrice checkoutPrice(Long storeId,Plan target){
+        StoreSubscription s=subscriptions.findByStoreId(storeId).orElse(null);
+        if(s==null)return new CheckoutPrice(target.monthlyPriceKrw,true,false);
+        ServiceState state=policy.state(s);
+        boolean paidPeriod=state==ServiceState.ACTIVE&&s.lastPaidAt!=null;
+        if(state==ServiceState.TRIAL)return new CheckoutPrice(0,false,false);
+        if(paidPeriod&&target.ordinal()<=s.plan.ordinal())return new CheckoutPrice(0,false,false);
+        if(paidPeriod&&target.ordinal()>s.plan.ordinal())
+            return new CheckoutPrice(proratedUpgradeAmount(s,target,clock.instant()),true,true);
+        return new CheckoutPrice(target.monthlyPriceKrw,true,false);
+    }
+
+    int proratedUpgradeAmount(StoreSubscription s,Plan target,Instant now){
+        if(s.nextBillingAt==null||target.ordinal()<=s.plan.ordinal())return 0;
+        LocalDate end=s.nextBillingAt.atZone(clock.getZone()).toLocalDate();
+        LocalDate start=billingPeriodStart(s).atZone(clock.getZone()).toLocalDate();
+        LocalDate today=now.atZone(clock.getZone()).toLocalDate();
+        long totalDays=ChronoUnit.DAYS.between(start,end);
+        long remainingDays=ChronoUnit.DAYS.between(today,end);
+        if(totalDays<=0||remainingDays<=0)return 0;
+        remainingDays=Math.min(remainingDays,totalDays);
+        long monthlyDifference=(long)target.monthlyPriceKrw-s.plan.monthlyPriceKrw;
+        return (int)(monthlyDifference*remainingDays/totalDays);
+    }
+
+    private Instant billingPeriodStart(StoreSubscription s){
+        if(s.billingPeriodStartedAt!=null)return s.billingPeriodStartedAt;
+        if(s.lastPaidAt!=null)return s.lastPaidAt;
+        return s.nextBillingAt.atZone(clock.getZone()).minusMonths(1).toInstant();
+    }
+
     /** 결제는 매장 대표만. 매니저가 대표 카드로 등급을 올리는 일을 막는다. */
     AdminUser requireOwner(Long adminId,Long storeId){
         boolean owner=memberships.findByStoreId(storeId).stream()
@@ -248,7 +287,8 @@ enum ServiceState { OPEN, TRIAL, ACTIVE, GRACE, RESTRICTED }
      * 결제수단을 등록하고 요금제를 산다.
      * - 무료체험 중: 카드만 등록한다. 체험 종료일(= 첫 결제예정일)에 고른 등급으로 청구한다.
      * - 결제 기간 중 같은 등급: 카드만 바꾼다. 더 낮은 등급: 다음 결제예정일부터 그 등급으로 청구한다.
-     * - 결제 기간 중 더 높은 등급, 첫 결제, 유예·제한 중: 지금 청구한다.
+     * - 결제 기간 중 더 높은 등급: 다음 결제일은 유지하고 잔여 기간의 차액만 일할 청구해 즉시 올린다.
+     * - 첫 결제, 유예·제한 중: 선택 요금제 한 달 이용료를 지금 청구한다.
      */
     StoreSubscription checkout(Long adminId,Long storeId,Plan plan,String billingKey){
         AdminUser owner=requireOwner(adminId,storeId);
@@ -271,11 +311,21 @@ enum ServiceState { OPEN, TRIAL, ACTIVE, GRACE, RESTRICTED }
                 if(old!=null&&!old.equals(billingKey))portone.deleteBillingKey(old);
                 return saved;
             }
-            // 유예 중 결제는 원래 주기를 잇는다. 올리기·첫 결제·제한 뒤 결제는 오늘부터 새 주기다.
-            // ponytail: 올릴 때 남은 기간을 환산하지 않는다. 일할 계산은 요청이 생기면.
-            Instant next=state==ServiceState.GRACE?oneMonthFrom(s.nextBillingAt):oneMonthFrom(now);
+
+            boolean proratedUpgrade=paidPeriod&&plan.ordinal()>s.plan.ordinal();
+            Instant currentPeriodStart=proratedUpgrade?billingPeriodStart(s):null;
+            int amount=proratedUpgrade?proratedUpgradeAmount(s,plan,now):plan.monthlyPriceKrw;
+            Instant periodStart=state==ServiceState.GRACE?s.nextBillingAt
+                :proratedUpgrade?currentPeriodStart:now;
+            Instant next=state==ServiceState.GRACE?oneMonthFrom(s.nextBillingAt)
+                :proratedUpgrade?s.nextBillingAt:oneMonthFrom(now);
             String paymentId="sub-"+storeId+"-"+UUID.randomUUID().toString().replace("-","").substring(0,20);
-            PortOneClient.Charge charge=charge(storeId,paymentId,plan,billingKey,customer(storeId,owner));
+            String orderName=proratedUpgrade
+                ?"소담한판 "+s.plan.name()+"→"+plan.name()+" 업그레이드 차액"
+                :"소담한판 "+plan.name()+" 월 이용료";
+            PortOneClient.Charge charge=amount==0
+                ?new PortOneClient.Charge(PortOneClient.Outcome.PAID,null)
+                :charge(storeId,paymentId,plan,amount,orderName,billingKey,customer(storeId,owner));
             if(charge.outcome()==PortOneClient.Outcome.DECLINED){
                 if(!billingKey.equals(s.billingKey))portone.deleteBillingKey(billingKey);
                 throw new AppException("PAYMENT_DECLINED","결제가 승인되지 않았어요: "+charge.reason(),HttpStatus.PAYMENT_REQUIRED);
@@ -287,7 +337,10 @@ enum ServiceState { OPEN, TRIAL, ACTIVE, GRACE, RESTRICTED }
                 StoreSubscription row=subscriptions.findByStoreId(storeId).orElseThrow();
                 row.plan=plan;row.status=SubscriptionStatus.ACTIVE;row.trialEndsAt=null;row.nextPlan=null;
                 row.billingKey=billingKey;row.billingChannelKey=channelKey;row.autoRenew=true;row.renewalFailures=0;
-                row.lastPaidAt=now;row.nextBillingAt=next;row.updatedAt=now;row.note=plan.name()+" 결제";
+                if(amount>0)row.lastPaidAt=now;
+                row.billingPeriodStartedAt=periodStart;
+                row.nextBillingAt=next;row.updatedAt=now;
+                row.note=proratedUpgrade?plan.name()+" 업그레이드 일할결제":plan.name()+" 결제";
                 return subscriptions.save(row);
             });
             if(old!=null&&!old.equals(billingKey))portone.deleteBillingKey(old);
@@ -324,11 +377,12 @@ enum ServiceState { OPEN, TRIAL, ACTIVE, GRACE, RESTRICTED }
             String paymentId="renew-"+storeId+"-"+s.nextBillingAt.getEpochSecond()+"-"+failures;
             AdminUser owner=memberships.findByStoreId(storeId).stream().filter(m->m.role==MembershipRole.OWNER)
                 .map(m->m.admin).findFirst().orElse(null);
-            PortOneClient.Charge charge=charge(storeId,paymentId,plan,s.billingKey,customer(storeId,owner));
+            PortOneClient.Charge charge=charge(storeId,paymentId,plan,plan.monthlyPriceKrw,"소담한판 "+plan.name()+" 월 이용료",s.billingKey,customer(storeId,owner));
             switch(charge.outcome()){
                 case PAID->writes.executeWithoutResult(t->{
                     StoreSubscription row=subscriptions.findByStoreId(storeId).orElseThrow();
-                    row.lastPaidAt=now;row.nextBillingAt=oneMonthFrom(row.nextBillingAt);
+                    row.lastPaidAt=now;row.billingPeriodStartedAt=row.nextBillingAt;
+                    row.nextBillingAt=oneMonthFrom(row.nextBillingAt);
                     row.plan=plan;row.nextPlan=null;row.trialEndsAt=null;row.renewalFailures=0;row.updatedAt=now;
                     row.note=plan.name()+" 자동결제";
                     subscriptions.save(row);
@@ -348,15 +402,15 @@ enum ServiceState { OPEN, TRIAL, ACTIVE, GRACE, RESTRICTED }
     PortOneClient portone(){return portone;}
     ServiceAccessPolicy policy(){return policy;}
 
-    private PortOneClient.Charge charge(Long storeId,String paymentId,Plan plan,String billingKey,Map<String,Object> customer){
+    private PortOneClient.Charge charge(Long storeId,String paymentId,Plan plan,int amount,String orderName,String billingKey,Map<String,Object> customer){
         writes.executeWithoutResult(t->{
             if(payments.findByPaymentId(paymentId).isPresent())return;
             SubscriptionPayment p=new SubscriptionPayment();
-            p.store=stores.getReferenceById(storeId);p.paymentId=paymentId;p.plan=plan;p.amount=plan.monthlyPriceKrw;
+            p.store=stores.getReferenceById(storeId);p.paymentId=paymentId;p.plan=plan;p.amount=amount;
             p.status=SubscriptionPaymentStatus.PENDING;p.createdAt=clock.instant();
             payments.save(p);
         });
-        PortOneClient.Charge charge=portone.pay(paymentId,billingKey,"소담한판 "+plan.name()+" 월 이용료",plan.monthlyPriceKrw,customer);
+        PortOneClient.Charge charge=portone.pay(paymentId,billingKey,orderName,amount,customer);
         if(charge.outcome()!=PortOneClient.Outcome.UNKNOWN)writes.executeWithoutResult(t->{
             SubscriptionPayment p=payments.findByPaymentId(paymentId).orElseThrow();
             boolean paid=charge.outcome()==PortOneClient.Outcome.PAID;
@@ -422,12 +476,12 @@ enum ServiceState { OPEN, TRIAL, ACTIVE, GRACE, RESTRICTED }
 }
 
 @RestController @RequestMapping("/api/admin/stores/{storeId}/billing") class BillingController {
-    private final BillingService billing;private final StoreAccessService access;private final StoreSubscriptionRepository subscriptions;private final AdminUserRepository admins;
-    BillingController(BillingService billing,StoreAccessService access,StoreSubscriptionRepository subscriptions,AdminUserRepository admins){
-        this.billing=billing;this.access=access;this.subscriptions=subscriptions;this.admins=admins;
+    private final BillingService billing;private final StoreAccessService access;private final StoreSubscriptionRepository subscriptions;private final AdminUserRepository admins;private final StoreRepository stores;private final LegalConsentService legalConsents;
+    BillingController(BillingService billing,StoreAccessService access,StoreSubscriptionRepository subscriptions,AdminUserRepository admins,StoreRepository stores,LegalConsentService legalConsents){
+        this.billing=billing;this.access=access;this.subscriptions=subscriptions;this.admins=admins;this.stores=stores;this.legalConsents=legalConsents;
     }
 
-    record Checkout(@NotNull Plan plan,@NotBlank @Size(max=200) String billingKey){}
+    record Checkout(@NotNull Plan plan,@NotBlank @Size(max=200) String billingKey,boolean billingConsentAgreed,@NotBlank @Size(max=20) String billingConsentVersion){}
     record AutoRenew(boolean on){}
 
     /** 결제창에 넘길 값과 현재 결제 상태. 화면이 채널 키를 복제해 들고 있지 않게 서버가 준다. */
@@ -446,6 +500,9 @@ enum ServiceState { OPEN, TRIAL, ACTIVE, GRACE, RESTRICTED }
         out.put("customer",customer);
         out.put("channels",portone.channels().entrySet().stream().map(e->Map.of("channelKey",e.getKey(),"pg",e.getValue())).toList());
         out.put("serviceState",billing.policy().state(storeId).name());
+        Map<String,Integer> checkoutAmounts=new LinkedHashMap<>();
+        for(Plan plan:Plan.values())checkoutAmounts.put(plan.name(),billing.checkoutPrice(storeId,plan).amount());
+        out.put("checkoutAmounts",checkoutAmounts);
         subscriptions.findByStoreId(storeId).ifPresent(s->{
             if(s.lastPaidAt!=null)out.put("lastPaidAt",s.lastPaidAt);
             if(s.nextBillingAt!=null){
@@ -468,14 +525,21 @@ enum ServiceState { OPEN, TRIAL, ACTIVE, GRACE, RESTRICTED }
     }
 
     @PostMapping("/checkout") ApiResponse<?> checkout(@PathVariable Long storeId,@Valid @RequestBody Checkout body,Authentication auth){
-        StoreSubscription s=billing.checkout((Long)auth.getPrincipal(),storeId,body.plan(),body.billingKey().trim());
+        Long adminId=(Long)auth.getPrincipal();
+        AdminUser admin=billing.requireOwner(adminId,storeId);Store store=stores.findById(storeId).orElseThrow();
+        StoreSubscription before=subscriptions.findByStoreId(storeId).orElseThrow();
+        BillingService.CheckoutPrice price=billing.checkoutPrice(storeId,body.plan());
+        legalConsents.recordBillingChoice(admin,store,body.billingConsentAgreed(),body.billingConsentVersion(),body.plan(),price.amount(),before.nextBillingAt,"BILLING_CHECKOUT");
+        if(!body.billingConsentAgreed())throw new AppException("BILLING_CONSENT_REQUIRED","자동결제에 동의해 주세요.");
+        StoreSubscription s=billing.checkout(adminId,storeId,body.plan(),body.billingKey().trim());
         Map<String,Object> out=new LinkedHashMap<>();
         out.put("plan",s.plan.name());out.put("nextBillingAt",s.nextBillingAt);out.put("lastPaidAt",s.lastPaidAt);
         return ApiResponse.ok(out);
     }
 
     @PutMapping("/auto-renew") ApiResponse<?> autoRenew(@PathVariable Long storeId,@RequestBody AutoRenew body,Authentication auth){
-        StoreSubscription s=billing.setAutoRenew((Long)auth.getPrincipal(),storeId,body.on());
+        Long adminId=(Long)auth.getPrincipal();StoreSubscription s=billing.setAutoRenew(adminId,storeId,body.on());
+        legalConsents.recordAutoRenew(admins.findById(adminId).orElseThrow(),stores.findById(storeId).orElseThrow(),body.on(),s.plan,s.nextBillingAt);
         return ApiResponse.ok(Map.of("autoRenew",Boolean.TRUE.equals(s.autoRenew)));
     }
 }

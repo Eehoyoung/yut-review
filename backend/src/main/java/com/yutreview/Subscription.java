@@ -94,7 +94,7 @@ class PlanEntitlementService {
  */
 @Service
 class SubscriptionService {
-    static final int SIGNUP_TRIAL_DAYS = 14;
+    static final int SIGNUP_TRIAL_DAYS = 30;
     private final StoreSubscriptionRepository subscriptions;
     private final Clock clock;
 
@@ -115,7 +115,7 @@ class SubscriptionService {
         if (subscription.trialEndsAt != null && !clock.instant().isBefore(subscription.trialEndsAt)) {
             subscription.plan = Plan.BASIC;
             subscription.trialEndsAt = null;
-            subscription.note = "14일 PRO 무료체험 종료";
+            subscription.note = "30일 PRO 무료체험 종료";
             subscription.updatedAt = clock.instant();
             subscriptions.save(subscription);
         }
@@ -141,7 +141,7 @@ class SubscriptionService {
         return subscriptions.save(s);
     }
 
-    /** 가입일을 1일째로 세며, 15일째 00:01(Asia/Seoul)에 BASIC 전환 경계가 온다. */
+    /** 가입일을 1일째로 세며, 31일째 00:01(Asia/Seoul)에 BASIC 전환 경계가 온다. */
     @Transactional
     StoreSubscription startSignupTrial(Store store) {
         Instant now = clock.instant();
@@ -157,11 +157,11 @@ class SubscriptionService {
         // 체험 종료일이 첫 결제예정일이다. 결제가 없으면 D+2까지 서비스하고 그 뒤 이용을 제한한다.
         s.nextBillingAt = s.trialEndsAt;
         s.updatedAt = now;
-        s.note = "가입일 기준 14일 PRO 무료체험";
+        s.note = "가입일 기준 30일 PRO 무료체험";
         return subscriptions.save(s);
     }
 
-    /** 결제 대상에서 뺀다. 현장 테스트용 시드 매장이 16일 뒤 막히지 않게 한다. */
+    /** 결제 대상에서 뺀다. 현장 테스트용 시드 매장이 무료체험 종료 뒤 막히지 않게 한다. */
     @Transactional
     void exemptFromBilling(Long storeId) {
         subscriptions.findByStoreId(storeId).ifPresent(s -> s.nextBillingAt = null);

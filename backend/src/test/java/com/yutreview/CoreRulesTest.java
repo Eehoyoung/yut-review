@@ -27,7 +27,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest @AutoConfigureMockMvc @Transactional class CoreRulesTest {
     @Autowired StoreRepository stores; @Autowired QrRepository qrs; @Autowired PrizeRepository prizes; @Autowired GameRepository gameRepository;
     @Autowired PasswordEncoder encoder; @Autowired GameService games; @Autowired EntityManager entityManager;
-    @Autowired CouponRepository coupons; @Autowired AdminSignupService signup; @Autowired AdminUserRepository admins; @Autowired MembershipRepository memberships; @Autowired StorePosterRepository posters; @Autowired StorePosterService posterService; @Autowired CouponService couponService; @Autowired ParticipationService participation; @Autowired PhoneService personalData; @Autowired GameConfigService config; @Autowired StoreOutcomeRepository outcomes; @Autowired PrivacyCleanupService privacyCleanup; @Autowired MockMvc mvc; @Autowired JwtService jwt; @Autowired StoreApprovalService approvals;
+    @Autowired CouponRepository coupons; @Autowired AdminSignupService signup; @Autowired AdminUserRepository admins; @Autowired MembershipRepository memberships; @Autowired StorePosterRepository posters; @Autowired StorePosterService posterService; @Autowired CouponService couponService; @Autowired ParticipationService participation; @Autowired PhoneService personalData; @Autowired GameConfigService config; @Autowired StoreOutcomeRepository outcomes; @Autowired PrivacyCleanupService privacyCleanup; @Autowired MockMvc mvc; @Autowired JwtService jwt; @Autowired StoreApprovalService approvals; @Autowired LegalConsentEventRepository legalConsentEvents;
     Store store; String qr;
     @BeforeEach void setup(){Instant now=Instant.now();store=new Store();store.name="test";store.phone="0200000000";store.staffPinHash=encoder.encode("123456");store.status=StoreStatus.ACTIVE;store.createdAt=now;store.updatedAt=now;stores.save(store);StoreQrCode q=new StoreQrCode();q.store=store;q.publicToken="qr-"+System.nanoTime();q.status=QrStatus.ACTIVE;q.createdAt=now;qrs.save(q);qr=q.publicToken;config.save(store,GameConfigService.defaults());}
     /** Weights indexed by YutResult.ordinal, mapped one rank per outcome so the awarded rank identifies the throw. */
@@ -108,6 +108,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         assertEquals(3,GameConfigService.rankCount(config.load(p.store().id)));
         AdminUser owner=admins.findByEmail("owner@test.com").orElseThrow();assertEquals(AdminRole.STORE_ADMIN,owner.role);assertEquals("1234567890",p.store().businessNumber);
         assertEquals(LegalConsentPolicy.TERMS_VERSION,owner.termsVersion);assertNotNull(owner.termsAgreedAt);assertEquals(LegalConsentPolicy.ADMIN_PRIVACY_VERSION,owner.privacyVersion);assertNotNull(owner.privacyAgreedAt);
+        assertEquals(2,legalConsentEvents.findByAdminIdOrderByCreatedAtDescIdDesc(owner.id).size(),"필수 약관 동의는 append-only 증거로도 남긴다");
         assertEquals("01022223333",owner.phone,"전화번호는 숫자만 남긴다");
         assertTrue(memberships.existsByAdminIdAndStoreId(owner.id,p.store().id));
         // 승인제는 2026-09-22에 껐다(app.store-approval-required, 기본 false). 가입이 바로 ACTIVE다.

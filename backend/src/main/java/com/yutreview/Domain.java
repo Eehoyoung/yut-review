@@ -38,6 +38,7 @@ enum AiFeature { AI_EVENT_COPY, AI_REPORT, AI_IMPROVEMENT, AI_CHAT }
 /** PRO 안내물에 적용하는 검증된 고대비 팔레트. 임의 색상 입력으로 QR 가독성이 깨지지 않게 프리셋만 허용한다. */
 enum PosterBrandTheme { SODAM, FOREST, PLUM }
 enum MarketingService { YUT_REVIEW, REVIEW_PILOT, SODAM }
+enum LegalConsentType { SERVICE_TERMS, ADMIN_PRIVACY, BILLING_AUTO_PAYMENT }
 enum AccountRecoveryPurpose { FIND_EMAIL, RESET_PASSWORD }
 
 @Entity @Table(name="admin_users") class AdminUser {
@@ -105,6 +106,19 @@ enum AccountRecoveryPurpose { FIND_EMAIL, RESET_PASSWORD }
     @Column(nullable=false,length=20) String consentVersion;
     @Column(nullable=false,length=30) String source;
     @Column(name="changed_at",nullable=false) Instant changedAt;
+}
+/** Append-only proof of required legal agreements and billing consent or withdrawal. */
+@Entity @Table(name="legal_consent_events",indexes=@Index(name="idx_legal_consent_history",columnList="admin_user_id,consent_type,created_at")) class LegalConsentEvent {
+    @Id @GeneratedValue(strategy=GenerationType.IDENTITY) Long id;
+    @ManyToOne(optional=false) @JoinColumn(name="admin_user_id",nullable=false) AdminUser admin;
+    @ManyToOne @JoinColumn(name="store_id") Store store;
+    @Enumerated(EnumType.STRING) @Column(name="consent_type",nullable=false,length=40) LegalConsentType consentType;
+    @Column(nullable=false) boolean agreed;
+    @Column(nullable=false,length=20) String documentVersion;
+    @Column(nullable=false,length=30) String source;
+    @Column(name="consent_text",nullable=false,columnDefinition="text") String consentText;
+    @Column(name="details_json",nullable=false,columnDefinition="text") String detailsJson;
+    @Column(name="created_at",nullable=false) Instant createdAt;
 }
 @Entity @Table(name="store_qr_codes") class StoreQrCode {
     @Id @GeneratedValue(strategy=GenerationType.IDENTITY) Long id;
@@ -183,6 +197,8 @@ enum AccountRecoveryPurpose { FIND_EMAIL, RESET_PASSWORD }
     @Column(name="billing_channel_key",length=100) String billingChannelKey;
     /** 마지막으로 결제가 성공한 시각. */
     @Column(name="last_paid_at") Instant lastPaidAt;
+    /** 현재 유료 결제기간이 시작된 시각. 월말 보정이 있는 달에도 일할계산 분모를 정확히 유지한다. */
+    @Column(name="billing_period_started_at") Instant billingPeriodStartedAt;
     /**
      * 다음 결제예정일. 이 날짜(KST)부터 D+2까지 결제를 시도하며 서비스하고, D+3 00:00부터 이용을 제한한다.
      * null이면 결제 대상이 아니다 — 2026-09-27 이전 가입 매장은 그대로 둔다(사용자 결정).

@@ -728,21 +728,23 @@ Request(PUT):
 { "plan": "STANDARD", "note": "" }
 ```
 
-신규 가입 매장의 `PRO` 무료체험은 가입일을 1일째로 14일간 적용된다. 가입 응답 이후 즉시
-`trial: true`, `trialEndsAt`(15일째 00:01, `Asia/Seoul`을 ISO-8601로 변환)을 반환한다.
-결제가 없으면 해당 시각에 자동 결제 없이 `BASIC`으로 전환된다.
+신규 가입 매장의 `PRO` 무료체험은 가입일을 1일째로 30일간 적용된다. 가입 응답 이후 즉시
+`trial: true`, `trialEndsAt`(31일째 00:01, `Asia/Seoul`을 ISO-8601로 변환)을 반환한다.
+체험 중 카드를 등록하면 해당 시각에 선택한 요금제로 첫 정기결제를 시도한다. 카드가 없으면
+`BASIC`으로 전환되고 결제 유예기간 뒤 이용이 제한될 수 있다.
 구독 행이 없는 매장도 `BASIC`으로 응답한다. 위 `PUT`은 운영자 수동 조정용이며, 매장의 유료 전환은
 아래 결제 API로만 일어난다.
 
 ### 요금제 결제 (포트원 V2 빌링키)
 ```http
 GET  /api/admin/stores/{storeId}/billing              # 멤버: 결제창 파라미터, 결제 상태, 최근 12건
-POST /api/admin/stores/{storeId}/billing/checkout     # 대표만: { "plan": "PRO", "billingKey": "..." }
+POST /api/admin/stores/{storeId}/billing/checkout     # 대표만: { "plan": "PRO", "billingKey": "...", "billingConsentAgreed": true, "billingConsentVersion": "2026-09-28" }
 PUT  /api/admin/stores/{storeId}/billing/auto-renew   # 대표만: { "on": false }
 ```
-- 세 등급 모두 판다. 대표가 아니면 403 `FORBIDDEN`. 체험 중 등록은 청구하지 않고 체험 종료일에 청구한다.
+- 세 등급 모두 판다. 대표가 아니면 403 `FORBIDDEN`. 체험 중 등록은 청구하지 않고 체험 종료일에 청구한다. 유료기간 상향은 `checkoutAmounts`로 표시한 잔여기간 차액만 일할 청구하며 다음 결제일은 유지한다.
+- 자동결제 동의는 필수이며 당시 동의문, 버전, 요금제, 월 요금, 즉시 청구액, 첫 결제일을 `legal_consent_events`에 append-only로 저장한다. 미동의는 400 `BILLING_CONSENT_REQUIRED`, 오래된 문구 버전은 400 `BILLING_CONSENT_VERSION_INVALID`다. 자동결제 해지·재개도 같은 테이블에 거부/동의 이벤트로 남긴다.
 - `GET` 응답: `serviceState`(`OPEN|TRIAL|ACTIVE|GRACE|RESTRICTED`), `lastPaidAt`, `nextBillingAt`,
-  `restrictedFrom`(D+3 00:00 KST), `hasCard`, `autoRenew`, `nextPlan`, `pg`, `payments[]`.
+  `restrictedFrom`(D+3 00:00 KST), `hasCard`, `autoRenew`, `nextPlan`, `pg`, `checkoutAmounts`, `payments[]`.
 - 빌링키의 `customer.id`가 `store-{storeId}`가 아니거나 설정한 채널이 아니면 `BILLING_KEY_INVALID`.
 - 카드 거절 402 `PAYMENT_DECLINED`, 결과 미확인 502 `PAYMENT_PENDING`, 동시 결제 409 `BILLING_BUSY`,
   포트원 미설정·장애 503 `BILLING_UNAVAILABLE`.

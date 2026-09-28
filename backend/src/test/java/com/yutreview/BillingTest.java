@@ -2,6 +2,7 @@ package com.yutreview;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -99,6 +100,7 @@ class BillingTest {
     @Autowired Clock clock;
     @Autowired MockMvc mvc;
     @Autowired JwtService jwt;
+    @Autowired LegalConsentEventRepository legalConsentEvents;
 
     Store store;
     String qr;
@@ -207,6 +209,59 @@ class BillingTest {
                 "다음 결제일은 결제예정일에서 한 달 뒤다");
         assertTrue(PAID_BODIES.get(PAID_BODIES.size() - 1).contains("\"total\":9900"), "BASIC도 판다");
         assertEquals(ServiceState.ACTIVE, policy.state(store.id));
+    }
+
+    @Test
+    void checkoutRequiresAndRecordsExplicitAutoPaymentConsent() throws Exception {
+        String auth="Bearer "+jwt.issue(owner);String key=issue();
+        mvc.perform(post("/api/admin/stores/{id}/billing/checkout",store.id).header("Authorization",auth)
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .content("{\"plan\":\"BASIC\",\"billingKey\":\""+key+"\",\"billingConsentAgreed\":false,\"billingConsentVersion\":\"2026-09-28\"}"))
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("BILLING_CONSENT_REQUIRED"));
+        assertFalse(legalConsentEvents.findByAdminIdOrderByCreatedAtDescIdDesc(owner.id).get(0).agreed);
+
+        mvc.perform(post("/api/admin/stores/{id}/billing/checkout",store.id).header("Authorization",auth)
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .content("{\"plan\":\"BASIC\",\"billingKey\":\""+key+"\",\"billingConsentAgreed\":true,\"billingConsentVersion\":\"2026-09-28\"}"))
+            .andExpect(status().isOk());
+        LegalConsentEvent accepted=legalConsentEvents.findByAdminIdOrderByCreatedAtDescIdDesc(owner.id).get(0);
+        assertTrue(accepted.agreed);assertEquals(store.id,accepted.store.id);assertTrue(accepted.detailsJson.contains("\"monthlyPriceKrw\":9900"));
+    }
+
+    /** 유료기간 상향은 결제주기를 리셋하지 않고 남은 기간의 차액만 일할 청구한다. */
+    @Test
+    void upgradingDuringAPaidPeriodChargesOnlyTheProratedDifference() {
+        plans.exemptFromBilling(store.id);
+        billing.checkout(owner.id, store.id, Plan.BASIC, issue());
+
+        StoreSubscription before = row();
+        before.billingPeriodStartedAt = before.billingPeriodStartedAt.minus(Duration.ofDays(15));
+        before.nextBillingAt = before.nextBillingAt.minus(Duration.ofDays(15));
+        subscriptions.save(before);
+        Instant originalNext = before.nextBillingAt;
+        int expected = billing.proratedUpgradeAmount(before, Plan.PRO, Instant.now());
+        assertTrue(expected > 0 && expected < Plan.PRO.monthlyPriceKrw - Plan.BASIC.monthlyPriceKrw);
+
+        StoreSubscription upgraded = billing.checkout(owner.id, store.id, Plan.PRO, issue());
+        assertEquals(Plan.PRO, upgraded.plan);
+        assertEquals(originalNext, upgraded.nextBillingAt, "업그레이드해도 다음 결제일은 유지한다");
+        assertEquals(2, paidCount());
+        SubscriptionPayment latest = payments.findTop12ByStoreIdOrderByCreatedAtDesc(store.id).get(0);
+        assertEquals(expected, latest.amount);
+        assertTrue(PAID_BODIES.get(PAID_BODIES.size() - 1).contains("\"total\":" + expected));
+    }
+
+    /** 1/31→2/28처럼 월말이 보정된 결제주기도 실제 시작일을 분모로 쓴다. */
+    @Test
+    void prorationUsesTheActualPeriodStartAcrossShortMonths() {
+        StoreSubscription s = row();
+        s.plan = Plan.BASIC;
+        s.billingPeriodStartedAt = ZonedDateTime.of(2027, 1, 31, 0, 0, 0, 0, clock.getZone()).toInstant();
+        s.nextBillingAt = ZonedDateTime.of(2027, 2, 28, 0, 0, 0, 0, clock.getZone()).toInstant();
+        Instant middle = ZonedDateTime.of(2027, 2, 14, 0, 0, 0, 0, clock.getZone()).toInstant();
+
+        assertEquals(5000, billing.proratedUpgradeAmount(s, Plan.PRO, middle),
+                "10,000원 차액의 28일 중 14일이 남으면 5,000원이어야 한다");
     }
 
     /** 결제 대상이 아니던(기존) 매장의 첫 결제는 오늘부터 한 달이다. */

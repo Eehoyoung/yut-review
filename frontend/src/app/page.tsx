@@ -70,7 +70,7 @@ export default function Home() {
       <nav className="landing-nav" aria-label="주요 메뉴">
         <Link className="landing-wordmark" href="/" aria-label="소담한판 홈"><Image src="/brand/sodam-wordmark.webp" width={1200} height={760} alt="소담" priority /></Link>
         <div className="landing-nav-links"><a href="#how">이용 방법</a><a href="#benefits">기능</a><a href="#pricing">요금</a></div>
-        <Link className="landing-nav-cta" href="/admin/signup">14일 무료로 매장등록</Link>
+        <Link className="landing-nav-cta" href="/admin/signup">30일 무료로 매장등록</Link>
       </nav>
 
       <section className="landing-hero" aria-labelledby="hero-title">
@@ -78,7 +78,7 @@ export default function Home() {
           <h1 id="hero-title"><span className="hero-brand">소담한판</span>손님은 즐기고,<br />사장님은 <em>사용만</em><br />확인하세요</h1>
           <p>매장에 비치한 QR로 손님이 참여하면 윷 결과에 따라 쿠폰이 발급됩니다. 직원은 쿠폰을 사용할 때 PIN으로 확인하면 됩니다.</p>
           <div className="hero-actions">
-            <Link className="landing-choice landing-primary" href="/admin/signup">14일 무료로 매장등록</Link>
+            <Link className="landing-choice landing-primary" href="/admin/signup">30일 무료로 매장등록</Link>
             <Link className="landing-choice landing-secondary" href="/admin/login">이미 계정이 있어요</Link>
           </div>
           <ul className="hero-facts" aria-label="서비스 특징"><li>앱 설치 없음</li><li>직원 개입은 쿠폰 사용 때만</li><li>모든 요금제에서 게임 기능 제공</li></ul>
@@ -125,13 +125,13 @@ export default function Home() {
           <div><span>STANDARD</span><strong>14,900원<small>/월</small></strong><em>365일 기록·CSV</em></div>
           <div className="recommended"><span>PRO</span><strong>19,900원<small>/월</small></strong><em>브랜딩·AI 운영 지원</em></div>
         </div>
-        <p className="pricing-note">신규 매장은 가입일부터 14일 동안 PRO 기능을 무료로 사용합니다. 결제가 없으면 15일째 BASIC으로 전환되며 자동 결제되지 않습니다.</p>
+        <p className="pricing-note">신규 매장은 가입일부터 30일 동안 PRO 기능을 무료로 사용합니다. 카드를 등록하고 자동결제에 동의하면 31일째 첫 결제가 진행됩니다.</p>
       </section>
 
       <section className="landing-final" aria-labelledby="final-title">
         <div><h2 id="final-title">이번 주 매장 이벤트,<br />QR 한 장으로 시작하세요</h2><p>직원에게 새로운 일을 늘리지 않고 손님에게 다시 찾을 이유를 만듭니다.</p></div>
         <Image className="landing-mascot" src="/brand/sodam-mascot.webp" width={1122} height={1402} alt="손을 흔드는 소담 캐릭터" />
-        <div className="final-actions"><Link className="landing-choice landing-primary inverse" href="/admin/signup">14일 무료로 매장등록</Link><Link className="landing-choice landing-secondary inverse-secondary" href="/admin/login">이미 계정이 있어요</Link></div>
+        <div className="final-actions"><Link className="landing-choice landing-primary inverse" href="/admin/signup">30일 무료로 매장등록</Link><Link className="landing-choice landing-secondary inverse-secondary" href="/admin/login">이미 계정이 있어요</Link></div>
       </section>
     </main>
   );
