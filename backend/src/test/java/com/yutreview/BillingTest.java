@@ -209,6 +209,26 @@ class BillingTest {
         assertEquals(ServiceState.ACTIVE, policy.state(store.id));
     }
 
+    /** 유료기간 상향은 결제주기를 리셋하지 않고 남은 기간의 차액만 일할 청구한다. */
+    @Test
+    void upgradingDuringAPaidPeriodChargesOnlyTheProratedDifference() {
+        plans.exemptFromBilling(store.id);
+        billing.checkout(owner.id, store.id, Plan.BASIC, issue());
+
+        StoreSubscription before = row();
+        Instant originalNext = before.nextBillingAt;
+        int expected = billing.proratedUpgradeAmount(before, Plan.PRO, Instant.now());
+        assertTrue(expected >= 0 && expected < Plan.PRO.monthlyPriceKrw - Plan.BASIC.monthlyPriceKrw);
+
+        StoreSubscription upgraded = billing.checkout(owner.id, store.id, Plan.PRO, issue());
+        assertEquals(Plan.PRO, upgraded.plan);
+        assertEquals(originalNext, upgraded.nextBillingAt, "업그레이드해도 다음 결제일은 유지한다");
+        assertEquals(2, paidCount());
+        SubscriptionPayment latest = payments.findTop12ByStoreIdOrderByCreatedAtDesc(store.id).get(0);
+        assertEquals(expected, latest.amount);
+        assertTrue(PAID_BODIES.get(PAID_BODIES.size() - 1).contains("\"total\":" + expected));
+    }
+
     /** 결제 대상이 아니던(기존) 매장의 첫 결제는 오늘부터 한 달이다. */
     @Test
     void aFirstPaymentOutsideTheTrialStartsTodayAndRecordsBothDates() {
