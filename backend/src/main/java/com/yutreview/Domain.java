@@ -183,6 +183,8 @@ enum AccountRecoveryPurpose { FIND_EMAIL, RESET_PASSWORD }
     @Column(name="billing_channel_key",length=100) String billingChannelKey;
     /** 마지막으로 결제가 성공한 시각. */
     @Column(name="last_paid_at") Instant lastPaidAt;
+    /** 현재 유료 결제기간이 시작된 시각. 월말 보정이 있는 달에도 일할계산 분모를 정확히 유지한다. */
+    @Column(name="billing_period_started_at") Instant billingPeriodStartedAt;
     /**
      * 다음 결제예정일. 이 날짜(KST)부터 D+2까지 결제를 시도하며 서비스하고, D+3 00:00부터 이용을 제한한다.
      * null이면 결제 대상이 아니다 — 2026-09-27 이전 가입 매장은 그대로 둔다(사용자 결정).
