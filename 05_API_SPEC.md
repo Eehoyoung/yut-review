@@ -738,10 +738,11 @@ Request(PUT):
 ### 요금제 결제 (포트원 V2 빌링키)
 ```http
 GET  /api/admin/stores/{storeId}/billing              # 멤버: 결제창 파라미터, 결제 상태, 최근 12건
-POST /api/admin/stores/{storeId}/billing/checkout     # 대표만: { "plan": "PRO", "billingKey": "..." }
+POST /api/admin/stores/{storeId}/billing/checkout     # 대표만: { "plan": "PRO", "billingKey": "...", "billingConsentAgreed": true, "billingConsentVersion": "2026-09-28" }
 PUT  /api/admin/stores/{storeId}/billing/auto-renew   # 대표만: { "on": false }
 ```
 - 세 등급 모두 판다. 대표가 아니면 403 `FORBIDDEN`. 체험 중 등록은 청구하지 않고 체험 종료일에 청구한다. 유료기간 상향은 `checkoutAmounts`로 표시한 잔여기간 차액만 일할 청구하며 다음 결제일은 유지한다.
+- 자동결제 동의는 필수이며 당시 동의문, 버전, 요금제, 월 요금, 즉시 청구액, 첫 결제일을 `legal_consent_events`에 append-only로 저장한다. 미동의는 400 `BILLING_CONSENT_REQUIRED`, 오래된 문구 버전은 400 `BILLING_CONSENT_VERSION_INVALID`다. 자동결제 해지·재개도 같은 테이블에 거부/동의 이벤트로 남긴다.
 - `GET` 응답: `serviceState`(`OPEN|TRIAL|ACTIVE|GRACE|RESTRICTED`), `lastPaidAt`, `nextBillingAt`,
   `restrictedFrom`(D+3 00:00 KST), `hasCard`, `autoRenew`, `nextPlan`, `pg`, `checkoutAmounts`, `payments[]`.
 - 빌링키의 `customer.id`가 `store-{storeId}`가 아니거나 설정한 채널이 아니면 `BILLING_KEY_INVALID`.

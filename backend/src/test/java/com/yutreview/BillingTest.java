@@ -2,6 +2,7 @@ package com.yutreview;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -99,6 +100,7 @@ class BillingTest {
     @Autowired Clock clock;
     @Autowired MockMvc mvc;
     @Autowired JwtService jwt;
+    @Autowired LegalConsentEventRepository legalConsentEvents;
 
     Store store;
     String qr;
@@ -207,6 +209,23 @@ class BillingTest {
                 "다음 결제일은 결제예정일에서 한 달 뒤다");
         assertTrue(PAID_BODIES.get(PAID_BODIES.size() - 1).contains("\"total\":9900"), "BASIC도 판다");
         assertEquals(ServiceState.ACTIVE, policy.state(store.id));
+    }
+
+    @Test
+    void checkoutRequiresAndRecordsExplicitAutoPaymentConsent() throws Exception {
+        String auth="Bearer "+jwt.issue(owner);String key=issue();
+        mvc.perform(post("/api/admin/stores/{id}/billing/checkout",store.id).header("Authorization",auth)
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .content("{\"plan\":\"BASIC\",\"billingKey\":\""+key+"\",\"billingConsentAgreed\":false,\"billingConsentVersion\":\"2026-09-28\"}"))
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("BILLING_CONSENT_REQUIRED"));
+        assertFalse(legalConsentEvents.findByAdminIdOrderByCreatedAtDescIdDesc(owner.id).get(0).agreed);
+
+        mvc.perform(post("/api/admin/stores/{id}/billing/checkout",store.id).header("Authorization",auth)
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .content("{\"plan\":\"BASIC\",\"billingKey\":\""+key+"\",\"billingConsentAgreed\":true,\"billingConsentVersion\":\"2026-09-28\"}"))
+            .andExpect(status().isOk());
+        LegalConsentEvent accepted=legalConsentEvents.findByAdminIdOrderByCreatedAtDescIdDesc(owner.id).get(0);
+        assertTrue(accepted.agreed);assertEquals(store.id,accepted.store.id);assertTrue(accepted.detailsJson.contains("\"monthlyPriceKrw\":9900"));
     }
 
     /** 유료기간 상향은 결제주기를 리셋하지 않고 남은 기간의 차액만 일할 청구한다. */

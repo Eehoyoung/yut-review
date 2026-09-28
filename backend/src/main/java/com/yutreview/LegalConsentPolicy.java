@@ -5,6 +5,7 @@ final class LegalConsentPolicy {
     static final String ADMIN_PRIVACY_VERSION = "2026-09-23";
     static final String CUSTOMER_PRIVACY_VERSION = "2026-09-23";
     static final String MARKETING_SMS_VERSION = "2026-09-23";
+    static final String BILLING_AUTO_PAYMENT_VERSION = "2026-09-28";
 
     private LegalConsentPolicy() {}
 

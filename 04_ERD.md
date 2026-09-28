@@ -5,6 +5,8 @@
 erDiagram
     ADMIN_USERS ||--o{ ADMIN_STORE_MEMBERSHIPS : manages
     ADMIN_USERS ||--o{ MARKETING_CONSENT_EVENTS : changes
+    ADMIN_USERS ||--o{ LEGAL_CONSENT_EVENTS : records
+    STORES ||--o{ LEGAL_CONSENT_EVENTS : billing_for
     STORES ||--o{ ADMIN_STORE_MEMBERSHIPS : managed_by
     STORES ||--o{ STORE_QR_CODES : has
     STORES ||--|| STORE_POSTERS : has
@@ -50,6 +52,25 @@ erDiagram
 | changed_at | DATETIME | 선택 시각 |
 
 인덱스: `(admin_user_id, service, changed_at)`
+
+## `legal_consent_events`
+
+필수 이용약관·개인정보 동의와 자동결제 동의/철회를 덮어쓰지 않고 증거로 보존한다.
+
+| Column | Type | Note |
+|---|---|---|
+| id | BIGINT | PK |
+| admin_user_id | BIGINT | FK |
+| store_id | BIGINT | FK, 결제 동의가 아닌 경우 nullable |
+| consent_type | VARCHAR(40) | SERVICE_TERMS / ADMIN_PRIVACY / BILLING_AUTO_PAYMENT |
+| agreed | BOOLEAN | 동의 또는 거부·철회 |
+| document_version | VARCHAR(20) | 표시한 문서 버전 |
+| source | VARCHAR(30) | SIGNUP / BILLING_CHECKOUT / BILLING_SETTINGS |
+| consent_text | TEXT | 당시 표시한 핵심 동의문 |
+| details_json | TEXT | 요금제·금액·첫 결제일 등 동적 조건 |
+| created_at | DATETIME | 선택 시각 |
+
+인덱스: `(admin_user_id, consent_type, created_at)`
 
 ## `stores`
 | Column | Type | Note |

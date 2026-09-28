@@ -26,6 +26,9 @@ interface MarketingConsentEventRepository extends JpaRepository<MarketingConsent
     Optional<MarketingConsentEvent> findFirstByAdminIdAndServiceOrderByChangedAtDescIdDesc(Long adminId,MarketingService service);
     List<MarketingConsentEvent> findByAdminIdOrderByChangedAtDescIdDesc(Long adminId);
 }
+interface LegalConsentEventRepository extends JpaRepository<LegalConsentEvent,Long> {
+    List<LegalConsentEvent> findByAdminIdOrderByCreatedAtDescIdDesc(Long adminId);
+}
 interface StoreRepository extends JpaRepository<Store,Long> {
     Optional<Store> findByBusinessNumber(String businessNumber);
     boolean existsByBusinessNumber(String businessNumber);

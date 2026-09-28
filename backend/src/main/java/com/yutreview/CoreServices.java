@@ -138,7 +138,7 @@ final class Inputs {
         AdminStoreMembership m=new AdminStoreMembership();m.admin=owner;m.store=s;m.role=MembershipRole.OWNER;m.createdAt=now;memberships.save(m);
         StoreQrCode q=new StoreQrCode();q.store=s;q.publicToken=Tokens.random();q.status=QrStatus.ACTIVE;q.createdAt=now;qrs.save(q);
         config.save(s,GameConfigService.defaults());
-        // 가입일을 1일째로 세는 14일 PRO 체험을 즉시 시작한다.
+        // 가입일을 1일째로 세는 30일 PRO 체험을 즉시 시작한다.
         subscriptions.startSignupTrial(s);
         // 포스터 PNG는 이 흐름에서 가장 비싼 작업이라 여기서 만들지 않는다. 가입은 익명 요청이고,
         // 그 자리에서 큰 이미지를 그리면 요청 한 번에 수백 KB를 쌓는 길이 열린다. 예전에는
@@ -261,7 +261,7 @@ final class Inputs {
         /** 개업일자 없이 부르던 자리. 검증이 꺼져 있으면 그 값을 쓰지 않으므로 그대로 둔다. */
         Request(String password,String passwordConfirm,String email,String ownerName,String phone,String storeName,String businessNumber,boolean termsAgreed,String termsVersion,boolean privacyAgreed,String privacyVersion,String marketingVersion,boolean yutReviewMarketing,boolean reviewPilotMarketing,boolean sodamMarketing){this(password,passwordConfirm,email,ownerName,phone,storeName,businessNumber,termsAgreed,termsVersion,privacyAgreed,privacyVersion,marketingVersion,yutReviewMarketing,reviewPilotMarketing,sodamMarketing,"","");}
     }
-    private final AdminUserRepository admins;private final StoreRepository stores;private final StoreProvisioningService provisioning;private final PasswordEncoder encoder;private final Clock clock;private final MarketingConsentService marketingConsents;private final SignupAttemptLimiter limiter;private final BusinessRegistryService businessRegistry;private final InviteCodeService invites;
+    private final AdminUserRepository admins;private final StoreRepository stores;private final StoreProvisioningService provisioning;private final PasswordEncoder encoder;private final Clock clock;private final MarketingConsentService marketingConsents;private final LegalConsentService legalConsents;private final SignupAttemptLimiter limiter;private final BusinessRegistryService businessRegistry;private final InviteCodeService invites;
     /**
      * 쓰기 구간만 감싸는 트랜잭션.
      *
@@ -270,7 +270,7 @@ final class Inputs {
      * 계정·매장·멤버십·QR의 원자성은 이 템플릿이 그대로 보장한다.
      */
     private final org.springframework.transaction.support.TransactionTemplate writes;
-    AdminSignupService(AdminUserRepository admins,StoreRepository stores,StoreProvisioningService provisioning,PasswordEncoder encoder,Clock clock,MarketingConsentService marketingConsents,SignupAttemptLimiter limiter,BusinessRegistryService businessRegistry,InviteCodeService invites,org.springframework.transaction.PlatformTransactionManager transactions){this.admins=admins;this.stores=stores;this.provisioning=provisioning;this.encoder=encoder;this.clock=clock;this.marketingConsents=marketingConsents;this.limiter=limiter;this.businessRegistry=businessRegistry;this.invites=invites;this.writes=new org.springframework.transaction.support.TransactionTemplate(transactions);}
+    AdminSignupService(AdminUserRepository admins,StoreRepository stores,StoreProvisioningService provisioning,PasswordEncoder encoder,Clock clock,MarketingConsentService marketingConsents,LegalConsentService legalConsents,SignupAttemptLimiter limiter,BusinessRegistryService businessRegistry,InviteCodeService invites,org.springframework.transaction.PlatformTransactionManager transactions){this.admins=admins;this.stores=stores;this.provisioning=provisioning;this.encoder=encoder;this.clock=clock;this.marketingConsents=marketingConsents;this.legalConsents=legalConsents;this.limiter=limiter;this.businessRegistry=businessRegistry;this.invites=invites;this.writes=new org.springframework.transaction.support.TransactionTemplate(transactions);}
     StoreProvisioningService.Provisioned signUp(Request r){return signUp(r,"http://localhost:8088",null);}
     StoreProvisioningService.Provisioned signUp(Request r,String publicOrigin){return signUp(r,publicOrigin,null);}
 
@@ -312,6 +312,7 @@ final class Inputs {
             a.inviteCode=invites.issue();
             if(resolvedInviter!=null){a.invitedBy=resolvedInviter;a.invitedByCode=resolvedInviteCode;}
             admins.save(a);
+            legalConsents.recordSignup(a);
             marketingConsents.recordInitial(a,Map.of(MarketingService.YUT_REVIEW,r.yutReviewMarketing,MarketingService.REVIEW_PILOT,r.reviewPilotMarketing,MarketingService.SODAM,r.sodamMarketing),r.marketingVersion);
             StoreProvisioningService.Provisioned p=provisioning.provision(a,storeName,phone,null,business,null,null,publicOrigin);
             // 확인에 쓴 세 값을 매장에 묶어 둔다. 소유권이 넘어가도 이 매장이 어느 사업자로

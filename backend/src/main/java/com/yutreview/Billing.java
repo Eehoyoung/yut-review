@@ -476,12 +476,12 @@ enum ServiceState { OPEN, TRIAL, ACTIVE, GRACE, RESTRICTED }
 }
 
 @RestController @RequestMapping("/api/admin/stores/{storeId}/billing") class BillingController {
-    private final BillingService billing;private final StoreAccessService access;private final StoreSubscriptionRepository subscriptions;private final AdminUserRepository admins;
-    BillingController(BillingService billing,StoreAccessService access,StoreSubscriptionRepository subscriptions,AdminUserRepository admins){
-        this.billing=billing;this.access=access;this.subscriptions=subscriptions;this.admins=admins;
+    private final BillingService billing;private final StoreAccessService access;private final StoreSubscriptionRepository subscriptions;private final AdminUserRepository admins;private final StoreRepository stores;private final LegalConsentService legalConsents;
+    BillingController(BillingService billing,StoreAccessService access,StoreSubscriptionRepository subscriptions,AdminUserRepository admins,StoreRepository stores,LegalConsentService legalConsents){
+        this.billing=billing;this.access=access;this.subscriptions=subscriptions;this.admins=admins;this.stores=stores;this.legalConsents=legalConsents;
     }
 
-    record Checkout(@NotNull Plan plan,@NotBlank @Size(max=200) String billingKey){}
+    record Checkout(@NotNull Plan plan,@NotBlank @Size(max=200) String billingKey,boolean billingConsentAgreed,@NotBlank @Size(max=20) String billingConsentVersion){}
     record AutoRenew(boolean on){}
 
     /** 결제창에 넘길 값과 현재 결제 상태. 화면이 채널 키를 복제해 들고 있지 않게 서버가 준다. */
@@ -525,14 +525,21 @@ enum ServiceState { OPEN, TRIAL, ACTIVE, GRACE, RESTRICTED }
     }
 
     @PostMapping("/checkout") ApiResponse<?> checkout(@PathVariable Long storeId,@Valid @RequestBody Checkout body,Authentication auth){
-        StoreSubscription s=billing.checkout((Long)auth.getPrincipal(),storeId,body.plan(),body.billingKey().trim());
+        Long adminId=(Long)auth.getPrincipal();
+        AdminUser admin=billing.requireOwner(adminId,storeId);Store store=stores.findById(storeId).orElseThrow();
+        StoreSubscription before=subscriptions.findByStoreId(storeId).orElseThrow();
+        BillingService.CheckoutPrice price=billing.checkoutPrice(storeId,body.plan());
+        legalConsents.recordBillingChoice(admin,store,body.billingConsentAgreed(),body.billingConsentVersion(),body.plan(),price.amount(),before.nextBillingAt,"BILLING_CHECKOUT");
+        if(!body.billingConsentAgreed())throw new AppException("BILLING_CONSENT_REQUIRED","자동결제에 동의해 주세요.");
+        StoreSubscription s=billing.checkout(adminId,storeId,body.plan(),body.billingKey().trim());
         Map<String,Object> out=new LinkedHashMap<>();
         out.put("plan",s.plan.name());out.put("nextBillingAt",s.nextBillingAt);out.put("lastPaidAt",s.lastPaidAt);
         return ApiResponse.ok(out);
     }
 
     @PutMapping("/auto-renew") ApiResponse<?> autoRenew(@PathVariable Long storeId,@RequestBody AutoRenew body,Authentication auth){
-        StoreSubscription s=billing.setAutoRenew((Long)auth.getPrincipal(),storeId,body.on());
+        Long adminId=(Long)auth.getPrincipal();StoreSubscription s=billing.setAutoRenew(adminId,storeId,body.on());
+        legalConsents.recordAutoRenew(admins.findById(adminId).orElseThrow(),stores.findById(storeId).orElseThrow(),body.on(),s.plan,s.nextBillingAt);
         return ApiResponse.ok(Map.of("autoRenew",Boolean.TRUE.equals(s.autoRenew)));
     }
 }

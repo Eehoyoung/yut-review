@@ -13,6 +13,7 @@ import {
   priceLabel,
 } from "@/features/admin/labels";
 import type { AiFeature, Billing, Plan, PlanOption, Subscription } from "@/types/api";
+import { BILLING_AUTO_PAYMENT_VERSION } from "@/lib/legal";
 
 const ENTITLEMENT_LABEL: Record<string, string> = {
   BASIC_ANALYTICS: "기본 통계",
@@ -50,12 +51,14 @@ export default function PlanPage() {
   });
   const [channelKey, setChannelKey] = useState("");
   const [sdkError, setSdkError] = useState("");
+  const [billingConsentAgreed, setBillingConsentAgreed] = useState(false);
+  const consentKey = `billing-consent:${id}`;
   const refresh = () => {
     for (const key of ["subscription", "billing", "ai-status", "analytics"]) qc.invalidateQueries({ queryKey: [key, id] });
   };
   const checkout = useMutation({
     mutationFn: ({ plan, billingKey }: { plan: Plan; billingKey: string }) =>
-      api(`/admin/stores/${id}/billing/checkout`, { method: "POST", body: JSON.stringify({ plan, billingKey }) }),
+      api(`/admin/stores/${id}/billing/checkout`, { method: "POST", body: JSON.stringify({ plan, billingKey, billingConsentAgreed: true, billingConsentVersion: BILLING_AUTO_PAYMENT_VERSION }) }),
     onSuccess: refresh,
   });
   const autoRenew = useMutation({
@@ -79,10 +82,19 @@ export default function PlanPage() {
     if (!plan || (!billingKey && !q.get("code"))) return;
     window.history.replaceState(null, "", window.location.pathname);
     if (q.get("code")) setSdkError(q.get("message") ?? "결제수단을 등록하지 못했어요.");
-    else if (billingKey) finishCheckout({ plan, billingKey });
-  }, [finishCheckout]);
+    else if (billingKey) {
+      const consentedPlan = sessionStorage.getItem(consentKey);
+      sessionStorage.removeItem(consentKey);
+      if (consentedPlan === plan) finishCheckout({ plan, billingKey });
+      else setSdkError("자동결제 동의를 다시 확인해 주세요.");
+    }
+  }, [consentKey, finishCheckout]);
 
   async function register(plan: Plan) {
+    if (!billingConsentAgreed) {
+      setSdkError("자동결제 동의 항목을 확인해 주세요.");
+      return;
+    }
     const info = billing.data;
     const channel = channelKey || info?.channels[0]?.channelKey;
     if (!info || !channel) return;
@@ -90,6 +102,7 @@ export default function PlanPage() {
     const option = plans.data?.find((p) => p.plan === plan);
     const chargeNow = info.checkoutAmounts?.[plan] ?? option?.monthlyPriceKrw;
     const PortOne = await import("@portone/browser-sdk/v2");
+    sessionStorage.setItem(consentKey, plan);
     const result = await PortOne.requestIssueBillingKey({
       storeId: info.portoneStoreId,
       channelKey: channel,
@@ -109,6 +122,7 @@ export default function PlanPage() {
       redirectUrl: `${window.location.origin}${window.location.pathname}?plan=${plan}`,
     });
     if (!result) return; // 모바일: 페이지를 떠났다가 위 useEffect로 돌아온다.
+    sessionStorage.removeItem(consentKey);
     if (result.code !== undefined) {
       setSdkError(result.message ?? "결제수단을 등록하지 못했어요.");
       return;
@@ -242,6 +256,16 @@ export default function PlanPage() {
               </select>
             </label>
           )}
+          <label className="row" style={{ alignItems: "flex-start" }}>
+            <input
+              type="checkbox"
+              checked={billingConsentAgreed}
+              onChange={(e) => setBillingConsentAgreed(e.target.checked)}
+            />
+            <span className="lead">
+              무료체험 종료 또는 결제주기 도래 시 선택한 요금제의 월 이용료가 등록 카드로 자동결제되는 데 동의합니다. (필수)
+            </span>
+          </label>
           {paidPeriod && (
             <button className="btn secondary" disabled={busy} onClick={() => register(now)}>
               카드 변경
