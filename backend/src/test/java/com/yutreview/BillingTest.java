@@ -216,9 +216,11 @@ class BillingTest {
         billing.checkout(owner.id, store.id, Plan.BASIC, issue());
 
         StoreSubscription before = row();
+        before.nextBillingAt = before.nextBillingAt.minus(Duration.ofDays(10));
+        subscriptions.save(before);
         Instant originalNext = before.nextBillingAt;
         int expected = billing.proratedUpgradeAmount(before, Plan.PRO, Instant.now());
-        assertTrue(expected >= 0 && expected < Plan.PRO.monthlyPriceKrw - Plan.BASIC.monthlyPriceKrw);
+        assertTrue(expected > 0 && expected < Plan.PRO.monthlyPriceKrw - Plan.BASIC.monthlyPriceKrw);
 
         StoreSubscription upgraded = billing.checkout(owner.id, store.id, Plan.PRO, issue());
         assertEquals(Plan.PRO, upgraded.plan);
