@@ -216,7 +216,8 @@ class BillingTest {
         billing.checkout(owner.id, store.id, Plan.BASIC, issue());
 
         StoreSubscription before = row();
-        before.nextBillingAt = before.nextBillingAt.minus(Duration.ofDays(10));
+        before.billingPeriodStartedAt = before.billingPeriodStartedAt.minus(Duration.ofDays(15));
+        before.nextBillingAt = before.nextBillingAt.minus(Duration.ofDays(15));
         subscriptions.save(before);
         Instant originalNext = before.nextBillingAt;
         int expected = billing.proratedUpgradeAmount(before, Plan.PRO, Instant.now());
