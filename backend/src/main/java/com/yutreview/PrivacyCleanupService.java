@@ -48,7 +48,7 @@ class PrivacyCleanupService {
     private int anonymizeBatch(LocalDate cutoff, Instant now, int batchSize) {
         List<Long> ids = entityManager.createQuery("""
                 select g.id from GamePlay g
-                where g.playedDate < :cutoff
+                where g.playedDate <= :cutoff
                   and g.customerNameEncrypted <> :anonymized
                   and not exists (
                     select c.id from Coupon c
