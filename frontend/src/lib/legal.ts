@@ -1,4 +1,5 @@
-export const TERMS_VERSION = "2026-09-23";
+export const TERMS_VERSION = "2026-09-28";
+export const BILLING_POLICY_VERSION = "2026-09-28";
 export const ADMIN_PRIVACY_VERSION = "2026-09-23";
 export const CUSTOMER_PRIVACY_VERSION = "2026-09-23";
 export const MARKETING_SMS_VERSION = "2026-09-23";
@@ -22,6 +23,6 @@ export const legalOperator = {
   representative: publicLegalValue(process.env.NEXT_PUBLIC_LEGAL_REPRESENTATIVE, "이호영"),
   businessNumber: publicLegalValue(process.env.NEXT_PUBLIC_LEGAL_BUSINESS_NUMBER, "358-23-02207"),
   address: publicLegalValue(process.env.NEXT_PUBLIC_LEGAL_ADDRESS, "경기도 고양시 덕양구 화정로 53-1, 709 - 가1호(화정동)"),
-  email: process.env.NEXT_PUBLIC_LEGAL_EMAIL || "사업자등록 완료 후 공개",
+  email: process.env.NEXT_PUBLIC_LEGAL_EMAIL || "sodamlabs@gmail.com",
   phone: publicLegalValue(process.env.NEXT_PUBLIC_LEGAL_PHONE, "010-9352-3827"),
 };
