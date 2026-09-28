@@ -259,7 +259,7 @@ enum ServiceState { OPEN, TRIAL, ACTIVE, GRACE, RESTRICTED }
     int proratedUpgradeAmount(StoreSubscription s,Plan target,Instant now){
         if(s.nextBillingAt==null||target.ordinal()<=s.plan.ordinal())return 0;
         LocalDate end=s.nextBillingAt.atZone(clock.getZone()).toLocalDate();
-        LocalDate start=end.minusMonths(1);
+        LocalDate start=billingPeriodStart(s).atZone(clock.getZone()).toLocalDate();
         LocalDate today=now.atZone(clock.getZone()).toLocalDate();
         long totalDays=ChronoUnit.DAYS.between(start,end);
         long remainingDays=ChronoUnit.DAYS.between(today,end);
@@ -267,6 +267,12 @@ enum ServiceState { OPEN, TRIAL, ACTIVE, GRACE, RESTRICTED }
         remainingDays=Math.min(remainingDays,totalDays);
         long monthlyDifference=(long)target.monthlyPriceKrw-s.plan.monthlyPriceKrw;
         return (int)(monthlyDifference*remainingDays/totalDays);
+    }
+
+    private Instant billingPeriodStart(StoreSubscription s){
+        if(s.billingPeriodStartedAt!=null)return s.billingPeriodStartedAt;
+        if(s.lastPaidAt!=null)return s.lastPaidAt;
+        return s.nextBillingAt.atZone(clock.getZone()).minusMonths(1).toInstant();
     }
 
     /** 결제는 매장 대표만. 매니저가 대표 카드로 등급을 올리는 일을 막는다. */
@@ -307,7 +313,10 @@ enum ServiceState { OPEN, TRIAL, ACTIVE, GRACE, RESTRICTED }
             }
 
             boolean proratedUpgrade=paidPeriod&&plan.ordinal()>s.plan.ordinal();
+            Instant currentPeriodStart=proratedUpgrade?billingPeriodStart(s):null;
             int amount=proratedUpgrade?proratedUpgradeAmount(s,plan,now):plan.monthlyPriceKrw;
+            Instant periodStart=state==ServiceState.GRACE?s.nextBillingAt
+                :proratedUpgrade?currentPeriodStart:now;
             Instant next=state==ServiceState.GRACE?oneMonthFrom(s.nextBillingAt)
                 :proratedUpgrade?s.nextBillingAt:oneMonthFrom(now);
             String paymentId="sub-"+storeId+"-"+UUID.randomUUID().toString().replace("-","").substring(0,20);
@@ -329,6 +338,7 @@ enum ServiceState { OPEN, TRIAL, ACTIVE, GRACE, RESTRICTED }
                 row.plan=plan;row.status=SubscriptionStatus.ACTIVE;row.trialEndsAt=null;row.nextPlan=null;
                 row.billingKey=billingKey;row.billingChannelKey=channelKey;row.autoRenew=true;row.renewalFailures=0;
                 if(amount>0)row.lastPaidAt=now;
+                row.billingPeriodStartedAt=periodStart;
                 row.nextBillingAt=next;row.updatedAt=now;
                 row.note=proratedUpgrade?plan.name()+" 업그레이드 일할결제":plan.name()+" 결제";
                 return subscriptions.save(row);
@@ -371,7 +381,8 @@ enum ServiceState { OPEN, TRIAL, ACTIVE, GRACE, RESTRICTED }
             switch(charge.outcome()){
                 case PAID->writes.executeWithoutResult(t->{
                     StoreSubscription row=subscriptions.findByStoreId(storeId).orElseThrow();
-                    row.lastPaidAt=now;row.nextBillingAt=oneMonthFrom(row.nextBillingAt);
+                    row.lastPaidAt=now;row.billingPeriodStartedAt=row.nextBillingAt;
+                    row.nextBillingAt=oneMonthFrom(row.nextBillingAt);
                     row.plan=plan;row.nextPlan=null;row.trialEndsAt=null;row.renewalFailures=0;row.updatedAt=now;
                     row.note=plan.name()+" 자동결제";
                     subscriptions.save(row);
