@@ -87,6 +87,8 @@ export default function PlanPage() {
     const channel = channelKey || info?.channels[0]?.channelKey;
     if (!info || !channel) return;
     setSdkError("");
+    const option = plans.data?.find((p) => p.plan === plan);
+    const chargeNow = info.checkoutAmounts?.[plan] ?? option?.monthlyPriceKrw;
     const PortOne = await import("@portone/browser-sdk/v2");
     const result = await PortOne.requestIssueBillingKey({
       storeId: info.portoneStoreId,
@@ -94,7 +96,7 @@ export default function PlanPage() {
       billingKeyMethod: "CARD",
       issueId: `bk${id}t${Date.now()}`,
       issueName: `소담한판 ${PLAN_LABEL[plan]} 월 정기결제`,
-      displayAmount: plans.data?.find((p) => p.plan === plan)?.monthlyPriceKrw,
+      displayAmount: chargeNow && chargeNow > 0 ? chargeNow : option?.monthlyPriceKrw,
       currency: "KRW",
       // KG이니시스 모바일은 제공 기간이, PC는 이름·연락처·이메일이 없으면 결제창이 열리지 않는다.
       offerPeriod: { interval: "1m" },
@@ -178,7 +180,7 @@ export default function PlanPage() {
         <p className="insight-summary">{PLAN_TAGLINE[now]}</p>
         {current.data.trial && current.data.trialEndsAt && (
           <p className="insight-summary">
-            가입일 기준 14일 무료체험 · {new Date(current.data.trialEndsAt).toLocaleString("ko-KR")}에 종료
+            가입일 기준 30일 무료체험 · {new Date(current.data.trialEndsAt).toLocaleString("ko-KR")}에 종료
           </p>
         )}
       </section>
@@ -351,7 +353,9 @@ export default function PlanPage() {
                         : `카드 등록 · 체험 후 ${PLAN_LABEL[plan]} ${priceLabel(option.monthlyPriceKrw)}`
                       : paidPeriod && !isUpgrade
                         ? `다음 결제부터 ${PLAN_LABEL[plan]}`
-                        : `카드 등록하고 ${PLAN_LABEL[plan]} 결제 · ${priceLabel(option.monthlyPriceKrw)}`}
+                        : paidPeriod && isUpgrade
+                          ? `지금 ${priceLabel(pay.checkoutAmounts?.[plan] ?? option.monthlyPriceKrw)} 결제 · ${PLAN_LABEL[plan]}로 올리기`
+                          : `카드 등록하고 ${PLAN_LABEL[plan]} 결제 · ${priceLabel(option.monthlyPriceKrw)}`}
                   </button>
                 )
               : !isCurrent && (
@@ -362,6 +366,9 @@ export default function PlanPage() {
           </section>
         );
       })}
+        <p className="hint">
+          상위 요금제로 바꾸면 남은 이용기간의 요금 차액만 일할 계산해 즉시 결제하고, 다음 결제일부터 새 월 이용료가 적용돼요.
+        </p>
       </section>
 
       {(sdkError || checkout.isError || autoRenew.isError) && (
