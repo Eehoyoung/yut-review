@@ -2,12 +2,12 @@
 import { FormEvent, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { ApiClientError, api, errorMessage } from "@/lib/api";
 import { useSession } from "@/lib/session";
 import { PHONE_LENGTH, isPhone, onlyDigits } from "@/features/normalize";
-import type { Coupon, CustomerState, GameCreated } from "@/types/api";
-import { CUSTOMER_PRIVACY_VERSION } from "@/lib/legal";
+import type { Coupon, CustomerState, GameCreated, StoreSummary } from "@/types/api";
+import { CUSTOMER_PRIVACY_VERSION, legalOperator } from "@/lib/legal";
 
 /**
  * 입력 검증. 첫 번째 문제와 그 칸의 id를 함께 돌려준다.
@@ -28,6 +28,11 @@ export default function Identify() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [agreed, setAgreed] = useState(false);
+  const store = useQuery({
+    queryKey: ["store", token],
+    queryFn: () => api<StoreSummary>(`/public/stores/by-token/${encodeURIComponent(token)}`),
+    staleTime: 60_000,
+  });
   // 제출을 눌러 본 뒤에만 이유를 말한다. 이름을 치는 중에 아직 오지도 않은
   // 전화번호 칸을 지적하면 손님에게는 잔소리로 읽힌다.
   const [tried, setTried] = useState(false);
@@ -132,9 +137,14 @@ export default function Identify() {
             <input id="agree" type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} required />
             <span><b>[필수]</b> 개인정보 수집·이용에 동의합니다.</span>
           </label>
+          <small className="hint">
+            개인정보처리자: {store.data?.name ?? "이벤트 운영 매장"} · 처리수탁자: {legalOperator.businessName}
+          </small>
           <details className="consent-details">
             <summary>개인정보 수집·이용 안내</summary>
             <div className="consent-summary" aria-describedby="agree">
+              <p><b>개인정보처리자:</b> {store.data?.name ?? "이벤트 운영 매장"}</p>
+              <p><b>처리수탁자:</b> {legalOperator.businessName} — 참여 확인, 중복 참여 제한, 게임·쿠폰 처리, 보관·익명화</p>
               <p><b>수집:</b> 이름, 휴대폰 번호, 참여·게임·쿠폰 정보</p>
               <p><b>목적:</b> 참여 제한 확인, 게임·쿠폰 제공 및 사용 처리</p>
               <p><b>보유:</b> 참여일 포함 120일. 유효한 미사용 쿠폰은 만료 후 익명화</p>
