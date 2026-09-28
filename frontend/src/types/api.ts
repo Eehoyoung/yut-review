@@ -64,6 +64,8 @@ export interface Billing {
   nextPlan?: Plan | null;
   pg?: BillingChannel["pg"] | null;
   renewalFailures?: number;
+  /** 지금 이 요금제를 선택할 때 즉시 청구될 금액. 체험/하향은 0원, 유료기간 상향은 일할 차액. */
+  checkoutAmounts?: Partial<Record<Plan, number>>;
   payments: BillingPayment[];
 }
 
