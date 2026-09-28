@@ -22,7 +22,8 @@ export interface PlanOption {
 }
 
 export interface Subscription {
-  plan: Plan;
+  plan: Plan | null;
+  serviceState: "OPEN" | "TRIAL" | "ACTIVE" | "GRACE" | "RESTRICTED";
   monthlyPriceKrw: number;
   entitlements: string[];
   aiFeatures: AiFeature[];
@@ -32,6 +33,8 @@ export interface Subscription {
   startedAt?: string;
   trial?: boolean;
   trialEndsAt?: string;
+  trialStartedAt?: string;
+  trialEndedAt?: string;
   note?: string;
 }
 

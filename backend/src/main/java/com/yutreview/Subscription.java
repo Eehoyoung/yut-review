@@ -154,6 +154,8 @@ class SubscriptionService {
         s.status = SubscriptionStatus.ACTIVE;
         LocalDate signupDate = now.atZone(clock.getZone()).toLocalDate();
         s.trialEndsAt = signupDate.plusDays(SIGNUP_TRIAL_DAYS).atTime(0, 1).atZone(clock.getZone()).toInstant();
+        s.trialStartedAt = now;
+        s.trialEndedAt = s.trialEndsAt;
         // 체험 종료일이 첫 결제예정일이다. 결제가 없으면 D+2까지 서비스하고 그 뒤 이용을 제한한다.
         s.nextBillingAt = s.trialEndsAt;
         s.updatedAt = now;

@@ -103,6 +103,20 @@ erDiagram
 UNIQUE(admin_user_id, store_id)
 ```
 
+## `store_subscriptions`
+
+| Column | Type | Note |
+|---|---|---|
+| store_id | BIGINT | FK, UNIQUE |
+| plan | VARCHAR(20) | 마지막 선택 요금제 |
+| trial_ends_at | DATETIME | 진행 중인 무료체험 종료 시각, 종료 뒤 nullable |
+| trial_started_at | DATETIME | 최초 무료체험 시작 이력 |
+| trial_ended_at | DATETIME | 최초 무료체험 종료 이력 |
+| last_paid_at | DATETIME | 최근 결제일 |
+| next_billing_at | DATETIME | 결제예정일 |
+
+`trial_started_at`, `trial_ended_at`은 체험 종료 후에도 화면과 감사 이력을 위해 지우지 않는다.
+
 ## `store_qr_codes`
 | Column | Type | Note |
 |---|---|---|

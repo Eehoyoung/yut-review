@@ -187,6 +187,9 @@ enum AccountRecoveryPurpose { FIND_EMAIL, RESET_PASSWORD }
     @Column(nullable=false) Instant startedAt; @Column(nullable=false) Instant updatedAt;
     /** 가입일 기준 PRO 체험 종료 시각. null이면 체험 구독이 아니다. */
     @Column(name="trial_ends_at") Instant trialEndsAt;
+    /** 체험이 끝나도 계정 화면에서 이력을 보여 주기 위한 최초 체험 기간 스냅샷. */
+    @Column(name="trial_started_at") Instant trialStartedAt;
+    @Column(name="trial_ended_at") Instant trialEndedAt;
     /** 마지막 변경 사유(운영자 조작, 체험 종료, 결제). */
     @Column(length=200) String note;
     /**

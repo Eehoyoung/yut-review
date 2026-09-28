@@ -167,15 +167,26 @@ export default function PlanPage() {
   // 결제로 산 기간 안인가. 이때만 같은 등급 카드 변경·다음 결제부터 내리기가 된다.
   const paidPeriod = state === "ACTIVE" && !!pay?.lastPaidAt;
   const date = (iso?: string) => (iso ? new Date(iso).toLocaleDateString("ko-KR") : "-");
+  const compactDate = (iso?: string) => {
+    if (!iso) return "-";
+    const parts = new Intl.DateTimeFormat("ko-KR", {
+      timeZone: "Asia/Seoul",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(new Date(iso));
+    const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? "";
+    return `${value("year")}${value("month")}${value("day")}`;
+  };
   // 제한은 D+3 00:00부터라 사람에게는 그 전날(D+2)까지라고 말한다.
   const lastServiceDay = pay?.restrictedFrom ? date(new Date(new Date(pay.restrictedFrom).getTime() - 1).toISOString()) : "-";
   const busy = checkout.isPending || autoRenew.isPending;
-  const nowIndex = ORDER.indexOf(now);
+  const nowIndex = now ? ORDER.indexOf(now) : -1;
   const byPlan = new Map(plans.data.map((p) => [p.plan, p]));
 
   /** 지금 등급에 이미 있는 것은 빼고, 올리면 더해지는 것만 보여 준다. */
   function addedBy(option: PlanOption) {
-    const mine = byPlan.get(now);
+    const mine = now ? byPlan.get(now) : undefined;
     const has = new Set([...(mine?.entitlements ?? []), ...(mine?.aiFeatures ?? [])]);
     return [
       ...option.entitlements.filter((e) => !has.has(e)).map((e) => ENTITLEMENT_LABEL[e] ?? e),
@@ -189,14 +200,20 @@ export default function PlanPage() {
       <section className="insight admin-section" aria-labelledby="current-plan-title">
         <p className="insight-when">사용 중</p>
         <h2 className="insight-title" id="current-plan-title">
-          {PLAN_LABEL[now]} · {priceLabel(current.data.monthlyPriceKrw)}
+          {now ? `${PLAN_LABEL[now]} · ${priceLabel(current.data.monthlyPriceKrw)}` : "요금제 없음 · 이용 제한"}
         </h2>
-        <p className="insight-summary">{PLAN_TAGLINE[now]}</p>
+        <p className="insight-summary">{now ? PLAN_TAGLINE[now] : "결제를 완료하면 선택한 요금제로 즉시 다시 이용할 수 있어요."}</p>
         {current.data.trial && current.data.trialEndsAt && (
           <p className="insight-summary">
             가입일 기준 30일 무료체험 · {new Date(current.data.trialEndsAt).toLocaleString("ko-KR")}에 종료
           </p>
         )}
+        <div className="list">
+          <div className="list-item"><span className="lead">무료체험 시작</span><span className="name">{compactDate(current.data.trialStartedAt)}</span></div>
+          <div className="list-item"><span className="lead">무료체험 종료</span><span className="name">{compactDate(current.data.trialEndedAt)}</span></div>
+          <div className="list-item"><span className="lead">결제일</span><span className="name">{compactDate(pay?.lastPaidAt)}</span></div>
+          <div className="list-item"><span className="lead">결제예정일</span><span className="name">{compactDate(pay?.nextBillingAt)}</span></div>
+        </div>
       </section>
 
       {canPay && (
@@ -266,7 +283,7 @@ export default function PlanPage() {
               무료체험 종료 또는 결제주기 도래 시 선택한 요금제의 월 이용료가 등록 카드로 자동결제되는 데 동의합니다. (필수)
             </span>
           </label>
-          {paidPeriod && (
+          {paidPeriod && now && (
             <button className="btn secondary" disabled={busy} onClick={() => register(now)}>
               카드 변경
             </button>
@@ -279,9 +296,9 @@ export default function PlanPage() {
           {pay.payments.length > 0 && (
             <div className="list">
               {pay.payments.map((p) => (
-                <div className="list-item" key={p.createdAt}>
+                <div className="list-item" key={`${p.createdAt}-${p.plan}-${p.amount}`}>
                   <span className="lead">
-                    {new Date(p.createdAt).toLocaleDateString("ko-KR")} · {PLAN_LABEL[p.plan]}
+                    {compactDate(p.createdAt)} · {PLAN_LABEL[p.plan]}
                     {p.failureReason && ` · ${p.failureReason}`}
                   </span>
                   <span className="name">

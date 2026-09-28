@@ -730,6 +730,7 @@ Request(PUT):
 
 신규 가입 매장의 `PRO` 무료체험은 가입일을 1일째로 30일간 적용된다. 가입 응답 이후 즉시
 `trial: true`, `trialEndsAt`(31일째 00:01, `Asia/Seoul`을 ISO-8601로 변환)을 반환한다.
+`trialStartedAt`, `trialEndedAt`은 체험 종료 뒤에도 계정의 체험 이력 표시를 위해 유지한다.
 체험 중 카드를 등록하면 해당 시각에 선택한 요금제로 첫 정기결제를 시도한다. 카드가 없으면
 `BASIC`으로 전환되고 결제 유예기간 뒤 이용이 제한될 수 있다.
 구독 행이 없는 매장도 `BASIC`으로 응답한다. 위 `PUT`은 운영자 수동 조정용이며, 매장의 유료 전환은
@@ -753,6 +754,8 @@ PUT  /api/admin/stores/{storeId}/billing/auto-renew   # 대표만: { "on": false
 - 이용 제한(D+3 00:00부터): 손님 API는 403 `STORE_PAYMENT_REQUIRED`, 사장의 매장 API는 402
   `SUBSCRIPTION_PAYMENT_REQUIRED`. `/billing`, `/subscription`, `GET /admin/stores/{id}`(`serviceSuspended`)는 열려 있다.
   `GET /admin/stores` 목록에 `serviceState`가 붙는다.
+- `serviceState=RESTRICTED`인 동안 `GET /subscription`은 `plan:null`, `monthlyPriceKrw:0`, 빈 권한 목록을 내려
+  화면에 `요금제 없음`으로 표시한다. 마지막 선택 요금제와 결제 이력은 복구·감사를 위해 DB에 보존한다.
 
 `analyticsRetentionDays`는 **비식별 집계**에만 적용된다. 고객 개인정보 보존은 요금제와 무관하게
 120일 기준을 유지한다.
