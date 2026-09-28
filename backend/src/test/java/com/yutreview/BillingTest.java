@@ -185,6 +185,8 @@ class BillingTest {
     void signupSetsTheTrialEndAsTheFirstBillingDate() {
         StoreSubscription s = row();
         assertEquals(s.trialEndsAt, s.nextBillingAt);
+        assertNotNull(s.trialStartedAt);
+        assertEquals(s.trialEndsAt, s.trialEndedAt);
         assertNull(s.lastPaidAt);
         assertEquals(ServiceState.TRIAL, policy.state(store.id));
     }
@@ -205,6 +207,8 @@ class BillingTest {
         StoreSubscription after = row();
         assertEquals(Plan.BASIC, after.plan);
         assertNotNull(after.lastPaidAt);
+        assertNotNull(after.trialStartedAt);
+        assertEquals(trialEnd, after.trialEndedAt);
         assertEquals(due.atZone(clock.getZone()).plusMonths(1).toInstant(), after.nextBillingAt,
                 "다음 결제일은 결제예정일에서 한 달 뒤다");
         assertTrue(PAID_BODIES.get(PAID_BODIES.size() - 1).contains("\"total\":9900"), "BASIC도 판다");
@@ -394,6 +398,11 @@ class BillingTest {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.serviceSuspended").value(true));
         mvc.perform(get("/api/admin/stores/{id}/billing", store.id).header("Authorization", auth))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.serviceState").value("RESTRICTED"));
+        mvc.perform(get("/api/admin/stores/{id}/subscription", store.id).header("Authorization", auth))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.serviceState").value("RESTRICTED"))
+                .andExpect(jsonPath("$.data.plan").doesNotExist())
+                .andExpect(jsonPath("$.data.monthlyPriceKrw").value(0))
+                .andExpect(jsonPath("$.data.entitlements.length()").value(0));
         mvc.perform(get("/api/admin/stores/{id}/analytics/summary", store.id).header("Authorization", auth))
                 .andExpect(status().isPaymentRequired())
                 .andExpect(jsonPath("$.error.code").value("SUBSCRIPTION_PAYMENT_REQUIRED"));

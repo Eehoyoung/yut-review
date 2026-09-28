@@ -126,16 +126,18 @@ class SubscriptionController {
     private final StoreAccessService access;
     private final StoreRepository stores;
     private final AdminUserRepository admins;
+    private final ServiceAccessPolicy servicePolicy;
     private final java.time.Clock clock;
 
     SubscriptionController(SubscriptionService subscriptions, PlanEntitlementService entitlements,
                            StoreAccessService access, StoreRepository stores, AdminUserRepository admins,
-                           java.time.Clock clock) {
+                           ServiceAccessPolicy servicePolicy, java.time.Clock clock) {
         this.subscriptions = subscriptions;
         this.entitlements = entitlements;
         this.access = access;
         this.stores = stores;
         this.admins = admins;
+        this.servicePolicy = servicePolicy;
         this.clock = clock;
     }
 
@@ -192,18 +194,25 @@ class SubscriptionController {
 
     private Map<String, Object> view(Long storeId, Plan plan) {
         Map<String, Object> out = new java.util.LinkedHashMap<>();
-        out.put("plan", plan.name());
-        out.put("monthlyPriceKrw", plan.monthlyPriceKrw);
-        out.put("entitlements", entitlements.entitlements(plan).stream().map(Enum::name).sorted().toList());
-        out.put("aiFeatures", entitlements.aiFeatures(plan).stream().map(Enum::name).sorted().toList());
-        out.put("analyticsRetentionDays", plan.analyticsRetentionDays);
-        entitlements.analyticsFloor(plan, LocalDate.now(clock))
+        ServiceState serviceState=servicePolicy.state(storeId);
+        boolean restricted=serviceState==ServiceState.RESTRICTED;
+        out.put("serviceState",serviceState.name());
+        out.put("plan",restricted?null:plan.name());
+        out.put("monthlyPriceKrw",restricted?0:plan.monthlyPriceKrw);
+        out.put("entitlements",restricted?List.of():entitlements.entitlements(plan).stream().map(Enum::name).sorted().toList());
+        out.put("aiFeatures",restricted?List.of():entitlements.aiFeatures(plan).stream().map(Enum::name).sorted().toList());
+        out.put("analyticsRetentionDays",restricted?0:plan.analyticsRetentionDays);
+        if(!restricted)entitlements.analyticsFloor(plan, LocalDate.now(clock))
                 .ifPresent(floor -> out.put("analyticsFrom", floor.toString()));
         subscriptions.find(storeId).ifPresent(s -> {
             out.put("status", s.status.name());
             out.put("startedAt", s.startedAt);
             out.put("trial", s.trialEndsAt != null && clock.instant().isBefore(s.trialEndsAt));
             if (s.trialEndsAt != null) out.put("trialEndsAt", s.trialEndsAt);
+            var trialStartedAt=s.trialStartedAt!=null?s.trialStartedAt:(s.trialEndsAt!=null?s.startedAt:null);
+            var trialEndedAt=s.trialEndedAt!=null?s.trialEndedAt:s.trialEndsAt;
+            if(trialStartedAt!=null)out.put("trialStartedAt",trialStartedAt);
+            if(trialEndedAt!=null)out.put("trialEndedAt",trialEndedAt);
             out.put("note", s.note == null ? "" : s.note);
         });
         return out;
