@@ -231,6 +231,19 @@ class BillingTest {
         assertTrue(PAID_BODIES.get(PAID_BODIES.size() - 1).contains("\"total\":" + expected));
     }
 
+    /** 1/31→2/28처럼 월말이 보정된 결제주기도 실제 시작일을 분모로 쓴다. */
+    @Test
+    void prorationUsesTheActualPeriodStartAcrossShortMonths() {
+        StoreSubscription s = row();
+        s.plan = Plan.BASIC;
+        s.billingPeriodStartedAt = ZonedDateTime.of(2027, 1, 31, 0, 0, 0, 0, clock.getZone()).toInstant();
+        s.nextBillingAt = ZonedDateTime.of(2027, 2, 28, 0, 0, 0, 0, clock.getZone()).toInstant();
+        Instant middle = ZonedDateTime.of(2027, 2, 14, 0, 0, 0, 0, clock.getZone()).toInstant();
+
+        assertEquals(5000, billing.proratedUpgradeAmount(s, Plan.PRO, middle),
+                "10,000원 차액의 28일 중 14일이 남으면 5,000원이어야 한다");
+    }
+
     /** 결제 대상이 아니던(기존) 매장의 첫 결제는 오늘부터 한 달이다. */
     @Test
     void aFirstPaymentOutsideTheTrialStartsTodayAndRecordsBothDates() {
