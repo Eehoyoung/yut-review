@@ -99,11 +99,11 @@ class SubscriptionAiTest {
     }
 
     @Test
-    void signupTrialStartsAtSignupAndFallsBackAtDayFifteenMidnightOne() {
+    void signupTrialStartsAtSignupAndFallsBackAtDayThirtyOneMidnightOne() {
         StoreSubscription trial = subscriptions.startSignupTrial(store);
         assertEquals(Plan.PRO, subscriptions.planOf(store.id));
         assertNotNull(trial.trialEndsAt);
-        assertEquals(clock.instant().atZone(clock.getZone()).toLocalDate().plusDays(14),
+        assertEquals(clock.instant().atZone(clock.getZone()).toLocalDate().plusDays(30),
                 trial.trialEndsAt.atZone(clock.getZone()).toLocalDate());
         assertEquals(java.time.LocalTime.of(0, 1), trial.trialEndsAt.atZone(clock.getZone()).toLocalTime());
 
@@ -255,7 +255,7 @@ class SubscriptionAiTest {
         // 남의 매장은 멤버십 검사에서 막힌다. 존재 여부도 알려주지 않는다.
         assertEquals("FORBIDDEN",
                 assertThrows(AppException.class, () -> access.member(owner.id, store.id)).code);
-        // 자기 매장은 통과하고, 신규 가입 매장은 14일 PRO 무료체험으로 시작한다.
+        // 자기 매장은 통과하고, 신규 가입 매장은 30일 PRO 무료체험으로 시작한다.
         access.member(owner.id, other.store().id);
         assertEquals(Plan.PRO, subscriptions.planOf(other.store().id));
     }
