@@ -515,15 +515,19 @@ enum ServiceState { OPEN, TRIAL, ACTIVE, GRACE, RESTRICTED }
         Map<String,Integer> checkoutAmounts=new LinkedHashMap<>();
         Map<String,Boolean> checkoutProrated=new LinkedHashMap<>();
         Map<String,Instant> checkoutNextBillingAt=new LinkedHashMap<>();
+        Map<String,String> checkoutConsentTexts=new LinkedHashMap<>();
         for(Plan plan:Plan.values()){
             BillingService.CheckoutPrice price=billing.checkoutPrice(storeId,plan);
+            Instant nextAutomaticBillingAt=billing.nextAutomaticBillingAt(storeId,plan);
             checkoutAmounts.put(plan.name(),price.amount());
             checkoutProrated.put(plan.name(),price.prorated());
-            checkoutNextBillingAt.put(plan.name(),billing.nextAutomaticBillingAt(storeId,plan));
+            checkoutNextBillingAt.put(plan.name(),nextAutomaticBillingAt);
+            checkoutConsentTexts.put(plan.name(),LegalConsentService.billingConsentText(plan,price.amount(),price.prorated(),nextAutomaticBillingAt));
         }
         out.put("checkoutAmounts",checkoutAmounts);
         out.put("checkoutProrated",checkoutProrated);
         out.put("checkoutNextBillingAt",checkoutNextBillingAt);
+        out.put("checkoutConsentTexts",checkoutConsentTexts);
         subscriptions.findByStoreId(storeId).ifPresent(s->{
             if(s.lastPaidAt!=null)out.put("lastPaidAt",s.lastPaidAt);
             if(s.nextBillingAt!=null){
