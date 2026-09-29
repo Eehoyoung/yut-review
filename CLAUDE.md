@@ -316,9 +316,13 @@ DB를 버려도 되는 로컬이라면 `docker compose down -v` 후 새 키로 �
   띄운다. 할당량을 태우지 않고, 네트워크가 끊겨도 우리 코드와 무관하게 빨개지지 않으며, 무엇보다
   실제 사업자등록번호를 fixture에 넣지 않는다.
 
-## 매장 승인제 중단 (2026-09-22)
+## 매장 승인제 (2026-09-22 중단 → 2026-09-24 운영만 재가동)
 
-`STORE_APPROVAL_REQUIRED` 기본값이 **false**다. 셀프 가입이 바로 `ACTIVE`로 열린다.
+`application.yml` 기본값은 **false**라 개발/field-test에서는 셀프 가입이 바로 `ACTIVE`로 열린다.
+**운영은 켜져 있다.** 2026-09-24 보안점검(H-01, `981244a`)이 `application-prod.yml` 기본값과
+`docker-compose.prod.yml`을 `STORE_APPROVAL_REQUIRED=true`로 고정했고 `ProductionSecurityConfigurationTest`가
+잠근다. 운영의 새 가입은 `PENDING_APPROVAL`로 들어와 운영자 콘솔 "매장"에서 승인한다.
+운영에서 끄려면 그 테스트와 compose 값을 함께 바꾸는 명시적 결정이 필요하다. 아래는 꺼 둔 환경의 규칙이다.
 
 - **기능을 지운 것이 아니라 꺼 둔 것이다.** 심사 화면·승인 API·감사 로그 전부 그대로 있고
   `STORE_APPROVAL_REQUIRED=true` 한 줄로 되돌아온다. `StoreApproval.java`를 지우지 말 것.
@@ -361,12 +365,18 @@ DB를 버려도 되는 로컬이라면 `docker compose down -v` 후 새 키로 �
 
 | 경로 | 화면 |
 |---|---|
-| `/admin/operator` | 매장 심사 큐 (승인·거부·재심사·소유권 이전) |
+| `/admin/operator` | 현황판: 오늘·누적 가입/게임/쿠폰, 14일 흐름, 최근 가입, 오늘 매장별 게임 |
+| `/admin/operator/stores` | 매장 목록 + 매장별 게임·쿠폰·요금제 숫자, 승인·거부(운영 중단)·재심사·소유권 이전 |
 | `/admin/operator/accounts` | 관리자 계정 목록, 운영자 권한 부여·회수, 운영자 신설 |
 | `/admin/operator/resources` | 자원 현황 + 전화번호 해시 재계산 |
 | `/admin/operator/audit` | 매장 심사와 계정 변경을 합친 활동 기록 |
 | `/admin/operator/devices` | OTP·고정 세션 보안 상태와 만료 시각 |
 
+- 숫자는 `Monitoring.java`의 `OperatorOverviewService`가 만든다. 매장 목록의 매장별 숫자는 페이지의 id 묶음으로
+  집계 쿼리를 한 번씩만 돌린다. 매장마다 쿼리를 돌리는 방식으로 바꾸지 말 것.
+- 운영자는 매장 멤버가 아니라서 `/admin/stores/{id}/...` 화면은 403이다. 콘솔에서 매장 대시보드로 링크하지 말 것.
+  요금제 변경 API(`PUT /api/admin/stores/{id}/subscription`)는 운영자 전용으로 남아 있지만 콘솔 화면은 없다
+  (자동결제 도입 뒤 사장이 직접 바꾼다).
 - `Operators.java` — `OperatorAuditEvent`(append-only), `OperatorAccountService`,
   `OperatorAccountController`, `OperatorBootstrap`.
 - 계정 사건을 `store_approval_events`에 끼워 넣지 말 것. 그쪽은 `store_id`가 NOT NULL이라

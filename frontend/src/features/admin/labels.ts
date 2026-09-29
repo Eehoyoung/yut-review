@@ -1,4 +1,4 @@
-import type { AiFeature, Plan, StoreStatus } from "@/types/api";
+import type { AiFeature, Plan, ServiceState, StoreStatus } from "@/types/api";
 
 /**
  * 관리자 화면에서만 쓰는 라벨.
@@ -47,6 +47,23 @@ export const STORE_STATUS_LABEL: Record<StoreStatus, string> = {
   ACTIVE: "운영 중",
   INACTIVE: "운영 중지",
   REJECTED: "승인 거부",
+};
+
+/** 결제 기준 이용 상태. 서버 `ServiceAccessPolicy`가 날짜로 계산한 값이다. */
+export const SERVICE_STATE_LABEL: Record<ServiceState, string> = {
+  OPEN: "결제 대상 아님",
+  TRIAL: "무료체험",
+  ACTIVE: "결제 중",
+  GRACE: "결제 유예",
+  RESTRICTED: "이용 제한",
+};
+
+export const SERVICE_STATE_TONE: Record<ServiceState, string> = {
+  OPEN: "muted",
+  TRIAL: "brand",
+  ACTIVE: "ok",
+  GRACE: "wait",
+  RESTRICTED: "bad",
 };
 
 export const STORE_STATUS_TONE: Record<StoreStatus, string> = {

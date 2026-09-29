@@ -13,7 +13,8 @@ import { clearAdminSession } from "@/lib/api";
  * 그 선택값을 잊은 화면이 조용히 다른 매장을 가리키게 된다.
  */
 const menus: [string, string][] = [
-  ["", "매장 심사"],
+  ["", "현황"],
+  ["stores", "매장"],
   ["accounts", "계정"],
   ["resources", "자원 현황"],
   ["audit", "활동 기록"],

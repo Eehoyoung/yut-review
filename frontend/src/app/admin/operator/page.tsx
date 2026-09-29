@@ -1,353 +1,224 @@
 "use client";
-import { FormEvent, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ActivityPager } from "@/features/admin/ActivityTable";
+import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
 import { STORE_STATUS_LABEL, STORE_STATUS_TONE } from "@/features/admin/labels";
 import { OperatorFrame } from "@/features/admin/OperatorFrame";
-import { Dialog } from "@/features/ui/Dialog";
-import { formatBusinessNumber, formatPhone } from "@/features/normalize";
 import { api, errorMessage } from "@/lib/api";
-import type { ApprovalEvent, OperatorStore, OperatorSummary, PageData, StoreStatus } from "@/types/api";
+import type { OperatorOverview } from "@/types/api";
 
 /**
- * 소담랩스 운영자 전용 매장 심사 큐. SYSTEM_ADMIN이 아니면 서버가 403 OPERATOR_ONLY로 막고,
- * 링크는 /admin 헤더에서 역할을 확인한 뒤에만 나온다.
+ * 운영자 콘솔 첫 화면. 오늘 무슨 일이 있었는지를 먼저 보여 준다.
  *
- * 승인·거부·소유권 이전은 되돌리기 어렵다. 그래서 전부 Dialog에서 한 번 더 확인한다
- * (window.confirm은 쓰지 않는다 — 포커스 트랩과 Esc를 네이티브 <dialog>가 해 준다).
+ * 매장 심사가 첫 화면이던 것은 승인제가 기본이던 때의 배치다. 가입 방식은 서버 설정이고,
+ * 매일 보는 숫자는 가입·게임·쿠폰이라 그것을 앞에 둔다. 전부 집계와 매장·사장 정보뿐이다.
  */
 
-const FILTERS: [string, string][] = [
-  ["PENDING_APPROVAL", "승인 대기"],
-  ["", "전체"],
-  ["REJECTED", "거부"],
-];
+/** 1분. 사람이 읽고 판단하는 화면이라 이보다 자주 당길 이유가 없다. */
+const REFRESH_MS = 60_000;
 
-const ACTION_LABEL: Record<ApprovalEvent["action"], string> = {
-  APPROVE: "승인",
-  REJECT: "거부",
-  REVIEW_AGAIN: "재심사",
-  OWNERSHIP_CHANGE: "소유권 이전",
-};
+const count = (n: number) => n.toLocaleString("ko-KR");
+const percent = (used: number, issued: number) => (issued > 0 ? `${Math.round((used / issued) * 100)}%` : "-");
 
-type ActionResult = { id: number; status?: StoreStatus; changed?: boolean; ownerEmail?: string };
-type Sheet = { kind: "approve" | "reject" | "ownership"; store: OperatorStore };
-
-const SHEET_TITLE: Record<Sheet["kind"], string> = {
-  approve: "매장을 승인할까요?",
-  reject: "승인 거부",
-  ownership: "소유권 이전",
-};
-
-/** 감사 로그. 접혀 있을 때는 요청하지 않으려고 부모가 열린 행에서만 렌더한다. */
-function ApprovalEvents({ storeId }: { storeId: number }) {
-  const q = useQuery({
-    queryKey: ["operator-events", storeId],
-    queryFn: () => api<ApprovalEvent[]>(`/admin/operator/stores/${storeId}/approval-events`),
-  });
-  if (q.isPending)
-    return (
-      <p className="hint" aria-live="polite">
-        변경 이력을 불러오는 중
-      </p>
-    );
-  if (q.isError)
-    return (
-      <p className="error" role="alert">
-        {errorMessage(q.error)}
-      </p>
-    );
-  if (q.data.length === 0) return <p className="hint">아직 변경 이력이 없습니다.</p>;
+function TrendBar({ label, value, max }: { label: string; value: number; max: number }) {
+  const width = max > 0 ? Math.round((value / max) * 100) : 0;
   return (
-    <div className="list">
-      {q.data.map((e, i) => (
-        <div className="list-item" key={`${e.createdAt}-${i}`}>
-          <span className="stack" style={{ gap: 2 }}>
-            <span className="name">{ACTION_LABEL[e.action] ?? e.action}</span>
-            <small className="hint">
-              {e.actorEmail}
-              {e.note && ` · ${e.note}`}
-            </small>
-          </span>
-          <small className="hint">{new Date(e.createdAt).toLocaleString("ko-KR")}</small>
-        </div>
-      ))}
+    <div className="weekday-row" data-wide>
+      <span className="weekday-name">{label}</span>
+      <span className="weekday-track">
+        <span className="weekday-fill" data-tone="ok" style={{ width: `${width}%` }} />
+      </span>
+      <span className="weekday-count">{count(value)}</span>
     </div>
   );
 }
 
-export default function OperatorQueue() {
-  const qc = useQueryClient();
-  const [status, setStatus] = useState("PENDING_APPROVAL");
-  const [page, setPage] = useState(0);
-  const [openEvents, setOpenEvents] = useState<number>();
-  const [sheet, setSheet] = useState<Sheet>();
-  const [value, setValue] = useState("");
-  const [tried, setTried] = useState(false);
-  const [flash, setFlash] = useState("");
-
-  const summary = useQuery({ queryKey: ["operator-summary"], queryFn: () => api<OperatorSummary>("/admin/operator/summary") });
-  const stores = useQuery({
-    queryKey: ["operator-stores", status, page],
-    queryFn: () =>
-      api<PageData<OperatorStore>>(
-        `/admin/operator/stores?page=${page}&size=20${status ? `&status=${status}` : ""}`,
-      ),
+export default function OperatorOverviewPage() {
+  const q = useQuery({
+    queryKey: ["operator-overview"],
+    queryFn: () => api<OperatorOverview>("/admin/operator/overview"),
+    refetchInterval: REFRESH_MS,
   });
-
-  const closeSheet = () => {
-    setSheet(undefined);
-    setValue("");
-    setTried(false);
-  };
-
-  const act = useMutation({
-    mutationFn: ({ id, path, body }: { id: number; path: string; body: Record<string, string> }) =>
-      api<ActionResult>(`/admin/operator/stores/${id}/${path}`, { method: "POST", body: JSON.stringify(body) }),
-    onSuccess: (data, vars) => {
-      setFlash(
-        vars.path === "approve"
-          ? // changed:false는 이미 승인된 매장에 대한 재전송 방어다. 오류가 아니다.
-            data.changed === false
-            ? "이미 승인된 매장입니다."
-            : "승인했습니다."
-          : vars.path === "reject"
-            ? "승인을 거부했습니다."
-            : vars.path === "review-again"
-              ? "재심사 대기로 되돌렸습니다."
-              : `소유자를 ${data.ownerEmail}로 바꿨습니다.`,
-      );
-      closeSheet();
-      qc.invalidateQueries({ queryKey: ["operator-stores"] });
-      qc.invalidateQueries({ queryKey: ["operator-summary"] });
-      qc.invalidateQueries({ queryKey: ["operator-events", vars.id] });
-    },
-  });
-
-  // 값을 받아야 하는 동작은 무엇이 비었는지 문장으로 말한다. 버튼을 비활성화하지 않는다.
-  const blocked =
-    sheet?.kind === "reject" && !value.trim()
-      ? "거부 사유를 입력해 주세요."
-      : sheet?.kind === "ownership" && !value.trim()
-        ? "새 소유자 이메일을 입력해 주세요."
-        : "";
-
-  const topError = summary.error ?? stores.error ?? (sheet ? null : act.error);
-
-  const submitSheet = (event: FormEvent) => {
-    event.preventDefault();
-    if (!sheet) return;
-    setTried(true);
-    if (blocked) {
-      document.getElementById("sheet-input")?.focus();
-      return;
-    }
-    if (sheet.kind === "approve") act.mutate({ id: sheet.store.id, path: "approve", body: { note: value.trim() } });
-    if (sheet.kind === "reject") act.mutate({ id: sheet.store.id, path: "reject", body: { reason: value.trim() } });
-    if (sheet.kind === "ownership") act.mutate({ id: sheet.store.id, path: "ownership", body: { email: value.trim() } });
-  };
+  const o = q.data;
+  const maxGames = Math.max(0, ...(o?.trend.map((d) => d.games) ?? []));
 
   return (
-    <OperatorFrame title="매장 심사">
-      <dl className="stats" aria-label="심사 현황">
-        <div>
-          <dt>승인 대기</dt>
-          <dd>{summary.data?.pending ?? "-"}</dd>
-        </div>
-        <div>
-          <dt>운영 중</dt>
-          <dd>{summary.data?.active ?? "-"}</dd>
-        </div>
-        <div>
-          <dt>거부</dt>
-          <dd>{summary.data?.rejected ?? "-"}</dd>
-        </div>
-      </dl>
-
-
-      {flash && (
-        <p className="success" role="status">
-          {flash}
-        </p>
-      )}
-      {/* 시트가 열려 있으면 오류는 시트 안에서만 말한다. 두 번 읽히면 화면낭독기가 겹쳐 읽는다. */}
-      {topError && (
+    <OperatorFrame title="현황">
+      {q.isError && (
         <p className="error" role="alert">
-          {errorMessage(topError)}
+          {errorMessage(q.error)}
         </p>
       )}
-
-      <div className="field">
-        <label htmlFor="operator-filter">상태</label>
-        <select
-          id="operator-filter"
-          value={status}
-          onChange={(e) => {
-            setStatus(e.target.value);
-            setPage(0);
-          }}
-        >
-          {FILTERS.map(([v, label]) => (
-            <option key={label} value={v}>
-              {label}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {stores.isPending && (
+      {q.isPending && (
         <div className="stack" aria-live="polite" aria-busy="true">
-          <span className="visually-hidden">매장 목록을 불러오는 중</span>
-          <div className="skeleton" style={{ height: 120 }} />
-          <div className="skeleton" style={{ height: 120 }} />
+          <span className="visually-hidden">현황을 불러오는 중</span>
+          <div className="skeleton" style={{ height: 96 }} />
+          <div className="skeleton" style={{ height: 240 }} />
         </div>
       )}
 
-      {stores.data?.content.length === 0 && (
-        <section className="panel stack">
-          <h2>심사할 매장이 없어요</h2>
-          <p className="lead">새 매장이 가입하면 여기에 표시됩니다.</p>
-        </section>
-      )}
-
-      {stores.data?.content.map((s) => (
-        <section className="panel stack" key={s.id}>
-          <div className="row">
-            <h2>{s.name}</h2>
-            <span className="pill" data-tone={STORE_STATUS_TONE[s.status]}>
-              {STORE_STATUS_LABEL[s.status]}
-            </span>
-          </div>
-          <div className="list">
-            <div className="list-item">
-              <span className="lead">사업자등록번호</span>
-              <span className="name">{formatBusinessNumber(s.businessNumber)}</span>
-            </div>
-            <div className="list-item">
-              <span className="lead">대표자</span>
-              <span className="name">{s.ownerName}</span>
-            </div>
-            <div className="list-item">
-              <span className="lead">이메일</span>
-              <span className="name">{s.ownerEmail}</span>
-            </div>
-            <div className="list-item">
-              <span className="lead">연락처</span>
-              <span className="name">{formatPhone(s.ownerPhone)}</span>
-            </div>
-            <div className="list-item">
-              <span className="lead">신청</span>
-              <span className="name">{new Date(s.createdAt).toLocaleString("ko-KR")}</span>
-            </div>
-          </div>
-          {s.note && <p className="notice">사유: {s.note}</p>}
-
-          <div className="sheet-actions">
-            {s.status === "PENDING_APPROVAL" && (
-              <button type="button" className="btn btn-inline" onClick={() => setSheet({ kind: "approve", store: s })}>
-                승인
-              </button>
-            )}
-            {s.status !== "REJECTED" && (
-              <button type="button" className="btn secondary btn-inline" onClick={() => setSheet({ kind: "reject", store: s })}>
-                거부
-              </button>
-            )}
-            {s.status === "REJECTED" && (
-              <button
-                type="button"
-                className="btn secondary btn-inline"
-                onClick={() => act.mutate({ id: s.id, path: "review-again", body: {} })}
-              >
-                재심사
-              </button>
-            )}
-            <button type="button" className="btn ghost btn-inline" onClick={() => setSheet({ kind: "ownership", store: s })}>
-              소유권 이전
-            </button>
-          </div>
-
-          {/* 접었다 펴는 것은 브라우저가 이미 한다. 열린 행에서만 이력을 불러온다. */}
-          <details onToggle={(e) => setOpenEvents(e.currentTarget.open ? s.id : undefined)}>
-            <summary>변경 이력</summary>
-            {openEvents === s.id && <ApprovalEvents storeId={s.id} />}
-          </details>
-        </section>
-      ))}
-
-      <ActivityPager page={page} totalPages={stores.data?.totalPages ?? 0} onChange={setPage} />
-
-      <Dialog open={sheet !== undefined} onClose={closeSheet} labelledBy="sheet-title">
-        <form className="stack" onSubmit={submitSheet}>
-          <h2 id="sheet-title">{sheet ? SHEET_TITLE[sheet.kind] : ""}</h2>
-
-          {sheet && (
-            <p className="lead">
-              {sheet.store.name} · {formatBusinessNumber(sheet.store.businessNumber)}
-            </p>
-          )}
-
-          {sheet?.kind === "approve" && (
-            <>
-              <p className="notice">승인하면 QR·포스터·직원 PIN이 즉시 열립니다.</p>
-              <div className="field">
-                <label htmlFor="sheet-input">메모 (선택)</label>
-                <input id="sheet-input" autoFocus maxLength={200} value={value} onChange={(e) => setValue(e.target.value)} />
+      {o && (
+        <>
+          <section className="panel stack" aria-label="오늘">
+            <header className="stack" style={{ gap: 2 }}>
+              <h2>오늘</h2>
+              <p className="hint">{o.date} 기준 · 1분마다 갱신</p>
+            </header>
+            <dl className="stats">
+              <div>
+                <dt>매장 가입</dt>
+                <dd>{count(o.today.signups)}</dd>
               </div>
-            </>
-          )}
+              <div>
+                <dt>게임</dt>
+                <dd>{count(o.today.games)}</dd>
+              </div>
+              <div>
+                <dt>쿠폰 발급</dt>
+                <dd>{count(o.today.couponsIssued)}</dd>
+              </div>
+              <div>
+                <dt>쿠폰 사용</dt>
+                <dd>{count(o.today.couponsRedeemed)}</dd>
+              </div>
+            </dl>
+          </section>
 
-          {sheet?.kind === "reject" && (
-            <div className="field">
-              <label htmlFor="sheet-input">거부 사유</label>
-              <textarea
-                id="sheet-input"
-                autoFocus
-                maxLength={200}
-                value={value}
-                placeholder="사업자등록번호를 확인할 수 없습니다"
-                onChange={(e) => setValue(e.target.value)}
-              />
-              <small className="hint">사장에게 그대로 보입니다. 200자까지.</small>
-            </div>
-          )}
-
-          {sheet?.kind === "ownership" && (
-            <div className="field">
-              <label htmlFor="sheet-input">새 소유자 이메일</label>
-              <input
-                id="sheet-input"
-                type="email"
-                autoFocus
-                inputMode="email"
-                value={value}
-                onChange={(e) => setValue(e.target.value)}
-              />
-              <small className="hint">이미 가입된 계정의 이메일이어야 합니다.</small>
-            </div>
-          )}
-
-          {tried && blocked && (
-            <p className="notice" role="status">
-              {blocked}
+          <section className="panel stack" aria-label="누적">
+            <h2>누적</h2>
+            <dl className="stats">
+              <div>
+                <dt>매장</dt>
+                <dd>{count(o.totals.stores)}</dd>
+              </div>
+              <div>
+                <dt>운영 중</dt>
+                <dd>{count(o.totals.activeStores)}</dd>
+              </div>
+              <div>
+                <dt>게임</dt>
+                <dd>{count(o.totals.games)}</dd>
+              </div>
+              <div>
+                <dt>쿠폰 사용률</dt>
+                <dd>{percent(o.totals.couponsRedeemed, o.totals.couponsIssued)}</dd>
+              </div>
+            </dl>
+            <p className="hint">
+              쿠폰 {count(o.totals.couponsIssued)}장 발급 · {count(o.totals.couponsRedeemed)}장 사용 · 가입 방식:{" "}
+              {o.approvalRequired ? "운영자 승인 후 운영" : "가입 즉시 운영"}
+              {o.totals.pendingStores > 0 && (
+                <>
+                  {" · "}
+                  <Link href="/admin/operator/stores">승인 대기 {count(o.totals.pendingStores)}곳</Link>
+                </>
+              )}
             </p>
-          )}
-          {act.isError && (
-            <p className="error" role="alert">
-              {errorMessage(act.error)}
-            </p>
-          )}
+          </section>
 
-          <div className="sheet-actions">
-            <button type="button" className="btn ghost" onClick={closeSheet}>
-              취소
-            </button>
-            <button className="btn" disabled={act.isPending}>
-              {act.isPending ? "처리 중" : "실행"}
-            </button>
-          </div>
-        </form>
-      </Dialog>
+          <section className="panel stack" aria-label="오늘 매장별">
+            <h2>오늘 매장별 게임</h2>
+            {o.topStoresToday.length === 0 ? (
+              <p className="hint">오늘 참여가 아직 없습니다.</p>
+            ) : (
+              <div className="table-wrap">
+                <table className="table">
+                  <caption className="visually-hidden">오늘 게임이 많은 매장 상위 10곳</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">매장</th>
+                      <th scope="col">게임</th>
+                      <th scope="col">쿠폰 사용</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {o.topStoresToday.map((s) => (
+                      <tr key={s.storeId}>
+                        <td className="wrap-anywhere">{s.name}</td>
+                        <td>{count(s.games)}</td>
+                        <td>{count(s.couponsRedeemed)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <p className="hint">
+              상위 10곳입니다. 매장 전체의 누적 숫자는 <Link href="/admin/operator/stores">매장</Link>에서 봅니다.
+            </p>
+          </section>
+
+          <section className="panel stack" aria-label="최근 14일">
+            <h2>최근 14일 게임</h2>
+            {o.trend.map((d) => (
+              <TrendBar key={d.date} label={d.date.slice(5)} value={d.games} max={maxGames} />
+            ))}
+            <div className="table-wrap">
+              <table className="table">
+                <caption className="visually-hidden">최근 14일 일별 가입·게임·쿠폰 사용</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">날짜</th>
+                    <th scope="col">가입</th>
+                    <th scope="col">게임</th>
+                    <th scope="col">쿠폰 사용</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...o.trend].reverse().map((d) => (
+                    <tr key={d.date}>
+                      <td>{d.date}</td>
+                      <td>{count(d.signups)}</td>
+                      <td>{count(d.games)}</td>
+                      <td>{count(d.couponsRedeemed)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section className="panel stack" aria-label="최근 가입">
+            <h2>최근 가입한 매장</h2>
+            {o.recentSignups.length === 0 ? (
+              <p className="hint">가입한 매장이 아직 없습니다.</p>
+            ) : (
+              <div className="table-wrap">
+                <table className="table">
+                  <caption className="visually-hidden">최근 가입한 매장 10곳</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">가입</th>
+                      <th scope="col">매장</th>
+                      <th scope="col">대표</th>
+                      <th scope="col">사업자 확인</th>
+                      <th scope="col">상태</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {o.recentSignups.map((s) => (
+                      <tr key={s.id}>
+                        <td>{new Date(s.createdAt).toLocaleString("ko-KR")}</td>
+                        <td className="wrap-anywhere">{s.name}</td>
+                        <td className="wrap-anywhere">
+                          {s.ownerName}
+                          <br />
+                          <small className="hint">{s.ownerEmail}</small>
+                        </td>
+                        <td>{s.businessVerified ? "국세청 확인" : "기록 없음"}</td>
+                        <td>
+                          <span className="pill" data-tone={STORE_STATUS_TONE[s.status]}>
+                            {STORE_STATUS_LABEL[s.status]}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        </>
+      )}
     </OperatorFrame>
   );
 }

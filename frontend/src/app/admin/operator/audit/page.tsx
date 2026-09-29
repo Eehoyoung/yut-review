@@ -1,5 +1,4 @@
 "use client";
-import Link from "next/link";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { OperatorFrame } from "@/features/admin/OperatorFrame";
@@ -119,13 +118,8 @@ export default function OperatorAuditPage() {
                       {ACTION_LABEL[e.action]}
                     </span>
                   </td>
-                  <td className="wrap-anywhere">
-                    {e.kind === "STORE" && e.storeId ? (
-                      <Link href={`/admin/stores/${e.storeId}/dashboard`}>{e.target ?? "-"}</Link>
-                    ) : (
-                      (e.target ?? "-")
-                    )}
-                  </td>
+                  {/* 매장 대시보드로 링크하지 않는다. 매장 API는 멤버만 통과시켜서 운영자에게는 403이다. */}
+                  <td className="wrap-anywhere">{e.target ?? "-"}</td>
                   <td className="wrap-anywhere">{e.actor ?? "-"}</td>
                   <td className="wrap-anywhere">{e.note ?? "-"}</td>
                 </tr>

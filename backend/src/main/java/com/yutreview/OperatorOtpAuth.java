@@ -82,6 +82,8 @@ interface OperatorLoginChallengeRepository extends JpaRepository<OperatorLoginCh
         this.jwt=jwt;this.random=random;this.clock=clock;this.otpTtl=Duration.ofSeconds(otpTtlSeconds);
     }
 
+    long otpTtlSeconds(){return otpTtl.toSeconds();}
+
     @Transactional Map<String,Object> request(String rawEmail,String ip){
         String email=Inputs.email(rawEmail);String client=ip==null||ip.isBlank()?"unknown":ip;
         rateLimits.check("operator-otp-ip:"+client,5,Duration.ofMinutes(15),"OPERATOR_OTP_RATE_LIMITED",
