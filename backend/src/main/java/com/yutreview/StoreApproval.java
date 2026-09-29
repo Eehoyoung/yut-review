@@ -176,9 +176,14 @@ interface StoreApprovalEventRepository extends JpaRepository<StoreApprovalEvent,
 @RestController @RequestMapping("/api/admin/operator") class OperatorController {
     private final StoreApprovalService approvals;private final StoreRepository stores;
     private final PhoneHashMigrationService phoneHashes;private final PublicOriginResolver publicOrigins;private final OperatorMonitoringService monitoring;
+    private final OperatorOverviewService overview;private final OperatorOtpAuthService otp;private final JwtService jwt;
+    private final boolean approvalRequired;
     OperatorController(StoreApprovalService approvals,StoreRepository stores,
-        PhoneHashMigrationService phoneHashes,PublicOriginResolver publicOrigins,OperatorMonitoringService monitoring){
+        PhoneHashMigrationService phoneHashes,PublicOriginResolver publicOrigins,OperatorMonitoringService monitoring,
+        OperatorOverviewService overview,OperatorOtpAuthService otp,JwtService jwt,
+        @org.springframework.beans.factory.annotation.Value("${app.store-approval-required:false}") boolean approvalRequired){
         this.approvals=approvals;this.stores=stores;this.phoneHashes=phoneHashes;this.publicOrigins=publicOrigins;this.monitoring=monitoring;
+        this.overview=overview;this.otp=otp;this.jwt=jwt;this.approvalRequired=approvalRequired;
     }
 
     record NoteBody(@Size(max=200) String note){}
@@ -196,21 +201,40 @@ interface StoreApprovalEventRepository extends JpaRepository<StoreApprovalEvent,
         return ApiResponse.ok(monitoring.snapshot());
     }
 
+    /** 오늘·누적·14일 흐름·최근 가입·오늘 붐비는 매장. 콘솔 첫 화면. */
+    @GetMapping("/overview") ApiResponse<?> overview(Authentication auth){
+        approvals.requireOperator(adminId(auth));
+        Map<String,Object> out=new LinkedHashMap<>(overview.overview());
+        out.put("approvalRequired",approvalRequired);
+        return ApiResponse.ok(out);
+    }
+
+    /** 세션 보안 화면이 설정값을 복제해 적지 않도록 실제 값을 준다. */
+    @GetMapping("/session-policy") ApiResponse<?> sessionPolicy(Authentication auth){
+        approvals.requireOperator(adminId(auth));
+        return ApiResponse.ok(Map.of("otpTtlSeconds",otp.otpTtlSeconds(),"sessionTtlSeconds",jwt.operatorSessionTtlSeconds()));
+    }
+
     @GetMapping("/summary") ApiResponse<?> summary(Authentication auth){
         approvals.requireOperator(adminId(auth));
         return ApiResponse.ok(Map.of(
             "pending",stores.countByStatus(StoreStatus.PENDING_APPROVAL),
             "active",stores.countByStatus(StoreStatus.ACTIVE),
-            "rejected",stores.countByStatus(StoreStatus.REJECTED)));
+            "inactive",stores.countByStatus(StoreStatus.INACTIVE),
+            "rejected",stores.countByStatus(StoreStatus.REJECTED),
+            "approvalRequired",approvalRequired));
     }
 
     @GetMapping("/stores") ApiResponse<?> list(@RequestParam(required=false) StoreStatus status,
         @RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="20") int size,Authentication auth){
         approvals.requireOperator(adminId(auth));
         if(page<0||size<1||size>100)throw new AppException("INVALID_REQUEST","page는 0 이상, size는 1~100이어야 합니다.");
-        PageRequest request=PageRequest.of(page,size,Sort.by(Sort.Direction.ASC,"createdAt"));
+        // 승인 대기는 먼저 온 순서(큐), 나머지는 최근 가입 순서.
+        Sort.Direction direction=status==StoreStatus.PENDING_APPROVAL?Sort.Direction.ASC:Sort.Direction.DESC;
+        PageRequest request=PageRequest.of(page,size,Sort.by(direction,"createdAt"));
         Page<Store> found=status==null?stores.findAll(request):stores.findByStatus(status,request);
-        Page<Map<String,Object>> view=found.map(this::view);
+        Map<Long,Map<String,Object>> stats=overview.storeStats(found.map(s->s.id).getContent());
+        Page<Map<String,Object>> view=found.map(s->{Map<String,Object> m=view(s);m.put("stats",stats.get(s.id));return m;});
         return ApiResponse.ok(new AdminController.PageView<>(view.getContent(),view.getNumber(),view.getSize(),
             view.getTotalElements(),view.getTotalPages()));
     }
@@ -255,6 +279,7 @@ interface StoreApprovalEventRepository extends JpaRepository<StoreApprovalEvent,
         out.put("businessNumber",s.businessNumber==null?"":s.businessNumber);
         out.putAll(approvals.owner(s.id));
         out.put("status",s.status.name());out.put("createdAt",s.createdAt);
+        out.put("businessVerifiedAt",s.businessVerifiedAt);
         out.put("note",approvals.rejectionNote(s.id));
         return out;
     }

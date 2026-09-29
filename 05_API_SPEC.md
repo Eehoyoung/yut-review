@@ -403,6 +403,8 @@ POST /api/admin/operator-auth/verify
 `OPERATOR_OTP_EMAIL_UNAVAILABLE`, `OPERATOR_SESSION_REQUIRED`.
 
 ```http
+GET  /api/admin/operator/overview
+GET  /api/admin/operator/session-policy
 GET  /api/admin/operator/summary
 GET  /api/admin/operator/monitoring
 GET  /api/admin/operator/stores?status=&page=0&size=20
@@ -486,6 +488,24 @@ GET  /api/admin/operator/audit
 
 검증이 꺼져 있으면 `openingDate`는 보내지 않아도 되고 보내도 저장되지 않는다.
 중복 사업자등록번호(`DUPLICATE_BUSINESS_NUMBER`)는 이 설정과 무관하게 항상 막힌다.
+
+### 현황판 — `GET /api/admin/operator/overview`
+
+콘솔 첫 화면. 집계와 매장·사장 정보만 나가고 고객 이름·전화번호·쿠폰 토큰은 없다.
+
+- `today`: `signups`, `games`, `couponsIssued`, `couponsRedeemed` (KST 오늘)
+- `totals`: `stores`, `activeStores`, `pendingStores`, `games`, `couponsIssued`, `couponsRedeemed`
+- `trend`: 최근 14일, 날짜마다 `games`, `couponsRedeemed`, `signups`
+- `recentSignups`: 최근 가입 매장 10곳 (`status`, `businessVerified`, `ownerName`, `ownerEmail`)
+- `topStoresToday`: 오늘 게임이 많은 매장 10곳과 오늘 쿠폰 사용 수
+- `approvalRequired`: `STORE_APPROVAL_REQUIRED` 현재 값
+
+`GET /api/admin/operator/stores`의 각 행에는 `businessVerifiedAt`과 `stats`
+(`gamesToday`, `gamesTotal`, `couponsIssued`, `couponsRedeemed`, `lastPlayedAt`, `plan`, `serviceState`)가 붙는다.
+정렬은 `status=PENDING_APPROVAL`이면 가입 오래된 순(심사 큐), 그 밖에는 최근 가입 순이다.
+`summary`는 `inactive`, `approvalRequired`를 함께 준다.
+
+`GET /api/admin/operator/session-policy`는 `otpTtlSeconds`, `sessionTtlSeconds` 실제 설정값을 준다.
 
 ### 자원 현황 — `GET /api/admin/operator/monitoring`
 

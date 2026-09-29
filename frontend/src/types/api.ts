@@ -241,7 +241,54 @@ export interface AdminMe {
 export interface OperatorSummary {
   pending: number;
   active: number;
+  inactive: number;
   rejected: number;
+  /** 서버 설정 `STORE_APPROVAL_REQUIRED`. false면 가입 즉시 운영 중이 된다. */
+  approvalRequired: boolean;
+}
+
+export type ServiceState = "OPEN" | "TRIAL" | "ACTIVE" | "GRACE" | "RESTRICTED";
+
+/** 매장 목록 한 행의 숫자. 요금제 행이 없는 매장은 plan/serviceState가 없다. */
+export interface OperatorStoreStats {
+  gamesToday: number;
+  gamesTotal: number;
+  couponsIssued: number;
+  couponsRedeemed: number;
+  lastPlayedAt: string | null;
+  plan?: Plan;
+  serviceState?: ServiceState;
+}
+
+/** 운영자 현황판. 집계와 매장·사장 정보뿐이고 고객 개인정보는 없다. */
+export interface OperatorOverview {
+  date: string;
+  approvalRequired: boolean;
+  today: { signups: number; games: number; couponsIssued: number; couponsRedeemed: number };
+  totals: {
+    stores: number;
+    activeStores: number;
+    pendingStores: number;
+    games: number;
+    couponsIssued: number;
+    couponsRedeemed: number;
+  };
+  trend: { date: string; games: number; couponsRedeemed: number; signups: number }[];
+  recentSignups: {
+    id: number;
+    name: string;
+    status: StoreStatus;
+    createdAt: string;
+    businessVerified: boolean;
+    ownerName: string;
+    ownerEmail: string;
+  }[];
+  topStoresToday: { storeId: number; name: string; games: number; couponsRedeemed: number }[];
+}
+
+export interface OperatorSessionPolicy {
+  otpTtlSeconds: number;
+  sessionTtlSeconds: number;
 }
 
 export interface OperatorStore {
@@ -253,7 +300,9 @@ export interface OperatorStore {
   ownerPhone: string;
   status: StoreStatus;
   createdAt: string;
+  businessVerifiedAt: string | null;
   note: string;
+  stats: OperatorStoreStats;
 }
 
 /** 운영자 자원 현황. 집계와 매장 공개 라벨뿐이고 고객 개인정보는 들어 있지 않다. */

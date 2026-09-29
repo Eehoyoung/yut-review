@@ -92,6 +92,30 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         store.posterTagline="우리 매장 단골 감사 이벤트";
         mvc.perform(get("/api/public/stores/by-token/{token}",qr)).andExpect(status().isOk()).andExpect(jsonPath("$.data.posterTagline").value("우리 매장 단골 감사 이벤트"));}
     @Test void oneGameOneCouponAndIdempotentReveal(){GamePlay first=games.create(qr,"홍길동","010-1234-5678","request-1");GamePlay retry=games.create(qr,"홍길동","01012345678","request-1");assertEquals(first.id,retry.id);Coupon a=games.reveal(first.publicId);Coupon b=games.reveal(first.publicId);assertEquals(a.id,b.id);assertEquals(1,coupons.findByStoreIdOrderByIssuedAtDesc(store.id,PageRequest.of(0,50)).getTotalElements());}
+    @Autowired OperatorOverviewService operatorOverview;
+    @Test void operatorOverviewCountsGamesCouponsAndSignupsPerStore() throws Exception{
+        GamePlay first=games.create(qr,"손님1","01011110001","ov-1");games.create(qr,"손님2","01011110002","ov-2");
+        Coupon used=coupons.findByGamePlayId(first.id).orElseThrow();used.status=CouponStatus.REDEEMED;used.redeemedAt=Instant.now();entityManager.flush();
+        Map<String,Object> stats=operatorOverview.storeStats(List.of(store.id)).get(store.id);
+        assertEquals(2L,stats.get("gamesToday"));assertEquals(2L,stats.get("gamesTotal"));
+        assertEquals(2L,stats.get("couponsIssued"));assertEquals(1L,stats.get("couponsRedeemed"));assertNotNull(stats.get("lastPlayedAt"));
+        Map<String,Object> overview=operatorOverview.overview();
+        @SuppressWarnings("unchecked") Map<String,Object> today=(Map<String,Object>)overview.get("today");
+        assertTrue((Long)today.get("games")>=2);assertTrue((Long)today.get("couponsRedeemed")>=1);assertTrue((Long)today.get("signups")>=1);
+        @SuppressWarnings("unchecked") List<Map<String,Object>> trend=(List<Map<String,Object>>)overview.get("trend");
+        assertEquals(OperatorOverviewService.TREND_DAYS,trend.size());assertTrue((Long)trend.get(trend.size()-1).get("games")>=2);
+        // 고객 개인정보는 현황판에 한 글자도 나가지 않는다.
+        String body=new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules().writeValueAsString(overview);
+        assertFalse(body.contains("01011110001"));assertFalse(body.contains("손님1"));
+
+        AdminUser op=new AdminUser();op.email="overview-op@test.com";op.passwordHash="x";op.name="운영자";op.role=AdminRole.SYSTEM_ADMIN;op.createdAt=Instant.now();admins.save(op);
+        mvc.perform(get("/api/admin/operator/overview").header("Authorization","Bearer "+jwt.issueOperator(op)))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.data.approvalRequired").isBoolean());
+        mvc.perform(get("/api/admin/operator/session-policy").header("Authorization","Bearer "+jwt.issueOperator(op)))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.data.sessionTtlSeconds").isNumber()).andExpect(jsonPath("$.data.otpTtlSeconds").isNumber());
+        AdminUser owner=new AdminUser();owner.email="overview-owner@test.com";owner.passwordHash="x";owner.name="사장";owner.role=AdminRole.STORE_ADMIN;owner.createdAt=Instant.now();admins.save(owner);
+        mvc.perform(get("/api/admin/operator/overview").header("Authorization","Bearer "+jwt.issue(owner))).andExpect(status().is4xxClientError());
+    }
     @Test void customerEndpointsRequireAgeConfirmation() throws Exception{
         String base="\"name\":\"홍길동\",\"phone\":\"01012345678\",\"privacyAgreed\":true,\"privacyConsentVersion\":\""+LegalConsentPolicy.CUSTOMER_PRIVACY_VERSION+"\"";
         mvc.perform(post("/api/public/stores/{t}/customer-state",qr).contentType(org.springframework.http.MediaType.APPLICATION_JSON).content("{"+base+"}"))

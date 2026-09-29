@@ -122,7 +122,7 @@ export default function OperatorAccountsPage() {
       <section className="panel stack">
         <h2>운영자 권한</h2>
         <p className="lead">
-          운영자는 모든 매장의 승인·거부·소유권 이전과 요금제 변경을 할 수 있습니다. 매장에는 속하지 않습니다.
+          운영자는 모든 매장의 현황을 보고 승인·거부·소유권 이전을 할 수 있습니다. 매장에는 속하지 않습니다.
         </p>
         <div className="sheet-actions">
           <button type="button" className="btn btn-inline" onClick={() => setSheet({ kind: "create" })}>
@@ -240,14 +240,14 @@ export default function OperatorAccountsPage() {
 
           {sheet?.kind === "grant" && (
             <p className="notice">
-              이 계정이 모든 매장의 승인·거부·소유권 이전과 요금제 변경을 할 수 있게 됩니다. 매장 {sheet.admin.storeCount}곳의
+              이 계정이 모든 매장의 현황을 보고 승인·거부·소유권 이전을 할 수 있게 됩니다. 매장 {sheet.admin.storeCount}곳의
               소유권은 그대로 남습니다.
             </p>
           )}
 
           {sheet?.kind === "revoke" && (
             <p className="notice">
-              심사 화면에 더 이상 들어갈 수 없게 됩니다. 현재 목록에 보이는 운영자는 {operators}명입니다.
+              운영자 콘솔에 더 이상 들어갈 수 없게 됩니다. 현재 목록에 보이는 운영자는 {operators}명입니다.
             </p>
           )}
 
