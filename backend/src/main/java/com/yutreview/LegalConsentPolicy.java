@@ -20,4 +20,10 @@ final class LegalConsentPolicy {
         if (!privacyAgreed || !CUSTOMER_PRIVACY_VERSION.equals(privacyVersion))
             throw new AppException("PRIVACY_CONSENT_REQUIRED", "개인정보 수집·이용에 동의해 주세요.");
     }
+
+    /** 14세 미만의 개인정보는 법정대리인 동의 없이 받을 수 없다. 그 절차가 없으므로 참여 자체를 막는다. */
+    static void requireAge(boolean ageConfirmed) {
+        if (!ageConfirmed)
+            throw new AppException("AGE_CONFIRMATION_REQUIRED", "만 14세 이상만 참여할 수 있어요.");
+    }
 }
