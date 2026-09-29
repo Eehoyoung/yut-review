@@ -20,3 +20,9 @@ frontend/tsconfig.tsbuildinfo
 output/playwright/
 # 로컬 PDF 렌더링 검수 산출물
 tmp/
+# 로컬 산출물·도구 폴더 (커밋 대상 아님)
+.codex/
+designs/
+output/admin-console-report.html
+output/visualizations/
+output/pdf/*3단접지*
