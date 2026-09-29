@@ -493,7 +493,7 @@ enum ServiceState { OPEN, TRIAL, ACTIVE, GRACE, RESTRICTED }
         this.billing=billing;this.access=access;this.subscriptions=subscriptions;this.admins=admins;this.stores=stores;this.legalConsents=legalConsents;
     }
 
-    record Checkout(@NotNull Plan plan,@NotBlank @Size(max=200) String billingKey,boolean billingConsentAgreed,@NotBlank @Size(max=20) String billingConsentVersion){}
+    record Checkout(@NotNull Plan plan,@NotBlank @Size(max=200) String billingKey,boolean billingConsentAgreed,@NotBlank @Size(max=20) String billingConsentVersion,@Size(max=500) String billingConsentText){}
     record AutoRenew(boolean on){}
 
     /** 결제창에 넘길 값과 현재 결제 상태. 화면이 채널 키를 복제해 들고 있지 않게 서버가 준다. */
@@ -555,6 +555,10 @@ enum ServiceState { OPEN, TRIAL, ACTIVE, GRACE, RESTRICTED }
         subscriptions.findByStoreId(storeId).orElseThrow();
         BillingService.CheckoutPrice price=billing.checkoutPrice(storeId,body.plan());
         Instant nextAutomaticBillingAt=billing.nextAutomaticBillingAt(storeId,body.plan());
+        // 화면이 보여 준 문구와 지금 저장할 문구가 다르면(날짜가 넘어가 일할 차액이 바뀌는 등) 청구하지 않는다.
+        // 증적에 남는 문구가 곧 사장이 본 문구여야 한다.
+        if(body.billingConsentAgreed()&&!LegalConsentService.billingConsentText(body.plan(),price.amount(),price.prorated(),nextAutomaticBillingAt).equals(body.billingConsentText()))
+            throw new AppException("BILLING_CONSENT_CHANGED","결제 조건이 바뀌었어요. 화면을 새로 고친 뒤 다시 동의해 주세요.",HttpStatus.CONFLICT);
         legalConsents.recordBillingChoice(admin,store,body.billingConsentAgreed(),body.billingConsentVersion(),body.plan(),price.amount(),price.prorated(),nextAutomaticBillingAt,"BILLING_CHECKOUT");
         if(!body.billingConsentAgreed())throw new AppException("BILLING_CONSENT_REQUIRED","자동결제에 동의해 주세요.");
         StoreSubscription s=billing.checkout(adminId,storeId,body.plan(),body.billingKey().trim());

@@ -232,7 +232,14 @@ class BillingTest {
 
         mvc.perform(post("/api/admin/stores/{id}/billing/checkout",store.id).header("Authorization",auth)
                 .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
-                .content("{\"plan\":\"BASIC\",\"billingKey\":\""+key+"\",\"billingConsentAgreed\":true,\"billingConsentVersion\":\""+LegalConsentPolicy.BILLING_AUTO_PAYMENT_VERSION+"\"}"))
+                .content("{\"plan\":\"BASIC\",\"billingKey\":\""+key+"\",\"billingConsentAgreed\":true,\"billingConsentVersion\":\""+LegalConsentPolicy.BILLING_AUTO_PAYMENT_VERSION+"\",\"billingConsentText\":\"다른 문구\"}"))
+            .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("BILLING_CONSENT_CHANGED"));
+        String shown=com.jayway.jsonpath.JsonPath.read(mvc.perform(get("/api/admin/stores/{id}/billing",store.id).header("Authorization",auth))
+            .andReturn().getResponse().getContentAsString(),"$.data.checkoutConsentTexts.BASIC");
+        mvc.perform(post("/api/admin/stores/{id}/billing/checkout",store.id).header("Authorization",auth)
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .content(new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(java.util.Map.of("plan","BASIC","billingKey",key,
+                    "billingConsentAgreed",true,"billingConsentVersion",LegalConsentPolicy.BILLING_AUTO_PAYMENT_VERSION,"billingConsentText",shown))))
             .andExpect(status().isOk());
         LegalConsentEvent accepted=legalConsentEvents.findByAdminIdOrderByCreatedAtDescIdDesc(owner.id).get(0);
         assertTrue(accepted.agreed);assertEquals(store.id,accepted.store.id);
