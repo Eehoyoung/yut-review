@@ -17,6 +17,9 @@ export function LegalFooter() {
           <div><dt>대표자</dt><dd>{legalOperator.representative}</dd></div>
           <div><dt>사업자등록번호</dt><dd>{legalOperator.businessNumber}</dd></div>
           <div><dt>전화</dt><dd>{legalOperator.phone}</dd></div>
+          <div><dt>이메일</dt><dd>{legalOperator.email}</dd></div>
+          {legalOperator.mailOrderReportNumber && <div><dt>통신판매업 신고번호</dt><dd>{legalOperator.mailOrderReportNumber}</dd></div>}
+          {legalOperator.mailOrderReportNumber && legalOperator.mailOrderReportAuthority && <div><dt>신고기관</dt><dd>{legalOperator.mailOrderReportAuthority}</dd></div>}
           <div className="legal-footer__address"><dt>사업장 주소</dt><dd>{legalOperator.address}</dd></div>
         </dl>
         <p>© {legalOperator.serviceName} · <a href="https://sodamlabs.kr/">{legalOperator.businessName}</a></p>

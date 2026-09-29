@@ -256,6 +256,18 @@ enum ServiceState { OPEN, TRIAL, ACTIVE, GRACE, RESTRICTED }
         return new CheckoutPrice(target.monthlyPriceKrw,true,false);
     }
 
+    /** 결제 동의 화면에 보여 줄 다음 자동결제일. 실제 checkout의 주기 계산과 같은 규칙을 쓴다. */
+    Instant nextAutomaticBillingAt(Long storeId,Plan target){
+        StoreSubscription s=subscriptions.findByStoreId(storeId).orElse(null);
+        Instant now=clock.instant();
+        if(s==null)return oneMonthFrom(now);
+        ServiceState state=policy.state(s);
+        boolean paidPeriod=state==ServiceState.ACTIVE&&s.lastPaidAt!=null;
+        if(state==ServiceState.TRIAL||paidPeriod)return s.nextBillingAt;
+        if(state==ServiceState.GRACE&&s.nextBillingAt!=null)return oneMonthFrom(s.nextBillingAt);
+        return oneMonthFrom(now);
+    }
+
     int proratedUpgradeAmount(StoreSubscription s,Plan target,Instant now){
         if(s.nextBillingAt==null||target.ordinal()<=s.plan.ordinal())return 0;
         LocalDate end=s.nextBillingAt.atZone(clock.getZone()).toLocalDate();
@@ -481,7 +493,7 @@ enum ServiceState { OPEN, TRIAL, ACTIVE, GRACE, RESTRICTED }
         this.billing=billing;this.access=access;this.subscriptions=subscriptions;this.admins=admins;this.stores=stores;this.legalConsents=legalConsents;
     }
 
-    record Checkout(@NotNull Plan plan,@NotBlank @Size(max=200) String billingKey,boolean billingConsentAgreed,@NotBlank @Size(max=20) String billingConsentVersion){}
+    record Checkout(@NotNull Plan plan,@NotBlank @Size(max=200) String billingKey,boolean billingConsentAgreed,@NotBlank @Size(max=20) String billingConsentVersion,@Size(max=500) String billingConsentText){}
     record AutoRenew(boolean on){}
 
     /** 결제창에 넘길 값과 현재 결제 상태. 화면이 채널 키를 복제해 들고 있지 않게 서버가 준다. */
@@ -501,8 +513,21 @@ enum ServiceState { OPEN, TRIAL, ACTIVE, GRACE, RESTRICTED }
         out.put("channels",portone.channels().entrySet().stream().map(e->Map.of("channelKey",e.getKey(),"pg",e.getValue())).toList());
         out.put("serviceState",billing.policy().state(storeId).name());
         Map<String,Integer> checkoutAmounts=new LinkedHashMap<>();
-        for(Plan plan:Plan.values())checkoutAmounts.put(plan.name(),billing.checkoutPrice(storeId,plan).amount());
+        Map<String,Boolean> checkoutProrated=new LinkedHashMap<>();
+        Map<String,Instant> checkoutNextBillingAt=new LinkedHashMap<>();
+        Map<String,String> checkoutConsentTexts=new LinkedHashMap<>();
+        for(Plan plan:Plan.values()){
+            BillingService.CheckoutPrice price=billing.checkoutPrice(storeId,plan);
+            Instant nextAutomaticBillingAt=billing.nextAutomaticBillingAt(storeId,plan);
+            checkoutAmounts.put(plan.name(),price.amount());
+            checkoutProrated.put(plan.name(),price.prorated());
+            checkoutNextBillingAt.put(plan.name(),nextAutomaticBillingAt);
+            checkoutConsentTexts.put(plan.name(),LegalConsentService.billingConsentText(plan,price.amount(),price.prorated(),nextAutomaticBillingAt));
+        }
         out.put("checkoutAmounts",checkoutAmounts);
+        out.put("checkoutProrated",checkoutProrated);
+        out.put("checkoutNextBillingAt",checkoutNextBillingAt);
+        out.put("checkoutConsentTexts",checkoutConsentTexts);
         subscriptions.findByStoreId(storeId).ifPresent(s->{
             if(s.lastPaidAt!=null)out.put("lastPaidAt",s.lastPaidAt);
             if(s.nextBillingAt!=null){
@@ -527,9 +552,14 @@ enum ServiceState { OPEN, TRIAL, ACTIVE, GRACE, RESTRICTED }
     @PostMapping("/checkout") ApiResponse<?> checkout(@PathVariable Long storeId,@Valid @RequestBody Checkout body,Authentication auth){
         Long adminId=(Long)auth.getPrincipal();
         AdminUser admin=billing.requireOwner(adminId,storeId);Store store=stores.findById(storeId).orElseThrow();
-        StoreSubscription before=subscriptions.findByStoreId(storeId).orElseThrow();
+        subscriptions.findByStoreId(storeId).orElseThrow();
         BillingService.CheckoutPrice price=billing.checkoutPrice(storeId,body.plan());
-        legalConsents.recordBillingChoice(admin,store,body.billingConsentAgreed(),body.billingConsentVersion(),body.plan(),price.amount(),before.nextBillingAt,"BILLING_CHECKOUT");
+        Instant nextAutomaticBillingAt=billing.nextAutomaticBillingAt(storeId,body.plan());
+        // 화면이 보여 준 문구와 지금 저장할 문구가 다르면(날짜가 넘어가 일할 차액이 바뀌는 등) 청구하지 않는다.
+        // 증적에 남는 문구가 곧 사장이 본 문구여야 한다.
+        if(body.billingConsentAgreed()&&!LegalConsentService.billingConsentText(body.plan(),price.amount(),price.prorated(),nextAutomaticBillingAt).equals(body.billingConsentText()))
+            throw new AppException("BILLING_CONSENT_CHANGED","결제 조건이 바뀌었어요. 화면을 새로 고친 뒤 다시 동의해 주세요.",HttpStatus.CONFLICT);
+        legalConsents.recordBillingChoice(admin,store,body.billingConsentAgreed(),body.billingConsentVersion(),body.plan(),price.amount(),price.prorated(),nextAutomaticBillingAt,"BILLING_CHECKOUT");
         if(!body.billingConsentAgreed())throw new AppException("BILLING_CONSENT_REQUIRED","자동결제에 동의해 주세요.");
         StoreSubscription s=billing.checkout(adminId,storeId,body.plan(),body.billingKey().trim());
         Map<String,Object> out=new LinkedHashMap<>();

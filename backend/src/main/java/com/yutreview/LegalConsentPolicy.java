@@ -2,10 +2,10 @@ package com.yutreview;
 
 final class LegalConsentPolicy {
     static final String TERMS_VERSION = "2026-09-28";
-    static final String ADMIN_PRIVACY_VERSION = "2026-09-23";
-    static final String CUSTOMER_PRIVACY_VERSION = "2026-09-23";
+    static final String ADMIN_PRIVACY_VERSION = "2026-09-29";
+    static final String CUSTOMER_PRIVACY_VERSION = "2026-09-29";
     static final String MARKETING_SMS_VERSION = "2026-09-23";
-    static final String BILLING_AUTO_PAYMENT_VERSION = "2026-09-28";
+    static final String BILLING_AUTO_PAYMENT_VERSION = "2026-09-29";
 
     private LegalConsentPolicy() {}
 

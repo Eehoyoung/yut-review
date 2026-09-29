@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AdminFrame } from "@/features/admin/AdminFrame";
-import { api, errorMessage } from "@/lib/api";
+import { ApiClientError, api, errorMessage } from "@/lib/api";
 import {
   AI_FEATURE_LABEL,
   PAYMENT_STATUS_LABEL,
@@ -52,14 +52,28 @@ export default function PlanPage() {
   const [channelKey, setChannelKey] = useState("");
   const [sdkError, setSdkError] = useState("");
   const [billingConsentAgreed, setBillingConsentAgreed] = useState(false);
+  const [billingConsentPlan, setBillingConsentPlan] = useState<Plan | null>(null);
   const consentKey = `billing-consent:${id}`;
   const refresh = () => {
     for (const key of ["subscription", "billing", "ai-status", "analytics"]) qc.invalidateQueries({ queryKey: [key, id] });
   };
   const checkout = useMutation({
-    mutationFn: ({ plan, billingKey }: { plan: Plan; billingKey: string }) =>
-      api(`/admin/stores/${id}/billing/checkout`, { method: "POST", body: JSON.stringify({ plan, billingKey, billingConsentAgreed: true, billingConsentVersion: BILLING_AUTO_PAYMENT_VERSION }) }),
-    onSuccess: refresh,
+    // 서버는 이 문구가 지금 계산한 동의문과 같을 때만 청구한다. 사장이 본 문구가 곧 증적이다.
+    mutationFn: ({ plan, billingKey, consentText }: { plan: Plan; billingKey: string; consentText: string }) =>
+      api(`/admin/stores/${id}/billing/checkout`, { method: "POST", body: JSON.stringify({ plan, billingKey, billingConsentAgreed: true, billingConsentVersion: BILLING_AUTO_PAYMENT_VERSION, billingConsentText: consentText }) }),
+    onSuccess: () => {
+      setBillingConsentAgreed(false);
+      setBillingConsentPlan(null);
+      refresh();
+    },
+    onError: (e) => {
+      // 조건이 바뀌었으면 새 문구를 받아 다시 동의하게 한다. 체크가 남아 있으면 새 문구에 동의한 것처럼 보인다.
+      if (e instanceof ApiClientError && e.code === "BILLING_CONSENT_CHANGED") {
+        setBillingConsentAgreed(false);
+        setBillingConsentPlan(null);
+        refresh();
+      }
+    },
   });
   const autoRenew = useMutation({
     mutationFn: (on: boolean) =>
@@ -83,16 +97,18 @@ export default function PlanPage() {
     window.history.replaceState(null, "", window.location.pathname);
     if (q.get("code")) setSdkError(q.get("message") ?? "결제수단을 등록하지 못했어요.");
     else if (billingKey) {
-      const consentedPlan = sessionStorage.getItem(consentKey);
+      let consent: { plan?: string; text?: string } = {};
+      try { consent = JSON.parse(sessionStorage.getItem(consentKey) ?? "{}"); } catch {}
       sessionStorage.removeItem(consentKey);
-      if (consentedPlan === plan) finishCheckout({ plan, billingKey });
+      if (consent.plan === plan && consent.text) finishCheckout({ plan, billingKey, consentText: consent.text });
       else setSdkError("자동결제 동의를 다시 확인해 주세요.");
     }
   }, [consentKey, finishCheckout]);
 
   async function register(plan: Plan) {
-    if (!billingConsentAgreed) {
-      setSdkError("자동결제 동의 항목을 확인해 주세요.");
+    const consentText = billing.data?.checkoutConsentTexts?.[plan];
+    if (!billingConsentAgreed || billingConsentPlan !== plan || !consentText) {
+      setSdkError("선택한 요금제의 자동결제 조건을 확인하고 동의해 주세요.");
       return;
     }
     const info = billing.data;
@@ -102,7 +118,7 @@ export default function PlanPage() {
     const option = plans.data?.find((p) => p.plan === plan);
     const chargeNow = info.checkoutAmounts?.[plan] ?? option?.monthlyPriceKrw;
     const PortOne = await import("@portone/browser-sdk/v2");
-    sessionStorage.setItem(consentKey, plan);
+    sessionStorage.setItem(consentKey, JSON.stringify({ plan, text: consentText }));
     const result = await PortOne.requestIssueBillingKey({
       storeId: info.portoneStoreId,
       channelKey: channel,
@@ -127,7 +143,7 @@ export default function PlanPage() {
       setSdkError(result.message ?? "결제수단을 등록하지 못했어요.");
       return;
     }
-    checkout.mutate({ plan, billingKey: result.billingKey });
+    checkout.mutate({ plan, billingKey: result.billingKey, consentText });
   }
 
   const change = useMutation({
@@ -273,20 +289,24 @@ export default function PlanPage() {
               </select>
             </label>
           )}
-          <label className="row" style={{ alignItems: "flex-start" }}>
-            <input
-              type="checkbox"
-              checked={billingConsentAgreed}
-              onChange={(e) => setBillingConsentAgreed(e.target.checked)}
-            />
-            <span className="lead">
-              무료체험 종료 또는 결제주기 도래 시 선택한 요금제의 월 이용료가 등록 카드로 자동결제되는 데 동의합니다. (필수)
-            </span>
-          </label>
           {paidPeriod && now && (
-            <button className="btn secondary" disabled={busy} onClick={() => register(now)}>
-              카드 변경
-            </button>
+            <>
+              <label className="row" style={{ alignItems: "flex-start" }}>
+                <input
+                  type="checkbox"
+                  checked={billingConsentPlan === now && billingConsentAgreed}
+                  onChange={(e) => {
+                    setBillingConsentPlan(now);
+                    setBillingConsentAgreed(e.target.checked);
+                    setSdkError("");
+                  }}
+                />
+                <span className="lead">{pay.checkoutConsentTexts?.[now] ?? "자동결제 조건을 확인하고 동의합니다. (필수)"}</span>
+              </label>
+              <button className="btn secondary" disabled={busy} onClick={() => register(now)}>
+                카드 변경
+              </button>
+            </>
           )}
           {pay.hasCard && state !== "RESTRICTED" && (
             <button className="btn secondary" disabled={busy} onClick={() => autoRenew.mutate(!pay.autoRenew)}>
@@ -387,17 +407,31 @@ export default function PlanPage() {
 
             {canPay
               ? !(paidPeriod && isCurrent) && (
-                  <button className="btn" disabled={busy} onClick={() => register(plan)}>
-                    {state === "TRIAL"
-                      ? pay.nextPlan === plan
-                        ? `체험 후 ${PLAN_LABEL[plan]} 결제 예정 · 카드 다시 등록`
-                        : `카드 등록 · 체험 후 ${PLAN_LABEL[plan]} ${priceLabel(option.monthlyPriceKrw)}`
-                      : paidPeriod && !isUpgrade
-                        ? `다음 결제부터 ${PLAN_LABEL[plan]}`
-                        : paidPeriod && isUpgrade
-                          ? `지금 ${priceLabel(pay.checkoutAmounts?.[plan] ?? option.monthlyPriceKrw)} 결제 · ${PLAN_LABEL[plan]}로 올리기`
-                          : `카드 등록하고 ${PLAN_LABEL[plan]} 결제 · ${priceLabel(option.monthlyPriceKrw)}`}
-                  </button>
+                  <>
+                    <label className="row" style={{ alignItems: "flex-start" }}>
+                      <input
+                        type="checkbox"
+                        checked={billingConsentPlan === plan && billingConsentAgreed}
+                        onChange={(e) => {
+                          setBillingConsentPlan(plan);
+                          setBillingConsentAgreed(e.target.checked);
+                          setSdkError("");
+                        }}
+                      />
+                      <span className="lead">{pay.checkoutConsentTexts?.[plan] ?? "자동결제 조건을 확인하고 동의합니다. (필수)"}</span>
+                    </label>
+                    <button className="btn" disabled={busy} onClick={() => register(plan)}>
+                      {state === "TRIAL"
+                        ? pay.nextPlan === plan
+                          ? `체험 후 ${PLAN_LABEL[plan]} 결제 예정 · 카드 다시 등록`
+                          : `카드 등록 · 체험 후 ${PLAN_LABEL[plan]} ${priceLabel(option.monthlyPriceKrw)}`
+                        : paidPeriod && !isUpgrade
+                          ? `다음 결제부터 ${PLAN_LABEL[plan]}`
+                          : paidPeriod && isUpgrade
+                            ? `지금 ${priceLabel(pay.checkoutAmounts?.[plan] ?? option.monthlyPriceKrw)} 결제 · ${PLAN_LABEL[plan]}로 올리기`
+                            : `카드 등록하고 ${PLAN_LABEL[plan]} 결제 · ${priceLabel(option.monthlyPriceKrw)}`}
+                    </button>
+                  </>
                 )
               : !isCurrent && (
                   <button className="btn secondary" disabled={change.isPending} onClick={() => change.mutate(plan)}>

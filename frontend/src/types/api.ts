@@ -69,6 +69,12 @@ export interface Billing {
   renewalFailures?: number;
   /** 지금 이 요금제를 선택할 때 즉시 청구될 금액. 체험/하향은 0원, 유료기간 상향은 일할 차액. */
   checkoutAmounts?: Partial<Record<Plan, number>>;
+  /** 즉시 청구액이 잔여기간 일할 차액인지 여부. */
+  checkoutProrated?: Partial<Record<Plan, boolean>>;
+  /** 선택한 요금제로 카드 등록/결제한 뒤 다음 자동결제 예정시각. */
+  checkoutNextBillingAt?: Partial<Record<Plan, string>>;
+  /** 서버가 실제 동의 증적에 저장하는 것과 동일한 자동결제 동의문. */
+  checkoutConsentTexts?: Partial<Record<Plan, string>>;
   payments: BillingPayment[];
 }
 

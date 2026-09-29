@@ -218,18 +218,34 @@ class BillingTest {
     @Test
     void checkoutRequiresAndRecordsExplicitAutoPaymentConsent() throws Exception {
         String auth="Bearer "+jwt.issue(owner);String key=issue();
+        mvc.perform(get("/api/admin/stores/{id}/billing",store.id).header("Authorization",auth))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.checkoutConsentTexts.BASIC",
+                org.hamcrest.Matchers.containsString("BASIC 요금제(월 9,900원)")))
+            .andExpect(jsonPath("$.data.checkoutConsentTexts.BASIC",
+                org.hamcrest.Matchers.containsString("자동결제")));
         mvc.perform(post("/api/admin/stores/{id}/billing/checkout",store.id).header("Authorization",auth)
                 .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
-                .content("{\"plan\":\"BASIC\",\"billingKey\":\""+key+"\",\"billingConsentAgreed\":false,\"billingConsentVersion\":\"2026-09-28\"}"))
+                .content("{\"plan\":\"BASIC\",\"billingKey\":\""+key+"\",\"billingConsentAgreed\":false,\"billingConsentVersion\":\""+LegalConsentPolicy.BILLING_AUTO_PAYMENT_VERSION+"\"}"))
             .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("BILLING_CONSENT_REQUIRED"));
         assertFalse(legalConsentEvents.findByAdminIdOrderByCreatedAtDescIdDesc(owner.id).get(0).agreed);
 
         mvc.perform(post("/api/admin/stores/{id}/billing/checkout",store.id).header("Authorization",auth)
                 .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
-                .content("{\"plan\":\"BASIC\",\"billingKey\":\""+key+"\",\"billingConsentAgreed\":true,\"billingConsentVersion\":\"2026-09-28\"}"))
+                .content("{\"plan\":\"BASIC\",\"billingKey\":\""+key+"\",\"billingConsentAgreed\":true,\"billingConsentVersion\":\""+LegalConsentPolicy.BILLING_AUTO_PAYMENT_VERSION+"\",\"billingConsentText\":\"다른 문구\"}"))
+            .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("BILLING_CONSENT_CHANGED"));
+        String shown=com.jayway.jsonpath.JsonPath.read(mvc.perform(get("/api/admin/stores/{id}/billing",store.id).header("Authorization",auth))
+            .andReturn().getResponse().getContentAsString(),"$.data.checkoutConsentTexts.BASIC");
+        mvc.perform(post("/api/admin/stores/{id}/billing/checkout",store.id).header("Authorization",auth)
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .content(new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(java.util.Map.of("plan","BASIC","billingKey",key,
+                    "billingConsentAgreed",true,"billingConsentVersion",LegalConsentPolicy.BILLING_AUTO_PAYMENT_VERSION,"billingConsentText",shown))))
             .andExpect(status().isOk());
         LegalConsentEvent accepted=legalConsentEvents.findByAdminIdOrderByCreatedAtDescIdDesc(owner.id).get(0);
-        assertTrue(accepted.agreed);assertEquals(store.id,accepted.store.id);assertTrue(accepted.detailsJson.contains("\"monthlyPriceKrw\":9900"));
+        assertTrue(accepted.agreed);assertEquals(store.id,accepted.store.id);
+        assertTrue(accepted.consentText.contains("BASIC 요금제(월 9,900원)"));
+        assertTrue(accepted.detailsJson.contains("\"monthlyPriceKrw\":9900"));
+        assertTrue(accepted.detailsJson.contains("\"nextAutomaticBillingAt\":"));
     }
 
     /** 유료기간 상향은 결제주기를 리셋하지 않고 남은 기간의 차액만 일할 청구한다. */
