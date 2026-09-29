@@ -48,7 +48,7 @@ function phone() {
   return `010${RUN}${vu}${iter}`; // 010 + 2 + 2 + 4 = 11자리
 }
 
-const CONSENT = { privacyAgreed: true, privacyConsentVersion: __ENV.PRIVACY_VERSION || "2026-09-04" };
+const CONSENT = { privacyAgreed: true, ageConfirmed: true, privacyConsentVersion: __ENV.PRIVACY_VERSION || "2026-09-04" };
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
 /** 한 손님의 정상 흐름. QR → 정보 입력 → 던지기 → 쿠폰. */

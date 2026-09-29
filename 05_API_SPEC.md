@@ -63,9 +63,11 @@ Request:
   "name": "홍길동",
   "phone": "01012345678",
   "privacyAgreed": true,
-  "privacyConsentVersion": "2026-09-21"
+  "privacyConsentVersion": "2026-09-29",
+  "ageConfirmed": true
 }
 ```
+`ageConfirmed`가 false이면 `400 AGE_CONFIRMATION_REQUIRED`. 만 14세 미만은 참여할 수 없다.
 
 Response 상태:
 ```text
@@ -135,9 +137,11 @@ Request:
   "phone": "01012345678",
   "idempotencyKey": "uuid",
   "privacyAgreed": true,
-  "privacyConsentVersion": "2026-09-21"
+  "privacyConsentVersion": "2026-09-29",
+  "ageConfirmed": true
 }
 ```
+`ageConfirmed`가 false이면 `400 AGE_CONFIRMATION_REQUIRED`. 만 14세 미만은 참여할 수 없다.
 Response:
 ```json
 {

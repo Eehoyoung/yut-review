@@ -92,6 +92,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         store.posterTagline="우리 매장 단골 감사 이벤트";
         mvc.perform(get("/api/public/stores/by-token/{token}",qr)).andExpect(status().isOk()).andExpect(jsonPath("$.data.posterTagline").value("우리 매장 단골 감사 이벤트"));}
     @Test void oneGameOneCouponAndIdempotentReveal(){GamePlay first=games.create(qr,"홍길동","010-1234-5678","request-1");GamePlay retry=games.create(qr,"홍길동","01012345678","request-1");assertEquals(first.id,retry.id);Coupon a=games.reveal(first.publicId);Coupon b=games.reveal(first.publicId);assertEquals(a.id,b.id);assertEquals(1,coupons.findByStoreIdOrderByIssuedAtDesc(store.id,PageRequest.of(0,50)).getTotalElements());}
+    @Test void customerEndpointsRequireAgeConfirmation() throws Exception{
+        String base="\"name\":\"홍길동\",\"phone\":\"01012345678\",\"privacyAgreed\":true,\"privacyConsentVersion\":\""+LegalConsentPolicy.CUSTOMER_PRIVACY_VERSION+"\"";
+        mvc.perform(post("/api/public/stores/{t}/customer-state",qr).contentType(org.springframework.http.MediaType.APPLICATION_JSON).content("{"+base+"}"))
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("AGE_CONFIRMATION_REQUIRED"));
+        mvc.perform(post("/api/public/games").contentType(org.springframework.http.MediaType.APPLICATION_JSON).content("{"+base+",\"storeToken\":\""+qr+"\",\"idempotencyKey\":\"age-1\",\"ageConfirmed\":false}"))
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("AGE_CONFIRMATION_REQUIRED"));
+        assertEquals(0,gameRepository.count());
+        mvc.perform(post("/api/public/stores/{t}/customer-state",qr).contentType(org.springframework.http.MediaType.APPLICATION_JSON).content("{"+base+",\"ageConfirmed\":true}"))
+            .andExpect(status().isOk());
+    }
     @Test void gameCreationRequiresCurrentPrivacyConsentAndStoresEvidence(){
         assertEquals("PRIVACY_CONSENT_REQUIRED",assertThrows(AppException.class,()->games.create(qr,"손님","01012345678","consent-off",false,LegalConsentPolicy.CUSTOMER_PRIVACY_VERSION)).code);
         assertEquals("PRIVACY_CONSENT_REQUIRED",assertThrows(AppException.class,()->games.create(qr,"손님","01012345678","consent-old",true,"2026-01-01")).code);

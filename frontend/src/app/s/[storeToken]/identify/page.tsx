@@ -13,9 +13,10 @@ import { CUSTOMER_PRIVACY_VERSION, legalOperator } from "@/lib/legal";
  * 입력 검증. 첫 번째 문제와 그 칸의 id를 함께 돌려준다.
  * 문구는 무엇이 부족한지까지 말한다. "확인해 주세요"는 무엇을 고쳐야 하는지 알려주지 않는다.
  */
-function problem(name: string, phone: string, agreed: boolean): { id: string; message: string } | null {
+function problem(name: string, phone: string, adult: boolean, agreed: boolean): { id: string; message: string } | null {
   if (!name.trim()) return { id: "name", message: "이름을 입력해 주세요." };
   if (!isPhone(phone)) return { id: "phone", message: `휴대폰 번호 ${PHONE_LENGTH}자리를 입력해 주세요.` };
+  if (!adult) return { id: "age", message: "만 14세 이상만 참여할 수 있어요." };
   if (!agreed) return { id: "agree", message: "개인정보 수집에 동의해 주세요." };
   return null;
 }
@@ -27,6 +28,7 @@ export default function Identify() {
   const setGame = useSession((s) => s.setGame);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [adult, setAdult] = useState(false);
   const [agreed, setAgreed] = useState(false);
   const store = useQuery({
     queryKey: ["store", token],
@@ -46,7 +48,7 @@ export default function Identify() {
       setRecovering(false);
       const state = await api<CustomerState>(`/public/stores/${encodeURIComponent(token)}/customer-state`, {
         method: "POST",
-        body: JSON.stringify({ name, phone, privacyAgreed: agreed, privacyConsentVersion: CUSTOMER_PRIVACY_VERSION }),
+        body: JSON.stringify({ name, phone, privacyAgreed: agreed, privacyConsentVersion: CUSTOMER_PRIVACY_VERSION, ageConfirmed: adult }),
       });
       if (state.state === "HAS_ACTIVE_COUPON") {
         // 티켓은 1회용이고 5분이면 만료된다. 받자마자 쿠폰으로 바꾼다.
@@ -60,7 +62,7 @@ export default function Identify() {
       if (state.state !== "CAN_PLAY") return { state };
       const game = await api<GameCreated>("/public/games", {
         method: "POST",
-        body: JSON.stringify({ storeToken: token, name, phone, idempotencyKey: idempotencyKey.current, privacyAgreed: agreed, privacyConsentVersion: CUSTOMER_PRIVACY_VERSION }),
+        body: JSON.stringify({ storeToken: token, name, phone, idempotencyKey: idempotencyKey.current, privacyAgreed: agreed, privacyConsentVersion: CUSTOMER_PRIVACY_VERSION, ageConfirmed: adult }),
       });
       return { state, game };
     },
@@ -78,7 +80,7 @@ export default function Identify() {
   const cooldown = mutation.data?.state.state === "COOLDOWN" ? mutation.data.state : undefined;
   // 티켓이 만료·재사용되면 막다른 길이 된다. 다시 확인하면 새 티켓이 나온다.
   const ticketExpired = mutation.error instanceof ApiClientError && mutation.error.code === "RECOVERY_TICKET_INVALID";
-  const blocked = problem(name, phone, agreed);
+  const blocked = problem(name, phone, adult, agreed);
 
   return (
     <main className="screen has-bar">
@@ -134,6 +136,10 @@ export default function Identify() {
           </div>
           <hr className="hair" />
           <label className="check">
+            <input id="age" type="checkbox" checked={adult} onChange={(e) => setAdult(e.target.checked)} required />
+            <span><b>[필수]</b> 만 14세 이상입니다.</span>
+          </label>
+          <label className="check">
             <input id="agree" type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} required />
             <span><b>[필수]</b> 개인정보 수집·이용에 동의합니다.</span>
           </label>
@@ -148,7 +154,7 @@ export default function Identify() {
               <p><b>수집:</b> 이름, 휴대폰 번호, 참여·게임·쿠폰 정보</p>
               <p><b>목적:</b> 참여 제한 확인, 게임·쿠폰 제공 및 사용 처리</p>
               <p><b>보유:</b> 참여일 포함 120일. 유효한 미사용 쿠폰은 만료 후 익명화</p>
-              <p>동의를 거부할 수 있으나 이벤트에는 참여할 수 없습니다.</p>
+              <p>동의를 거부할 수 있으나 이벤트에는 참여할 수 없습니다. 만 14세 미만은 참여할 수 없습니다.</p>
               <Link href="/legal/customer-privacy" target="_blank">개인정보 수집·이용 안내 전문</Link>
             </div>
           </details>
