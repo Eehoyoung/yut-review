@@ -118,6 +118,23 @@ class PrintKitTest {
             .andExpect(jsonPath("$.data.printKitStatus").value("WAITING")).andExpect(jsonPath("$.data.history[0].reason").value("QR 사진이 외부에 퍼짐"));
     }
 
+    @Test void basicPosterIsDrawnFreshSoOldStoredImagesNeverLeak() throws Exception {
+        var p=signup.signUp(new AdminSignupService.Request("secret1234","secret1234","fresh-poster@test.com","새그림대표","01055558888",
+            "새그림상회","5551110098"),"https://example.test","203.0.113.96");
+        Long id=p.store().id;
+        String owner="Bearer "+jwt.issue(admins.findByEmail("fresh-poster@test.com").orElseThrow());
+        // 저장본을 옛 디자인(다른 그림)으로 바꿔 둔다. 다운로드는 이 이미지가 아니라 지금 코드로 그린 것이어야 한다.
+        StorePoster stored=posterService.save(p.store(),p.storeToken(),"https://field-test.example");
+        stored.contentBase64=java.util.Base64.getEncoder().encodeToString(StorePosterService.render("옛 디자인","https://field-test.example/s/old"));
+        posters.save(stored);
+
+        byte[] downloaded=mvc.perform(get("/api/admin/stores/{id}/poster",id).param("variant","GAME").header("Authorization",owner))
+            .andExpect(status().isOk()).andExpect(header().string("X-Poster-Public-Origin","https://field-test.example"))
+            .andReturn().getResponse().getContentAsByteArray();
+        assertArrayEquals(StorePosterService.render(PosterVariant.GAME,"새그림상회","https://field-test.example/s/"+p.storeToken(),null,null),downloaded,
+            "기본 안내물도 저장본 origin으로 새로 그린다");
+    }
+
     private static double mm(float pt){return pt*25.4/72;}
     private AdminUser operator(String email){
         AdminUser a=new AdminUser();a.email=email;a.passwordHash=encoder.encode("secret1234");a.name="운영자";
