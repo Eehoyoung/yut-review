@@ -343,10 +343,29 @@ DB를 버려도 되는 로컬이라면 `docker compose down -v` 후 새 키로 �
 
 - **저장하는 것은 GAME뿐이다.** 나머지는 `GET /poster?variant=`에서 그때 그린다. 저장본의 origin을 쓰므로
   "안내물 다시 만들기"가 세 장 모두의 주소를 바꾼다. `store_posters`에 variant 행을 늘리지 말 것.
-- 큰 글자(상호·제목·단계)는 번들한 주아체(`resources/fonts/Jua-Regular.ttf`, OFL), 작은 안내문은 `NanumSquareRound` → 맑은 고딕 → 기본 sans. 인쇄물 바탕이 밝은 톤으로 바뀌었다
-  (예전엔 네이비 전면). 기존 매장의 저장본은 "안내물 다시 만들기"를 눌러야 새 디자인이 된다.
+- 제목 두 줄만 주아체(`resources/fonts/Jua-Regular.ttf`), 나머지는 전부 번들한 Pretendard Bold/Regular(OFL).
+  **시스템 글꼴을 다시 찾지 말 것** — 개발 PC의 JVM이 후보를 하나도 못 찾아 기본 sans로 떨어지면서 자간이 깨졌다.
+- 2026-10-01 개편: 가운데 축 하나로 정렬, 바탕은 GAME 크림 · EVENT 딥 오렌지 · REVISIT 네이비. PRO 테마(FOREST·PLUM)는
+  종류와 관계없이 `Palette` 전체를 바꾼다(예전엔 아래쪽 바탕과 장식이 남아 색이 섞였다). 상호·한 줄 소개는 어절 단위
+  2줄 줄바꿈 후 말줄임. 글자는 모두 재단선 안쪽 35px(3mm) 안에 있고 최소 7.2pt 이상이다.
+  기존 매장의 저장본(GAME)은 "안내물 다시 만들기"를 눌러야 새 디자인이 된다.
 - 리뷰·별점은 어느 안내물에도 참여 조건으로 적지 않는다. 문구는 해요체.
 - `CoreRulesTest`가 세 종류 모두 QR이 실제로 디코딩되는지 본다. 바탕색이나 장식을 바꾸면 이 테스트를 돌릴 것.
+
+## 입점 키트 · 테이블 스티커 (2026-10-01)
+
+가입 매장에 A6 안내물 3종 각 1매 + 테이블 스티커 10매를 **실물로** 보낸다. 파일은 사장도 직접 받는다.
+
+- 스티커는 90×50mm(명함 스티커 규격) 한 가지, 10장 모두 같은 QR이다. `StorePosterService.sticker`.
+- 사장: `GET /api/admin/stores/{id}/sticker-sheet`(A4 한 장에 10칸 PNG), `GET .../print-kit`(인쇄용 PDF).
+  둘 다 저장하지 않고 그때 그리며, QR 주소는 GAME 저장본의 origin을 쓴다.
+- 운영자: `/admin/operator/print-kits`. 매장명·사업자등록번호 검색, 진행 단계(인쇄 대기/인쇄 중/인쇄 완료/발송 완료)
+  필터와 변경, PDF 저장. 구현은 `PrintKits.java`, 상태는 `store_print_kits`(행 없음 = 인쇄 대기). 대상은 ACTIVE 매장뿐.
+- PDF는 PDFBox로 만든다. 쪽마다 MediaBox=BleedBox(재단+3mm), TrimBox(재단선). A6 3쪽 + 스티커 1쪽이고 수량 10매는
+  파일명·문서 제목에 적는다. 색은 RGB이며 CMYK 변환은 인쇄소에 맡긴다.
+- 운영자 PDF 다운로드는 저장본을 만들지 않는다(운영자 조회가 매장 데이터를 바꾸지 않게). 저장본이 없으면 현재 공개 origin.
+- 가입 때 주소를 받지 않는다. 주소가 비어 있으면 콘솔이 "주소 미입력"으로 표시하고, 운영자가 발송 전에 확인한다.
+- 테스트: `PrintKitTest.java`(스티커 QR 디코딩, PDF 박스 치수, 검색·필터·상태 변경, 사장 다운로드).
 
 ## 로그아웃
 

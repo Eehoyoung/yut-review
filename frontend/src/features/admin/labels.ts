@@ -1,4 +1,4 @@
-import type { AiFeature, Plan, ServiceState, StoreStatus } from "@/types/api";
+import type { AiFeature, Plan, PrintKitStatus, ServiceState, StoreStatus } from "@/types/api";
 
 /**
  * 관리자 화면에서만 쓰는 라벨.
@@ -92,4 +92,19 @@ export const THROTTLE_LABEL: Record<string, string> = {
   AUTH_RATE_LIMITED: "관리자 로그인",
   STAFF_PIN_RATE_LIMITED: "직원 PIN 확인",
   RATE_LIMITED: "고객 상태 조회",
+};
+
+/** 입점 키트(A6 안내물 3종 + 테이블 스티커 10장) 실물 발송 단계. 운영자 콘솔 전용. */
+export const PRINT_KIT_STATUS_LABEL: Record<PrintKitStatus, string> = {
+  WAITING: "인쇄 대기",
+  PRINTING: "인쇄 중",
+  PRINTED: "인쇄 완료",
+  SHIPPED: "발송 완료",
+};
+
+export const PRINT_KIT_STATUS_TONE: Record<PrintKitStatus, string> = {
+  WAITING: "wait",
+  PRINTING: "wood",
+  PRINTED: "ok",
+  SHIPPED: "off",
 };

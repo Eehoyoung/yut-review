@@ -14,29 +14,46 @@ import java.io.IOException;
 import java.net.URI;
 import java.time.Clock;
 import java.time.Instant;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Base64;
+import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.function.IntFunction;
 import javax.imageio.ImageIO;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDPage;
+import org.apache.pdfbox.pdmodel.PDPageContentStream;
+import org.apache.pdfbox.pdmodel.common.PDRectangle;
+import org.apache.pdfbox.pdmodel.graphics.image.LosslessFactory;
 import org.springframework.stereotype.Service;
 
 /** 안내물 종류. GAME이 기본이며 저장되는 것도 GAME뿐이다. 나머지는 요청할 때 그린다. */
 enum PosterVariant { GAME, EVENT, REVISIT }
 
+/**
+ * 입점 키트 = A6 안내물 3종 + 테이블 스티커(90×50mm) 10장.
+ *
+ * 모든 치수는 300dpi 픽셀이다(1mm ≈ 11.8px, 1pt ≈ 4.17px). 화면·사장 다운로드용 PNG는 재단 크기 그대로,
+ * 인쇄소용 PDF는 사방 3mm 도련을 붙여 같은 함수로 그린다. 배경과 하단 띠만 도련까지 번지고
+ * 글자는 모두 재단선 안쪽 3mm(35px) 안전선 안에 있다.
+ */
 @Service class StorePosterService {
-    static final int WIDTH=1240,HEIGHT=1748;
-    // DESIGN.md 팔레트(소담랩스 로고 색). 인쇄물은 밝은 바탕 위에 네이비 글자와 오렌지 강조를 쓴다.
-    private static final Color NAVY=new Color(0x162436),PAPER=Color.WHITE,ORANGE=new Color(0xFC672D),ORANGE_DEEP=new Color(0xD9531C),
-        CREAM=new Color(0xFCDAC2),YELLOW=new Color(0xFFE27A),WOOD=new Color(0x9A5B2A),WOOD_LIGHT=new Color(0xD9A873);
-    // 운영 이미지(fonts-nanum)에는 둥근 고딕이 있고, 개발 PC(Windows)에는 맑은 고딕이 있다.
-    private static final String FAMILY=Arrays.stream(new String[]{"NanumSquareRound","NanumSquare","NanumGothic","Malgun Gothic"})
-        .filter(Set.of(GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames())::contains).findFirst().orElse(Font.SANS_SERIF);
-    // 제목·상호·단계처럼 큰 글자는 주아체(OFL, resources/fonts)로 귀엽게, 작은 안내문은 위 고딕으로 읽기 쉽게 둔다.
-    private static final Font CUTE=loadCute();
-    private static Font loadCute(){
-        try(var in=StorePosterService.class.getResourceAsStream("/fonts/Jua-Regular.ttf")){return Font.createFont(Font.TRUETYPE_FONT,in);}
-        catch(Exception e){return new Font(FAMILY,Font.BOLD,12);}
+    static final int WIDTH=1240,HEIGHT=1748;          // A6 105×148mm
+    static final int STICKER_W=1063,STICKER_H=591;   // 90×50mm, 명함 스티커 규격
+    static final int SHEET_W=2480,SHEET_H=3508;      // A4, 사장이 직접 뽑는 스티커 10칸 판
+    static final int BLEED=35;                       // 3mm
+    static final int STICKER_COUNT=10;
+    private static final double DPI=300;
+
+    // DESIGN.md 팔레트(소담랩스 로고 색). 밝은 바탕 위 글자·채움은 딥 오렌지, 네이비 위 강조만 로고 원색.
+    private static final Color NAVY=new Color(0x162436),PAPER=Color.WHITE,ORANGE=new Color(0xFC672D),ORANGE_DEEP=new Color(0xC14A15),
+        CREAM=new Color(0xFCDAC2),YELLOW=new Color(0xFFE27A),WOOD=new Color(0x9A5B2A),WOOD_LIGHT=new Color(0xD9A873),MUTED=new Color(0x4C5A6B);
+    // 큰 제목만 주아체(귀여움), 나머지는 Pretendard. 둘 다 OFL이고 번들한다 — 시스템 글꼴에 맡기면
+    // 운영 이미지와 개발 PC가 서로 다른 글꼴로 그려서 자간까지 달라졌다.
+    private static final Font CUTE=load("/fonts/Jua-Regular.ttf"),BOLD=load("/fonts/Pretendard-Bold.ttf"),REGULAR=load("/fonts/Pretendard-Regular.ttf");
+    private static Font load(String path){
+        try(var in=StorePosterService.class.getResourceAsStream(path)){return Font.createFont(Font.TRUETYPE_FONT,in);}
+        catch(Exception e){throw new IllegalStateException("안내물 글꼴을 읽지 못했습니다: "+path,e);}
     }
     private final StorePosterRepository posters;private final Clock clock;
     StorePosterService(StorePosterRepository posters,Clock clock){this.posters=posters;this.clock=clock;}
@@ -66,97 +83,170 @@ enum PosterVariant { GAME, EVENT, REVISIT }
 
     static byte[] render(String storeName,String url){return render(storeName,url,null);}
     static byte[] render(String storeName,String url,String tagline){return render(PosterVariant.GAME,storeName,url,tagline);}
-    static byte[] render(PosterVariant variant,String storeName,String url,String tagline,PosterBrandTheme brandTheme){
-        return renderWithTheme(variant,storeName,url,tagline,Theme.of(variant).branded(brandTheme));
+    static byte[] render(PosterVariant variant,String storeName,String url,String tagline){return render(variant,storeName,url,tagline,null);}
+    /** 재단 크기 A6 PNG. 화면 미리보기·사장 저장·저장본이 모두 이것이다. */
+    static byte[] render(PosterVariant variant,String storeName,String url,String tagline,PosterBrandTheme brand){
+        return png(poster(variant,storeName,url,tagline,Palette.of(variant,brand),0));
+    }
+
+    /** A4 한 장에 스티커 10칸(2×5). 칸 사이 4mm 여백과 회색 재단선. 사장이 라벨지나 일반 용지에 직접 뽑는 용도. */
+    static byte[] stickerSheet(String storeName,String url,PosterBrandTheme brand){
+        BufferedImage sticker=sticker(storeName,url,Palette.of(PosterVariant.GAME,brand),0);
+        BufferedImage sheet=new BufferedImage(SHEET_W,SHEET_H,BufferedImage.TYPE_INT_RGB);Graphics2D g=start(sheet);
+        g.setColor(PAPER);g.fillRect(0,0,SHEET_W,SHEET_H);
+        int gap=47,left=(SHEET_W-2*STICKER_W-gap)/2,top=(SHEET_H-5*STICKER_H-4*gap)/2;
+        g.setColor(MUTED);g.setFont(REGULAR.deriveFont(30f));
+        center(g,storeName+" · 테이블 스티커 "+STICKER_COUNT+"장 · 90×50mm · 회색 선을 따라 잘라 주세요",SHEET_W/2,top-40);
+        g.setColor(new Color(0xB8BEC6));g.setStroke(new BasicStroke(2));
+        for(int i=0;i<STICKER_COUNT;i++){int x=left+(i%2)*(STICKER_W+gap),y=top+(i/2)*(STICKER_H+gap);
+            g.drawImage(sticker,x,y,null);g.drawRect(x-1,y-1,STICKER_W+1,STICKER_H+1);}
+        g.dispose();return png(sheet);
     }
 
     /**
-     * 세 안내물은 같은 뼈대(상호 → 제목 → QR 판 → 참여 3단계 → 하단 띠)에 색·장식·문구만 다르다.
-     * QR 판의 크기(47mm)와 위치가 셋 다 같아서 어느 것을 붙여도 스캔 거리가 같다.
-     * tagline은 매장이 직접 쓴 한 줄이며 PRO에서만 채워진다(브랜딩 권한). 없으면 종류별 기본 문구를 쓴다.
+     * 인쇄소용 입점 키트 PDF. A6 3쪽(기본·이벤트·재방문) + 스티커 1쪽(수량 10매는 파일명과 문서 제목에 적는다).
+     * 쪽마다 MediaBox=BleedBox(재단+3mm), TrimBox(재단선)를 넣어 인쇄소가 재단 위치를 따로 묻지 않게 한다.
+     * 색은 RGB다. CMYK 변환은 인쇄소 RIP에 맡긴다(오렌지가 약간 가라앉는다).
+     */
+    static byte[] printKitPdf(String storeName,String url,String tagline,PosterBrandTheme brand){
+        try(PDDocument doc=new PDDocument();ByteArrayOutputStream out=new ByteArrayOutputStream()){
+            for(PosterVariant v:PosterVariant.values())addPage(doc,poster(v,storeName,url,tagline,Palette.of(v,brand),BLEED));
+            addPage(doc,sticker(storeName,url,Palette.of(PosterVariant.GAME,brand),BLEED));
+            doc.getDocumentInformation().setTitle(storeName+" 입점 키트 — A6 안내물 3종 각 1매, 테이블 스티커 90×50mm "+STICKER_COUNT+"매");
+            doc.getDocumentInformation().setCreator("소담한판");
+            doc.save(out);return out.toByteArray();
+        }catch(IOException e){throw new IllegalStateException("인쇄용 PDF 생성에 실패했습니다.",e);}
+    }
+    private static void addPage(PDDocument doc,BufferedImage image) throws IOException{
+        float w=pt(image.getWidth()),h=pt(image.getHeight()),b=pt(BLEED);
+        PDPage page=new PDPage(new PDRectangle(w,h));page.setBleedBox(new PDRectangle(w,h));page.setTrimBox(new PDRectangle(b,b,w-2*b,h-2*b));
+        var xobject=LosslessFactory.createFromImage(doc,image);
+        try(var cs=new PDPageContentStream(doc,page)){cs.drawImage(xobject,0,0,w,h);}
+        doc.addPage(page);
+    }
+    private static float pt(int px){return (float)(px*72/DPI);}
+
+    /**
+     * 세 안내물은 같은 뼈대(상호 → 제목 두 줄 → 보조문 → QR 판 → 참여 3단계 → 하단 띠)이고 가운데 축 하나로 정렬한다.
+     * 색·장식·문구만 다르다. QR 판의 크기와 위치가 셋 다 같아서 어느 것을 붙여도 스캔 거리가 같다.
+     * tagline은 매장이 직접 쓴 한 줄이며 PRO에서만 채워진다. 없으면 종류별 기본 보조문을 쓴다.
      * 리뷰·별점은 참여 조건이 아니므로 어느 안내물에도 적지 않는다.
      */
-    static byte[] render(PosterVariant variant,String storeName,String url,String tagline){
-        return renderWithTheme(variant,storeName,url,tagline,Theme.of(variant));
-    }
+    private static BufferedImage poster(PosterVariant variant,String storeName,String url,String tagline,Palette p,int bleed){
+        BufferedImage image=new BufferedImage(WIDTH+2*bleed,HEIGHT+2*bleed,BufferedImage.TYPE_INT_RGB);Graphics2D g=start(image);
+        g.translate(bleed,bleed);
+        g.setPaint(new GradientPaint(0,0,p.bgTop,0,HEIGHT,p.bgBottom));g.fillRect(-bleed,-bleed,WIDTH+2*bleed,HEIGHT+2*bleed);
+        decorate(g,variant,p);
+        Copy c=Copy.of(variant);
 
-    private static byte[] renderWithTheme(PosterVariant variant,String storeName,String url,String tagline,Theme t){
-        BufferedImage image=new BufferedImage(WIDTH,HEIGHT,BufferedImage.TYPE_INT_RGB);Graphics2D g=image.createGraphics();
-        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,RenderingHints.VALUE_ANTIALIAS_ON);g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-        g.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS,RenderingHints.VALUE_FRACTIONALMETRICS_ON);
-        g.setPaint(new GradientPaint(0,0,t.bgTop,0,HEIGHT,t.bgBottom));g.fillRect(0,0,WIDTH,HEIGHT);
-        decorate(g,variant);
+        // 상호: 한 줄에 안 들어가면 44px까지 줄이고, 그래도 넘치면 어절 단위로 두 줄.
+        Block name=block(g,storeName,BOLD,60,44,560,2);FontMetrics nm=g.getFontMetrics(name.font);
+        int nameW=name.lines.stream().mapToInt(nm::stringWidth).max().orElse(0),lineH=nm.getHeight();
+        int pillW=nameW+130,pillH=name.lines.size()==1?96:40+lineH*name.lines.size(),pillX=(WIDTH-pillW)/2;
+        g.setColor(p.pill);g.fillRoundRect(pillX,96,pillW,pillH,96,96);
+        g.setColor(p.dot);g.fillOval(pillX+44,96+pillH/2-11,22,22);
+        g.setColor(p.pillInk);g.setFont(name.font);
+        int nameTop=96+(pillH-lineH*name.lines.size())/2;
+        for(int i=0;i<name.lines.size();i++)g.drawString(name.lines.get(i),pillX+86,nameTop+i*lineH+nm.getAscent());
 
-        g.setFont(fit(g,storeName,CUTE_SIZE,48,600));FontMetrics m=g.getFontMetrics();int pillW=m.stringWidth(storeName)+122;
-        g.setColor(t.pill);g.fillRoundRect(96,96,pillW,96,96,96);
-        g.setColor(t.dot);g.fillOval(130,132,24,24);
-        g.setColor(t.pillInk);g.drawString(storeName,176,144+(m.getAscent()-m.getDescent())/2);
+        g.setColor(p.ink);g.setFont(fit(g,c.line1,CUTE,96,64,1000));center(g,c.line1,WIDTH/2,372);
+        g.setColor(p.accent);g.setFont(fit(g,c.line2,CUTE,132,88,1048));center(g,c.line2,WIDTH/2,520);
+        String subText=tagline==null||tagline.isBlank()?c.sub:tagline.trim();
+        Block sub=block(g,subText,REGULAR,44,36,1000,2);g.setColor(p.subInk);g.setFont(sub.font);
+        for(int i=0;i<sub.lines.size();i++)center(g,sub.lines.get(i),WIDTH/2,600+i*54);
 
-        g.setColor(t.ink);g.setFont(fit(g,t.line1,CUTE_SIZE,96,1040));g.drawString(t.line1,96,392);
-        g.setColor(t.accent);g.setFont(fit(g,t.line2,CUTE_SIZE,132,1048));g.drawString(t.line2,90,540);
-        String sub=tagline==null||tagline.isBlank()?t.sub:tagline.trim();
-        g.setColor(t.subInk);g.setFont(fit(g,sub,size->font(Font.PLAIN,size),40,1040));g.drawString(sub,98,622);
-
-        int plateX=230,plateY=690,plateW=780,plateH=720;
-        g.setColor(t.plateShadow);g.fillRoundRect(plateX+18,plateY+22,plateW,plateH,64,64);
+        int plateX=230,plateY=700,plateW=780,plateH=700;
+        g.setColor(p.ring);g.fillRoundRect(plateX-12,plateY-12,plateW+24,plateH+24,80,80);
         g.setColor(PAPER);g.fillRoundRect(plateX,plateY,plateW,plateH,64,64);
-        g.setColor(NAVY);g.setFont(cute(44));center(g,"휴대폰 카메라로 비춰 주세요",WIDTH/2,772);
-        drawQr(g,url,342,812,555);
+        g.setColor(NAVY);g.setFont(BOLD.deriveFont(44f));center(g,"휴대폰 카메라로 비춰 주세요",WIDTH/2,776);
+        drawQr(g,url,342,810,555);
 
-        String[] steps={"QR 비추기","윷 던지기","쿠폰 받기"};
-        for(int i=0;i<steps.length;i++){int x=96+i*360;
-            g.setColor(t.stepDot);g.fillOval(x,1464,72,72);
-            g.setColor(t.stepDotInk);g.setFont(cute(42));center(g,Integer.toString(i+1),x+36,1514);
-            g.setColor(t.ink);g.drawString(steps[i],x+90,1514);}
+        // 3단계는 96~1144 폭에 같은 간격으로 나눈다. 글자 폭이 달라도 좌우 여백이 같다.
+        String[] steps={"QR 비추기","윷 던지기","쿠폰 받기"};Font stepFont=BOLD.deriveFont(44f);FontMetrics sm=g.getFontMetrics(stepFont);
+        int[] widths=new int[3];int total=0;for(int i=0;i<3;i++){widths[i]=64+16+sm.stringWidth(steps[i]);total+=widths[i];}
+        int gap=(1048-total)/2,x=96;
+        for(int i=0;i<3;i++){
+            g.setColor(p.stepDot);g.fillOval(x,1440,64,64);
+            g.setColor(p.stepDotInk);g.setFont(stepFont);center(g,Integer.toString(i+1),x+32,1488);
+            g.setColor(p.ink);g.drawString(steps[i],x+80,1488);x+=widths[i]+gap;}
 
-        g.setColor(t.band);g.fillRect(0,1598,WIDTH,HEIGHT-1598);
-        g.setColor(PAPER);g.setFont(cute(44));center(g,"앱 설치 없이 이름과 번호만 입력하면 돼요",WIDTH/2,1672);
-        g.setColor(t.bandSub);g.setFont(font(Font.PLAIN,28));center(g,t.footnote,WIDTH/2,1718);
-        g.dispose();
-        try(ByteArrayOutputStream out=new ByteArrayOutputStream()){ImageIO.write(image,"png",out);return out.toByteArray();}
-        catch(IOException e){throw new IllegalStateException("매장 QR 템플릿 생성에 실패했습니다.",e);}
+        g.setColor(p.band);g.fillRect(-bleed,1544,WIDTH+2*bleed,HEIGHT-1544+bleed);
+        g.setColor(p.bandInk);g.setFont(fit(g,"앱 설치 없이 이름과 번호만 입력하면 돼요",BOLD,46,36,1048));center(g,"앱 설치 없이 이름과 번호만 입력하면 돼요",WIDTH/2,1618);
+        String foot=c.footnote+"  ·  소담한판";
+        g.setColor(p.bandSub);g.setFont(fit(g,foot,REGULAR,34,30,1048));center(g,foot,WIDTH/2,1674);
+        g.dispose();return image;
     }
 
-    private record Theme(Color bgTop,Color bgBottom,Color ink,Color accent,Color subInk,Color pill,Color pillInk,Color dot,Color plateShadow,
-                         Color stepDot,Color stepDotInk,Color band,Color bandSub,String line1,String line2,String sub,String footnote){
-        static Theme of(PosterVariant v){return switch(v){
-            case GAME->new Theme(new Color(0xFFF8F0),new Color(0xFFE4CE),NAVY,ORANGE_DEEP,new Color(0x4C5A6B),NAVY,PAPER,ORANGE,ORANGE,
-                ORANGE_DEEP,PAPER,NAVY,CREAM,"윷 한 판 던져요~","상품이 기다려요","QR을 찍으면 바로 시작해요","도·개·걸·윷·모, 무엇이 나와도 쿠폰을 드려요");
-            case EVENT->new Theme(new Color(0xFF8C4E),new Color(0xF2541A),PAPER,YELLOW,new Color(0xFFF1E6),PAPER,NAVY,ORANGE,NAVY,
-                PAPER,ORANGE_DEEP,NAVY,CREAM,"만나서 반가워요","깜짝 선물 기대하세요!","윷 한 번 던지고 선물 받아 가세요","쿠폰 쓰는 방법은 결과 화면에서 알려 드려요");
-            case REVISIT->new Theme(new Color(0xF2F9F5),new Color(0xD3EBDF),NAVY,ORANGE_DEEP,new Color(0x3F5A52),PAPER,NAVY,new Color(0x2E8B68),new Color(0xA5D6C0),
-                new Color(0x2E8B68),PAPER,new Color(0x1F5E4A),new Color(0xCFEBDD),"오늘 좋은 경험을 다음에도 경험해 보세요!","감사의 선물 받아 가세요","오늘 던지셨다면 모레 또 만나요","아직 쓰지 않은 쿠폰이 있으면 그 쿠폰부터 보여 드려요");
+    /** 테이블 스티커 90×50mm. 왼쪽 QR 판, 오른쪽 상호·제목·안내. 앉은 자리(30~60cm)에서 찍는 크기라 QR은 약 32mm면 충분하다. */
+    private static BufferedImage sticker(String storeName,String url,Palette p,int bleed){
+        BufferedImage image=new BufferedImage(STICKER_W+2*bleed,STICKER_H+2*bleed,BufferedImage.TYPE_INT_RGB);Graphics2D g=start(image);
+        g.translate(bleed,bleed);
+        g.setPaint(new GradientPaint(0,0,p.bgTop,0,STICKER_H,p.bgBottom));g.fillRect(-bleed,-bleed,STICKER_W+2*bleed,STICKER_H+2*bleed);
+
+        g.setColor(p.ring);g.fillRoundRect(40,45,500,500,56,56);
+        g.setColor(PAPER);g.fillRoundRect(48,53,484,484,48,48);
+        drawQr(g,url,60,65,460);
+
+        int x=580,maxW=STICKER_W-BLEED-x;
+        g.setColor(p.dot);g.fillOval(x,86,20,20);
+        g.setColor(p.ink);g.setFont(BOLD.deriveFont(34f));String name=ellipsize(g.getFontMetrics(),storeName,maxW-32);
+        g.setFont(fit(g,name,BOLD,34,30,maxW-32));g.drawString(name,x+32,108);
+        g.setColor(p.ink);g.setFont(fit(g,"윷 한 판 던지고",CUTE,62,48,maxW));g.drawString("윷 한 판 던지고",x,210);
+        g.setColor(p.accent);g.setFont(fit(g,"쿠폰 받아 가세요",CUTE,62,48,maxW));g.drawString("쿠폰 받아 가세요",x,288);
+        g.setColor(p.subInk);g.setFont(fit(g,"카메라로 비추면 바로 시작해요",REGULAR,31,30,maxW));
+        g.drawString("카메라로 비추면 바로 시작해요",x,370);g.drawString("앱 설치 없이 참여해요",x,414);
+        g.setColor(p.subInk);g.setFont(BOLD.deriveFont(30f));g.drawString("소담한판",x,528);
+        Graphics2D d=(Graphics2D)g.create();d.translate(950,470);d.scale(.38,.38);
+        stick(d,-70,0,-18,p.stickA,true);stick(d,20,-10,8,p.stickB,false);stick(d,110,0,24,p.stickC,true);d.dispose();
+        g.dispose();return image;
+    }
+
+    /** 안내물 종류별 문구. 매장이 바꿀 수 있는 것은 PRO의 한 줄 소개뿐이다. */
+    private record Copy(String line1,String line2,String sub,String footnote){
+        static Copy of(PosterVariant v){return switch(v){
+            case GAME->new Copy("윷 한 판 던지고","쿠폰 받아 가세요","도·개·걸·윷·모, 무엇이 나와도 쿠폰을 드려요","쿠폰 쓰는 방법은 결과 화면에서 알려 드려요");
+            case EVENT->new Copy("만나서 반가워요","깜짝 선물 받아 가세요","윷 한 번 던지면 오늘의 선물이 정해져요","쿠폰 쓰는 방법은 결과 화면에서 알려 드려요");
+            case REVISIT->new Copy("오늘 즐거우셨나요?","감사 선물 받아 가세요","오늘 던지셨다면 모레 또 던질 수 있어요","쓰지 않은 쿠폰이 있으면 그 쿠폰부터 보여 드려요");
         };}
-        Theme branded(PosterBrandTheme requested){
-            PosterBrandTheme brand=requested==null?PosterBrandTheme.SODAM:requested;
-            if(brand==PosterBrandTheme.SODAM)return this;
-            Color dark=brand==PosterBrandTheme.FOREST?new Color(0x174C3C):new Color(0x512A4B);
-            Color strong=brand==PosterBrandTheme.FOREST?new Color(0x267A5B):new Color(0x8A3E72);
-            Color soft=brand==PosterBrandTheme.FOREST?new Color(0xDDEFE6):new Color(0xF3DFEB);
-            return new Theme(soft,bgBottom,dark,strong,dark,dark,PAPER,strong,strong,strong,PAPER,dark,soft,
-                    line1,line2,sub,footnote);
+    }
+
+    /**
+     * 색. 종류(GAME 크림 · EVENT 딥 오렌지 · REVISIT 네이비)마다 바탕이 다르고, PRO 브랜드 테마(FOREST·PLUM)를
+     * 고르면 종류와 관계없이 그 테마의 밝은 바탕으로 **전부** 바뀐다. 예전에는 아래쪽 바탕색과 장식이 종류 값으로
+     * 남아 민트→오렌지처럼 섞였다. 대비는 본문 4.5:1, 큰 제목 3:1 이상으로 맞췄다.
+     */
+    private record Palette(Color bgTop,Color bgBottom,Color ink,Color accent,Color subInk,Color pill,Color pillInk,Color dot,Color ring,
+                           Color stepDot,Color stepDotInk,Color band,Color bandInk,Color bandSub,Color blob,Color stickA,Color stickB,Color stickC,Color[] confetti){
+        static Palette of(PosterVariant v,PosterBrandTheme brand){
+            if(brand==PosterBrandTheme.FOREST)return brand(new Color(0x174C3C),new Color(0x267A5B),new Color(0xDDEFE6),new Color(0xC6E4D5));
+            if(brand==PosterBrandTheme.PLUM)return brand(new Color(0x512A4B),new Color(0x8A3E72),new Color(0xF3DFEB),new Color(0xE8C9DC));
+            return switch(v){
+                case GAME->new Palette(new Color(0xFFF8F0),new Color(0xFFE4CE),NAVY,ORANGE_DEEP,MUTED,NAVY,PAPER,ORANGE,ORANGE,
+                    ORANGE_DEEP,PAPER,NAVY,PAPER,CREAM,new Color(0xFFE2CB),WOOD_LIGHT,ORANGE,WOOD,null);
+                case EVENT->new Palette(ORANGE_DEEP,new Color(0xA83C12),PAPER,YELLOW,new Color(0xFFF1E6),PAPER,NAVY,ORANGE,NAVY,
+                    PAPER,ORANGE_DEEP,NAVY,PAPER,CREAM,null,YELLOW,PAPER,WOOD_LIGHT,new Color[]{PAPER,YELLOW,NAVY,CREAM});
+                case REVISIT->new Palette(new Color(0x22364F),NAVY,PAPER,ORANGE,CREAM,CREAM,NAVY,ORANGE,ORANGE,
+                    ORANGE,NAVY,ORANGE_DEEP,PAPER,PAPER,new Color(0x2A405C),WOOD_LIGHT,ORANGE,WOOD,null);
+            };
+        }
+        private static Palette brand(Color dark,Color strong,Color soft,Color deeper){
+            return new Palette(soft,deeper,dark,strong,dark,dark,PAPER,soft,strong,strong,PAPER,dark,PAPER,soft,deeper,WOOD_LIGHT,strong,WOOD,
+                new Color[]{strong,dark,WOOD_LIGHT,PAPER});
         }
     }
 
-    private static void decorate(Graphics2D g,PosterVariant v){
-        switch(v){
-            case GAME->{
-                g.setColor(new Color(0xFFE2CB));g.fillOval(860,-140,460,460);
-                stick(g,880,160,-28,WOOD_LIGHT,true);stick(g,985,132,-9,ORANGE,false);stick(g,1085,158,12,WOOD,true);stick(g,1180,122,30,WOOD_LIGHT,false);
-                g.setColor(new Color(0xFFD5B5));g.fillOval(96,1236,96,96);g.fillOval(1084,868,112,112);}
-            case EVENT->{
-                // 좌표를 고정해 두어 같은 매장은 늘 같은 그림이 나온다. 글자와 QR 판을 피해 가장자리에만 뿌린다.
-                int[][] bits={{800,70,0},{900,160,1},{1010,64,2},{1110,176,0},{1190,70,3},{1190,300,1},
-                    {70,730,1},{160,870,3},{80,1020,0},{170,1170,2},{70,1330,3},{1080,740,2},{1180,900,0},{1100,1060,3},{1190,1210,1},{1090,1350,0}};
-                Color[] colors={PAPER,YELLOW,NAVY,CREAM};
-                for(int[] b:bits){AffineTransform old=g.getTransform();g.translate(b[0],b[1]);g.rotate(Math.toRadians(b[0]*7%90-45));g.setColor(colors[b[2]]);
-                    if(b[2]%2==0)g.fillRoundRect(-24,-10,48,20,10,10);else g.fillOval(-15,-15,30,30);g.setTransform(old);}
-                stick(g,1000,190,-20,YELLOW,false);stick(g,1105,200,16,PAPER,true);}
-            case REVISIT->{
-                g.setColor(new Color(0xDFF1E8));g.fillOval(820,-160,520,520);g.setColor(new Color(0xC9E7D8));g.fillOval(990,20,320,320);
-                stick(g,1010,190,-32,WOOD_LIGHT,true);stick(g,1110,180,32,ORANGE,false);
-                g.setColor(new Color(0xC9E7D8));g.fillOval(96,1236,96,96);g.fillOval(1084,868,112,112);}
+    // 장식은 네 모서리에만 둔다. 가운데 축(상호·제목·QR 판)과 겹치지 않는다. 좌표를 고정해 같은 매장은 늘 같은 그림이다.
+    private static void decorate(Graphics2D g,PosterVariant v,Palette p){
+        boolean confetti=v==PosterVariant.EVENT&&p.confetti!=null;
+        if(p.blob!=null&&!confetti){g.setColor(p.blob);g.fillOval(-150,-180,440,440);g.fillOval(950,-180,440,440);}
+        if(confetti){
+            int[][] bits={{60,70,0},{250,50,2},{50,300,3},{1000,60,2},{1190,70,3},{1190,300,1},
+                {70,730,1},{160,870,3},{80,1020,0},{170,1170,2},{70,1330,3},{1080,740,2},{1180,900,0},{1100,1060,3},{1190,1210,1},{1090,1350,0}};
+            for(int[] b:bits){AffineTransform old=g.getTransform();g.translate(b[0],b[1]);g.rotate(Math.toRadians(b[0]*7%90-45));g.setColor(p.confetti[b[2]]);
+                if(b[2]%2==0)g.fillRoundRect(-24,-10,48,20,10,10);else g.fillOval(-15,-15,30,30);g.setTransform(old);}
         }
+        if(v==PosterVariant.GAME){stick(g,120,165,-24,p.stickA,true);stick(g,212,150,8,p.stickB,false);stick(g,1028,150,-8,p.stickC,true);stick(g,1120,165,24,p.stickA,false);}
+        else{stick(g,150,170,-20,p.stickA,true);stick(g,1090,170,20,p.stickB,false);}
     }
 
     // 윷가락: 둥근 막대 + 옅은 그림자. 표시가 있는 면(배)에는 전통 윷처럼 X 무늬를 새긴다.
@@ -171,9 +261,43 @@ enum PosterVariant { GAME, EVENT, REVISIT }
         try{BitMatrix matrix=new QRCodeWriter().encode(value,BarcodeFormat.QR_CODE,size,size,Map.of(EncodeHintType.ERROR_CORRECTION,ErrorCorrectionLevel.H,EncodeHintType.MARGIN,4));g.setColor(PAPER);g.fillRect(x,y,size,size);g.setColor(Color.BLACK);for(int row=0;row<size;row++)for(int col=0;col<size;col++)if(matrix.get(col,row))g.fillRect(x+col,y+row,1,1);}
         catch(WriterException e){throw new IllegalStateException("QR 생성에 실패했습니다.",e);}
     }
-    private static Font font(int style,int size){return new Font(FAMILY,style,size);}
-    private static Font cute(int size){return CUTE.deriveFont((float)size);}
-    private static final java.util.function.IntFunction<Font> CUTE_SIZE=StorePosterService::cute;
-    private static Font fit(Graphics2D g,String value,java.util.function.IntFunction<Font> sized,int start,int maxWidth){int size=start;Font font;do{font=sized.apply(size--);}while(size>18&&g.getFontMetrics(font).stringWidth(value)>maxWidth);return font;}
+
+    private static Graphics2D start(BufferedImage image){
+        Graphics2D g=image.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,RenderingHints.VALUE_ANTIALIAS_ON);g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        g.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS,RenderingHints.VALUE_FRACTIONALMETRICS_ON);return g;
+    }
+    private static byte[] png(BufferedImage image){
+        try(ByteArrayOutputStream out=new ByteArrayOutputStream()){ImageIO.write(image,"png",out);return out.toByteArray();}
+        catch(IOException e){throw new IllegalStateException("매장 QR 템플릿 생성에 실패했습니다.",e);}
+    }
+
+    private record Block(Font font,List<String> lines){}
+    /** start부터 min까지 줄여 가며 maxLines 안에 들어가는 크기를 찾는다. min에서도 넘치면 마지막 줄을 말줄임한다. */
+    private static Block block(Graphics2D g,String text,Font base,int start,int min,int maxW,int maxLines){
+        for(int size=start;;size-=2){Font f=base.deriveFont((float)size);FontMetrics m=g.getFontMetrics(f);List<String> lines=wrap(m,text,maxW);
+            if(lines.size()<=maxLines)return new Block(f,lines);
+            if(size-2<min){List<String> cut=new ArrayList<>(lines.subList(0,maxLines));
+                cut.set(maxLines-1,ellipsize(m,String.join(" ",lines.subList(maxLines-1,lines.size())),maxW));return new Block(f,cut);}}
+    }
+    /** 어절(공백) 단위 줄바꿈. 한 어절이 한 줄보다 길 때만 글자 단위로 자른다. */
+    static List<String> wrap(FontMetrics m,String text,int maxW){
+        List<String> lines=new ArrayList<>();StringBuilder line=new StringBuilder();
+        for(String word:text.trim().split("\\s+")){
+            String next=line.isEmpty()?word:line+" "+word;
+            if(m.stringWidth(next)<=maxW){line.setLength(0);line.append(next);continue;}
+            if(!line.isEmpty()){lines.add(line.toString());line.setLength(0);}
+            for(char ch:word.toCharArray()){if(!line.isEmpty()&&m.stringWidth(line.toString()+ch)>maxW){lines.add(line.toString());line.setLength(0);}line.append(ch);}
+        }
+        if(!line.isEmpty())lines.add(line.toString());return lines;
+    }
+    private static String ellipsize(FontMetrics m,String text,int maxW){
+        if(m.stringWidth(text)<=maxW)return text;String s=text;
+        while(!s.isEmpty()&&m.stringWidth(s+"…")>maxW)s=s.substring(0,s.length()-1);return s.stripTrailing()+"…";
+    }
+    private static Font fit(Graphics2D g,String value,Font base,int start,int min,int maxWidth){
+        IntFunction<Font> sized=size->base.deriveFont((float)size);int size=start;Font font;
+        do{font=sized.apply(size--);}while(size>=min&&g.getFontMetrics(font).stringWidth(value)>maxWidth);return font;
+    }
     private static void center(Graphics2D g,String value,int x,int baseline){g.drawString(value,x-g.getFontMetrics().stringWidth(value)/2,baseline);}
 }

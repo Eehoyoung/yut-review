@@ -15,6 +15,7 @@ import { clearAdminSession } from "@/lib/api";
 const menus: [string, string][] = [
   ["", "현황"],
   ["stores", "매장"],
+  ["print-kits", "입점 키트"],
   ["accounts", "계정"],
   ["resources", "자원 현황"],
   ["audit", "활동 기록"],

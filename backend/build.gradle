@@ -24,6 +24,8 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-mail'
     implementation 'com.auth0:java-jwt:4.5.0'
     implementation 'com.google.zxing:core:3.5.3'
+    // 인쇄소에 보내는 입점 키트 PDF(재단선·도련 박스). 운영자·사장 다운로드에만 쓴다.
+    implementation 'org.apache.pdfbox:pdfbox:3.0.5'
     runtimeOnly 'org.postgresql:postgresql'
     runtimeOnly 'com.h2database:h2'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'

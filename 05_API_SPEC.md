@@ -696,6 +696,8 @@ POST /api/admin/stores/{storeId}/qr-codes/regenerate
 ## 매장 QR 안내물
 ```http
 GET  /api/admin/stores/{storeId}/poster?variant=GAME|EVENT|REVISIT
+GET  /api/admin/stores/{storeId}/sticker-sheet      # 테이블 스티커 90×50mm 10칸, A4 PNG
+GET  /api/admin/stores/{storeId}/print-kit          # 인쇄용 PDF (A6 3종 + 스티커, 도련 3mm)
 POST /api/admin/stores/{storeId}/poster/regenerate
 ```
 
@@ -959,3 +961,17 @@ DUPLICATE_LOGIN_ID
 DUPLICATE_EMAIL
 DUPLICATE_BUSINESS_NUMBER
 ```
+
+
+## 입점 키트 (운영자, 2026-10-01)
+
+```
+GET /api/admin/operator/print-kits?q=&status=WAITING|PRINTING|PRINTED|SHIPPED&page=0&size=20
+PUT /api/admin/operator/print-kits/{storeId}   { "status": "PRINTING" }
+GET /api/admin/operator/print-kits/{storeId}/pdf
+```
+
+- 운영 중(ACTIVE) 매장만 나온다. `q`는 매장명 부분 일치 또는 사업자등록번호(숫자 3자리 이상, 하이픈 무시).
+- 목록 응답은 페이지 필드에 `counts`(상태별 매장 수)가 더해진다. 행이 없는 매장은 `WAITING`이다.
+- `PUT`은 멱등이며 `statusUpdatedBy`에 바꾼 운영자 이메일을 동결한다.
+- ACTIVE가 아닌 매장은 409 `STORE_NOT_ACTIVE`, 활성 QR이 없으면 400 `QR_TOKEN_INVALID`.

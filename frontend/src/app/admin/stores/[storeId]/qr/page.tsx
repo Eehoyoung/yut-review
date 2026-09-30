@@ -5,23 +5,25 @@ import Image from "next/image";
 import { useParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AdminFrame } from "@/features/admin/AdminFrame";
-import { api, errorMessage } from "@/lib/api";
+import { api, downloadWithAuth, errorMessage } from "@/lib/api";
 import { Dialog } from "@/features/ui/Dialog";
 
 type Qr = { token: string; status?: string };
 type Poster = { blob: Blob; publicOrigin: string };
-type Variant = "GAME" | "EVENT" | "REVISIT";
+type Variant = "GAME" | "EVENT" | "REVISIT" | "STICKER";
 
 // 문구는 서버가 그린다. 여기서는 사장이 어느 것을 고를지 알 수 있을 만큼만 적는다.
 const variants: { value: Variant; label: string; hint: string }[] = [
-  { value: "GAME", label: "기본", hint: "윷 한 판 던져요~ 상품이 기다려요. 언제 붙여도 좋은 기본 안내물이에요." },
-  { value: "EVENT", label: "이벤트", hint: "만나서 반가워요. 깜짝 선물 기대하세요! 이벤트 기간에 눈에 띄게 붙이기 좋아요." },
-  { value: "REVISIT", label: "재방문", hint: "감사의 선물 받아 가세요. 계산대나 출입문처럼 다시 오실 분이 보는 자리에 어울려요." },
+  { value: "GAME", label: "기본", hint: "윷 한 판 던지고 쿠폰 받아 가세요. 언제 붙여도 좋은 기본 안내물이에요." },
+  { value: "EVENT", label: "이벤트", hint: "만나서 반가워요. 깜짝 선물 받아 가세요. 이벤트 기간에 눈에 띄게 붙이기 좋아요." },
+  { value: "REVISIT", label: "재방문", hint: "오늘 즐거우셨나요? 계산대나 출입문처럼 다시 오실 분이 보는 자리에 어울려요." },
+  { value: "STICKER", label: "테이블 스티커", hint: "90×50mm 스티커 10장이 A4 한 장에 들어 있어요. 라벨지에 뽑거나 회색 선을 따라 잘라 테이블에 붙이세요." },
 ];
 
 async function posterBlob(storeId: string, variant: Variant) {
   const token = sessionStorage.getItem("adminToken");
-  const response = await fetch(`/api/admin/stores/${storeId}/poster?variant=${variant}`, {
+  const path = variant === "STICKER" ? "sticker-sheet" : `poster?variant=${variant}`;
+  const response = await fetch(`/api/admin/stores/${storeId}/${path}`, {
     credentials: "include",
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
@@ -65,18 +67,30 @@ export default function QrPage() {
     return () => URL.revokeObjectURL(next);
   }, [poster.data]);
 
+  const fileName = variant === "STICKER" ? `매장_${id}_테이블스티커_A4_10장.png` : `매장_${id}_${variant}_A6_QR.png`;
+  const [pdfState, setPdfState] = useState<"idle" | "busy" | "error">("idle");
+  const printPdf = async () => {
+    setPdfState("busy");
+    try {
+      await downloadWithAuth(`/admin/stores/${id}/print-kit`, `매장_${id}_입점키트.pdf`);
+      setPdfState("idle");
+    } catch {
+      setPdfState("error");
+    }
+  };
+
   const download = () => {
     if (!preview) return;
     const anchor = document.createElement("a");
     anchor.href = preview;
-    anchor.download = `매장_${id}_${variant}_A6_QR.png`;
+    anchor.download = fileName;
     anchor.click();
   };
 
   const share = async () => {
     if (!poster.data) return;
     setMessage("");
-    const file = new File([poster.data.blob], `매장_${id}_${variant}_A6_QR.png`, { type: "image/png" });
+    const file = new File([poster.data.blob], fileName, { type: "image/png" });
     if (!navigator.share || !navigator.canShare?.({ files: [file] })) {
       download();
       setMessage("공유할 수 없어 이미지로 저장했어요.");
@@ -100,7 +114,7 @@ export default function QrPage() {
       <section className="poster-workspace owner-poster-workspace" aria-labelledby="poster-workspace-title">
         <div className="poster-preview" aria-label="선택한 안내물 미리보기">
           {preview ? (
-            <Image src={preview} width={620} height={874} unoptimized alt="매장명이 포함된 A6 QR 안내물 미리보기" />
+            <Image src={preview} width={620} height={874} unoptimized alt={variant === "STICKER" ? "테이블 스티커 10장이 들어간 A4 미리보기" : "매장명이 포함된 A6 QR 안내물 미리보기"} />
           ) : (
             // 부모가 place-items:center라 자식은 콘텐츠 너비로 줄어든다. 뼈대에 너비가 없으면
             // 폭 0으로 접혀 아무것도 안 보인다. 실제 안내물과 같은 A6 비율로 자리를 잡아 둔다.
@@ -112,8 +126,8 @@ export default function QrPage() {
         </div>
         <div className="stack poster-controls">
           <div className="owner-section-heading">
-            <h2 id="poster-workspace-title">매장용 A6 안내물</h2>
-            <p className="lead">세 가지 안내물 모두 같은 QR이에요. 자리에 맞는 것을 골라 저장하거나 공유하세요.</p>
+            <h2 id="poster-workspace-title">매장용 안내물</h2>
+            <p className="lead">A6 안내물 세 가지와 테이블 스티커 모두 같은 QR이에요. 자리에 맞는 것을 골라 저장하거나 공유하세요.</p>
           </div>
           <fieldset className="poster-variants">
             <legend className="visually-hidden">안내물 종류</legend>
@@ -128,6 +142,13 @@ export default function QrPage() {
           <div className="poster-actions">
             <button className="btn" onClick={download} disabled={!preview}>이미지 저장</button>
             <button className="btn secondary" onClick={share} disabled={!poster.data}>공유</button>
+          </div>
+          <div className="notice stack">
+            <p>인쇄소에 맡길 때는 PDF를 보내세요. 안내물 3종과 스티커가 재단 여백(3mm)까지 들어 있어요.</p>
+            <button className="btn secondary" onClick={printPdf} disabled={pdfState === "busy"}>
+              {pdfState === "busy" ? "PDF 만드는 중" : "인쇄용 PDF 저장"}
+            </button>
+            {pdfState === "error" && <p className="error" role="alert">PDF를 만들지 못했어요. 다시 시도해 주세요.</p>}
           </div>
           {message && <p className="success" role="status">{message}</p>}
           {(regenerate.isError || regenerateQr.isError) && <p className="error" role="alert">{errorMessage(regenerate.error ?? regenerateQr.error)}</p>}

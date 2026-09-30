@@ -398,3 +398,22 @@ export interface GameResult {
   expiresAt: string;
 }
 export type RevealResponse = GameResult;
+
+/** 입점 키트 실물 발송 상태. 서버 `PrintKitStatus`. 행이 없는 매장은 WAITING으로 온다. */
+export type PrintKitStatus = "WAITING" | "PRINTING" | "PRINTED" | "SHIPPED";
+export interface PrintKitRow {
+  storeId: number;
+  name: string;
+  businessNumber: string;
+  representativeName: string;
+  storePhone: string;
+  address: string;
+  createdAt: string;
+  ownerName: string;
+  ownerEmail: string;
+  ownerPhone: string;
+  status: PrintKitStatus;
+  statusUpdatedAt: string | null;
+  statusUpdatedBy: string;
+}
+export type PrintKitPage = PageData<PrintKitRow> & { counts: Record<PrintKitStatus, number> };

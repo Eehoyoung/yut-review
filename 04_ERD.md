@@ -399,3 +399,15 @@ status = ISSUED
 ```
 가장 최근 쿠폰 1개를 우선 반환한다. 고객 상태 조회는 이 쿠폰의 토큰을 바로 내려주지 않고
 `coupon_recovery_sessions` 행을 하나 만들어 1회용 티켓만 준다.
+
+
+## `store_print_kits` (2026-10-01)
+
+입점 키트 실물 발송 진행 단계. 매장당 최대 1행이며 **행이 없으면 인쇄 대기**다(백필 없음).
+
+| 컬럼 | 설명 |
+|---|---|
+| `store_id` | FK, unique |
+| `status` | `WAITING` / `PRINTING` / `PRINTED` / `SHIPPED` |
+| `updated_by_email` | 바꾼 운영자 이메일(사건 시점 값 동결) |
+| `created_at`, `updated_at` | |
