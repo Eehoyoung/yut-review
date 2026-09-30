@@ -28,7 +28,7 @@
 
 관측:
 - 코드별 최근 24시간 차단 수, `rate_counters` 행 수, 참여·쿠폰·안내물 저장량, 오늘 붐비는 매장의
-  일일 상한 대비 사용률을 운영자 화면(`/admin/operator`)과 `GET /api/admin/operator/monitoring`에서 본다.
+  일일 상한 대비 사용률을 운영자 화면(`/operator`)과 `GET /api/operator/monitoring`에서 본다.
 - 거절 기록은 거절을 만든 트랜잭션과 **분리해** 커밋한다. 같이 묶으면 거절만 정확히 전부 사라져
   "막은 적이 없다"로 보인다.
 - 막지 말아야 할 손님을 막고 있는지 판단하는 기준과 부하 시 기대치는 `docs/LOAD_TEST_PLAN.md`에 있다.
@@ -62,7 +62,7 @@ SMS 본인확인은 도입하지 않는다. QR 고객 게임 진입에 staff 승
   남의 상호로 QR을 뿌리는 것이 가능했다.
 
 대응:
-- 신규 매장은 `PENDING_APPROVAL`로 생성한다. 운영자(`SYSTEM_ADMIN`)가 승인해야 `ACTIVE`가 된다.
+- 신규 매장은 `PENDING_APPROVAL`로 생성한다. 운영자(`OPERATOR`)가 승인해야 `ACTIVE`가 된다.
 - 승인 전에는 직원 PIN과 QR 토큰을 응답에서 반환하지 않고, 포스터 생성과 매장 운영 API
   (설정·QR·PIN·참여내역·쿠폰·통계·AI)를 403으로 막는다. 상태 확인용 매장 요약만 열어 둔다.
 - 가입과 로그인 자체는 성공한다. 심사 대기 상태를 화면에서 보여 주기 위한 것이다.
@@ -152,7 +152,7 @@ DB에는 이름과 정규화 전화번호를 AES-256-GCM으로 암호화하며 �
   약한 키로 조용히 뜨는 경로를 남기지 않는다.
 - 회전은 `PHONE_HMAC_PREVIOUS_SECRET`(선택)으로 한다. 조회는 current와 previous를 모두 보고,
   쓰기는 항상 current다. 회전 중에도 쿨타임 조회가 깨지지 않는다.
-- 재계산은 운영자 API `POST /api/admin/operator/phone-hash/rehash`로 한 번 수행한 뒤 previous를 제거한다.
+- 재계산은 운영자 API `POST /api/operator/phone-hash/rehash`로 한 번 수행한 뒤 previous를 제거한다.
 - 키 값은 로그·에러 메시지·API 응답 어디에도 노출하지 않는다. 문서와 저장소에 실제 값을 두지 않는다.
 
 ## 관리자 인증
@@ -180,7 +180,7 @@ DB에는 이름과 정규화 전화번호를 AES-256-GCM으로 암호화하며 �
   API 요청이나 화면 활동으로 자동 연장하지 않으며 refresh token도 두지 않는다.
 - 운영자 세션 수명은 장시간 대규모 작업이 미리 예정된 경우에만 서버 환경변수
   `OPERATOR_SESSION_TTL_SECONDS`로 변경한다. 이미 발급된 세션은 늘어나지 않는다.
-- `/api/admin/operator/**`는 `SYSTEM_ADMIN` 역할과 이메일 OTP 전용 세션을 모두 요구한다. 아니면
+- `/api/operator/**`는 `OPERATOR` 역할과 이메일 OTP 전용 세션을 모두 요구한다. 아니면
   401 `OPERATOR_SESSION_REQUIRED` 또는 403 `OPERATOR_ONLY`다. 운영자는 어느 매장의
   멤버도 아니므로 이 경로에서는 membership 검사를 하지 않는다. 다른 관리자 매장 API의 membership
   재검증은 그대로다.

@@ -30,7 +30,7 @@ export default function Login() {
         <Image src="/brand/sodam-wordmark.webp" width={1200} height={760} alt="소담" priority />
         <p>소담한판 매장 운영</p>
       </div>
-      <h1>관리자 로그인</h1>
+      <h1>매장 관리자 로그인</h1>
       <form
         className="panel stack"
         onSubmit={(e: FormEvent) => {

@@ -92,7 +92,7 @@ interface OperatorLoginChallengeRepository extends JpaRepository<OperatorLoginCh
             "인증 요청이 너무 많습니다. 15분 후 다시 시도해 주세요.");
 
         String token=Tokens.random();
-        AdminUser admin=admins.findByEmail(email).filter(a->a.role==AdminRole.SYSTEM_ADMIN).orElse(null);
+        AdminUser admin=admins.findByEmail(email).filter(a->a.role==AdminRole.OPERATOR).orElse(null);
         if(admin!=null){
             String code=Integer.toString(100000+random.nextInt(900000));Instant now=clock.instant();
             OperatorLoginChallenge challenge=new OperatorLoginChallenge();challenge.admin=admin;
@@ -111,7 +111,7 @@ interface OperatorLoginChallengeRepository extends JpaRepository<OperatorLoginCh
         OperatorLoginChallenge challenge=challenges.findForUpdate(hash(safeToken)).orElseThrow(OperatorOtpAuthService::invalid);
         Instant now=clock.instant();
         if(challenge.usedAt!=null||!now.isBefore(challenge.expiresAt)||challenge.attempts>=MAX_ATTEMPTS
-            ||challenge.admin.role!=AdminRole.SYSTEM_ADMIN)throw invalid();
+            ||challenge.admin.role!=AdminRole.OPERATOR)throw invalid();
         challenge.attempts++;
         if(!MessageDigest.isEqual(challenge.codeHash.getBytes(StandardCharsets.UTF_8),
                 hash(safeToken+":"+safeCode).getBytes(StandardCharsets.UTF_8)))throw invalid();
@@ -133,7 +133,7 @@ interface OperatorLoginChallengeRepository extends JpaRepository<OperatorLoginCh
         "인증번호가 올바르지 않거나 만료되었습니다.",HttpStatus.UNAUTHORIZED);}
 }
 
-@RestController @RequestMapping("/api/admin/operator-auth") class OperatorOtpAuthController {
+@RestController @RequestMapping("/api/operator-auth") class OperatorOtpAuthController {
     private final OperatorOtpAuthService auth;private final ClientIpResolver clientIps;
     OperatorOtpAuthController(OperatorOtpAuthService auth,ClientIpResolver clientIps){this.auth=auth;this.clientIps=clientIps;}
     record RequestBody(@NotBlank @Size(max=255) String email){}

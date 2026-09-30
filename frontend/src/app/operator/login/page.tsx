@@ -17,7 +17,7 @@ export default function OperatorLoginPage() {
   const [remaining, setRemaining] = useState(0);
 
   const request = useMutation({
-    mutationFn: () => api<Challenge>("/admin/operator-auth/request", {
+    mutationFn: () => api<Challenge>("/operator-auth/request", {
       method: "POST",
       body: JSON.stringify({ email: email.trim() }),
     }),
@@ -28,13 +28,13 @@ export default function OperatorLoginPage() {
     },
   });
   const verify = useMutation({
-    mutationFn: () => api<Session>("/admin/operator-auth/verify", {
+    mutationFn: () => api<Session>("/operator-auth/verify", {
       method: "POST",
       body: JSON.stringify({ challengeToken: challenge?.challengeToken, code }),
     }),
     onSuccess: (data) => {
       setOperatorSession(data.accessToken, data.expiresAt);
-      router.replace("/admin/operator");
+      router.replace("/operator");
     },
   });
 

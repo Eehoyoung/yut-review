@@ -324,7 +324,7 @@ class SecurityRemediationTest {
     private AdminUser operator(String email) {
         AdminUser a = new AdminUser();
         a.email = email; a.passwordHash = encoder.encode("secret1234"); a.name = "운영자";
-        a.role = AdminRole.SYSTEM_ADMIN; a.createdAt = clock.instant();
+        a.role = AdminRole.OPERATOR; a.createdAt = clock.instant();
         return admins.save(a);
     }
 

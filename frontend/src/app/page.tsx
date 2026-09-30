@@ -43,7 +43,7 @@ const jsonLd = {
       description: "매장별 QR로 손님이 윷놀이 이벤트에 참여하면 서버가 결과를 정하고 쿠폰을 발급하며, 직원은 PIN으로 쿠폰 사용을 처리하고 매장은 상품·확률·사용 기한을 설정합니다.",
       provider: { "@type": "Organization", "@id": "https://sodamlabs.kr/#organization", name: "소담랩스", url: "https://sodamlabs.kr/" },
       areaServed: { "@type": "Country", name: "대한민국" },
-      audience: { "@type": "BusinessAudience", audienceType: "오프라인 매장 운영자" },
+      audience: { "@type": "BusinessAudience", audienceType: "오프라인 매장 사업자" },
       url: "https://hanpan.sodamlabs.kr/",
     },
   ],

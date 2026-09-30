@@ -3,7 +3,13 @@ package com.yutreview;
 import jakarta.persistence.*;
 import java.time.*;
 
-enum AdminRole { SYSTEM_ADMIN, STORE_ADMIN }
+/**
+ * 계정 역할. OPERATOR = 소담랩스 서비스 운영자(시스템 콘솔), STORE_ADMIN = 매장 관리자(매장 사장·직원 계정).
+ *
+ * "admin"은 매장 관리자만 뜻한다. 운영자는 2026-10-01까지 `SYSTEM_ADMIN`이었고 DB 값은
+ * `AdminRoleMigration`이 기동 시 바꾼다. 이 값을 다시 이름 바꾸지 말 것 — 바꿀 때마다 같은 이관이 필요하다.
+ */
+enum AdminRole { OPERATOR, STORE_ADMIN }
 enum MembershipRole { OWNER, MANAGER }
 /**
  * 매장 상태. 셀프 신청은 PENDING_APPROVAL로 시작하고 운영자 승인에서만 ACTIVE가 된다.
@@ -126,6 +132,13 @@ enum AccountRecoveryPurpose { FIND_EMAIL, RESET_PASSWORD }
     @Column(nullable=false,unique=true,length=100) String publicToken;
     @Enumerated(EnumType.STRING) @Column(nullable=false) QrStatus status;
     @Column(nullable=false) Instant createdAt; Instant revokedAt;
+    /**
+     * 누가 왜 폐기했는지. 재발급은 운영자만 하며(PrintKits.java) 이 두 칸이 그 감사 기록이다.
+     * `store_approval_events`의 enum에 행동을 추가하지 않은 이유: Hibernate가 enum 컬럼에 CHECK 제약을 만들고
+     * `ddl-auto=update`는 그 제약을 고치지 못해 운영 DB에서 새 값 INSERT가 실패한다.
+     */
+    @Column(name="revoked_by_email",length=255) String revokedByEmail;
+    @Column(name="revoke_reason",length=200) String revokeReason;
 }
 @Entity @Table(name="store_posters") class StorePoster {
     @Id @GeneratedValue(strategy=GenerationType.IDENTITY) Long id;

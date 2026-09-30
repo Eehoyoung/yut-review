@@ -207,7 +207,7 @@ ORIGIN_IP=<lightsail-고정-IP> sh scripts/verify-production.sh https://hanpan.s
 4. `ORIGIN_IP=<IP> sh scripts/verify-production.sh https://hanpan.sodamlabs.kr` → origin 직결 FAIL 0
 5. Cloudflare DNS A 레코드 Proxied로 전환, SSL mode `Full (strict)`
 6. `sh scripts/verify-production.sh https://hanpan.sodamlabs.kr` → FAIL 0
-7. 운영자 계정으로 `/admin/operator` 자원 현황이 뜨는지 확인
+7. 운영자 계정으로 `/operator` 자원 현황이 뜨는지 확인
 
 ## PHONE_HMAC_SECRET 회전
 
@@ -225,7 +225,7 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file .env.
 
 2. `.env.production`에서 **기존 키를 `PHONE_HMAC_PREVIOUS_SECRET`으로 옮기고** `PHONE_HMAC_SECRET`에 새 키를 넣는다.
 3. 재배포. 이 상태에서 조회는 current/previous 둘 다 보고 쓰기는 항상 current로 한다(서비스 무중단).
-4. 운영자(SYSTEM_ADMIN) 계정으로 `POST /api/admin/operator/phone-hash/rehash`를 **1회** 실행한다.
+4. 운영자(OPERATOR) 계정으로 `POST /api/operator/phone-hash/rehash`를 **1회** 실행한다.
    응답 `{scanned, rehashed}`를 로그로 남긴다.
 5. `PHONE_HMAC_PREVIOUS_SECRET=`을 비우고 재배포. 이 시점에 옛 키는 폐기한다.
 
@@ -270,6 +270,28 @@ gunzip -c backup-YYYY-MM-DD-HHMM.sql.gz | docker compose -f docker-compose.yml \
 - `PHONE_HMAC_SECRET`/`PHONE_ENCRYPTION_KEY`를 바꾼 배포를 롤백할 때는 키도 함께 되돌린다.
   키와 데이터가 어긋나면 복구가 안 된다.
 
+### 2026-10-01 역할 값 분리 배포를 되돌릴 때 (필수 SQL)
+
+이 배포부터 백엔드가 기동 시 `admin_users.role`의 `SYSTEM_ADMIN`을 `OPERATOR`로 바꾸고 CHECK 제약을 새 목록
+(`OPERATOR`, `STORE_ADMIN`)으로 바꾼다(`AdminRoleMigration`). **이전 이미지는 `OPERATOR`를 읽지 못해** 운영자 계정을
+불러오는 순간 실패한다(운영자 로그인·계정 화면). 이전 이미지로 올리기 **전에** 아래를 먼저 실행한다.
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file .env.production   exec -T postgres psql -U yut -d yut_review -v ON_ERROR_STOP=1 <<'SQL'
+begin;
+alter table admin_users drop constraint if exists admin_users_role_check;
+update admin_users set role='SYSTEM_ADMIN' where role='OPERATOR';
+alter table admin_users add constraint admin_users_role_check check (role in ('SYSTEM_ADMIN','STORE_ADMIN'));
+commit;
+SQL
+```
+
+- 비워진 기본 상품 설명("관리자에서 상품을 설정하세요.")은 되돌리지 않는다. 손님 화면에 보이던 관리 안내문이라 비어 있는 편이 맞다.
+- 새로 생긴 `store_print_kits` 테이블과 `store_qr_codes.revoked_by_email/revoke_reason` 칸은 이전 이미지가 무시하므로 그대로 둔다.
+- 다시 새 이미지로 올리면 기동 시 이관이 한 번 더 돈다(멱등).
+- 배포 직후 열려 있던 운영자 탭은 예전 주소(`/api/admin/operator/**`)를 불러 404가 난다. 새로고침하면
+  `/admin/operator/**` → `/operator/**`로 이동한다. 운영자 토큰은 그대로 유효하다(역할 클레임을 서버가 읽지 않는다).
+
 ## 아직 검증하지 못한 항목
 
 문서상 확정이지만 실제로 해 보지 않은 것들이다. 첫 운영 배포 때 위 "배포 후 확인"의 7단계를 따르면
@@ -299,8 +321,8 @@ Spring Boot가 대용량 3D asset을 직접 전달하지 않는다.
 ## Monitoring
 
 자원 고갈 방어는 막는 것까지가 절반이고, 나머지 절반은 무엇을 막고 있는지 보이는 것이다.
-운영자(SYSTEM_ADMIN)가 `/admin/operator`의 **자원 현황** 패널에서 본다(1분 갱신).
-같은 값을 `GET /api/admin/operator/monitoring`으로도 받는다.
+운영자(OPERATOR)가 `/operator`의 **자원 현황** 패널에서 본다(1분 갱신).
+같은 값을 `GET /api/operator/monitoring`으로도 받는다.
 
 | 값 | 무엇을 말하나 |
 |---|---|

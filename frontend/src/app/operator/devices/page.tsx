@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { OperatorFrame } from "@/features/admin/OperatorFrame";
+import { OperatorFrame } from "@/features/operator/OperatorFrame";
 import { api, errorMessage } from "@/lib/api";
 import type { OperatorSessionPolicy } from "@/types/api";
 
@@ -18,7 +18,7 @@ export default function OperatorSecurityPage() {
   // 설정값을 화면에 적어 두지 않는다. 환경변수를 바꾸면 이 화면도 같이 바뀌어야 한다.
   const policy = useQuery({
     queryKey: ["operator-session-policy"],
-    queryFn: () => api<OperatorSessionPolicy>("/admin/operator/session-policy"),
+    queryFn: () => api<OperatorSessionPolicy>("/operator/session-policy"),
   });
 
   useEffect(() => {

@@ -1,8 +1,8 @@
 "use client";
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { OperatorFrame } from "@/features/admin/OperatorFrame";
-import { ResourceMonitor } from "@/features/admin/ResourceMonitor";
+import { OperatorFrame } from "@/features/operator/OperatorFrame";
+import { ResourceMonitor } from "@/features/operator/ResourceMonitor";
 import { Dialog } from "@/features/ui/Dialog";
 import { api, errorMessage } from "@/lib/api";
 
@@ -21,7 +21,7 @@ export default function OperatorResourcesPage() {
 
   const rehash = useMutation({
     mutationFn: () =>
-      api<{ scanned: number; rehashed: number }>("/admin/operator/phone-hash/rehash", { method: "POST" }),
+      api<{ scanned: number; rehashed: number }>("/operator/phone-hash/rehash", { method: "POST" }),
     onSuccess: (d) => {
       setFlash(`${d.scanned}건을 확인해 ${d.rehashed}건을 다시 계산했습니다.`);
       setOpen(false);

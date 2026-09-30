@@ -23,6 +23,8 @@ class AppException extends RuntimeException {
     @ExceptionHandler(AppException.class) ResponseEntity<ApiResponse<Void>> app(AppException e){return ResponseEntity.status(e.status).body(ApiResponse.fail(e.code,e.getMessage()));}
     @ExceptionHandler({MethodArgumentNotValidException.class,HttpMessageNotReadableException.class,org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class}) ResponseEntity<ApiResponse<Void>> validation(){return ResponseEntity.badRequest().body(ApiResponse.fail("INVALID_REQUEST","입력값을 확인해 주세요."));}
     @ExceptionHandler(NoResourceFoundException.class) ResponseEntity<ApiResponse<Void>> missing(){return ResponseEntity.status(404).body(ApiResponse.fail("NOT_FOUND","요청하신 경로를 찾을 수 없습니다."));}
+    /** 경로는 있지만 메서드가 없다(예: 운영자 주소로 옮긴 요금제 변경 PUT). 모르는 오류(500)로 떨어지면 오류 로그만 쌓인다. */
+    @ExceptionHandler(org.springframework.web.HttpRequestMethodNotSupportedException.class) ResponseEntity<ApiResponse<Void>> method(){return ResponseEntity.status(405).body(ApiResponse.fail("METHOD_NOT_ALLOWED","지원하지 않는 요청 방식입니다."));}
     private static final Logger log=LoggerFactory.getLogger(ErrorHandler.class);
     @ExceptionHandler(Exception.class) ResponseEntity<ApiResponse<Void>> unknown(Exception e){log.error("Unhandled request failure",e);return ResponseEntity.status(500).body(ApiResponse.fail("INTERNAL_ERROR","요청을 처리하지 못했습니다."));}
 }

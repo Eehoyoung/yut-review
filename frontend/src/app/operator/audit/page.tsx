@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { OperatorFrame } from "@/features/admin/OperatorFrame";
+import { OperatorFrame } from "@/features/operator/OperatorFrame";
 import { api, errorMessage } from "@/lib/api";
 import type { OperatorAuditEntry } from "@/types/api";
 
@@ -48,7 +48,7 @@ export default function OperatorAuditPage() {
 
   const feed = useQuery({
     queryKey: ["operator-audit"],
-    queryFn: () => api<OperatorAuditEntry[]>("/admin/operator/audit"),
+    queryFn: () => api<OperatorAuditEntry[]>("/operator/audit"),
   });
 
   const rows = (feed.data ?? []).filter((e) => !kind || e.kind === kind);

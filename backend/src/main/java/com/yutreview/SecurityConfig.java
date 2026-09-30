@@ -25,7 +25,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
     @Bean PasswordEncoder passwordEncoder(){return new BCryptPasswordEncoder();}
     @Bean SecurityFilterChain chain(HttpSecurity http,JwtFilter jwt,OperatorAccessFilter operatorAccess) throws Exception {
         return http.csrf(c->c.disable()).sessionManagement(s->s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .authorizeHttpRequests(a->a.requestMatchers("/api/public/**","/api/admin/auth/login","/api/admin/auth/signup","/api/admin/auth/signup-requirements","/api/admin/auth/invite-code/*","/api/admin/auth/recovery/**","/api/admin/operator-auth/**","/actuator/health","/actuator/metrics","/actuator/metrics/**").permitAll().anyRequest().authenticated())
+            .authorizeHttpRequests(a->a.requestMatchers("/api/public/**","/api/admin/auth/login","/api/admin/auth/signup","/api/admin/auth/signup-requirements","/api/admin/auth/invite-code/*","/api/admin/auth/recovery/**","/api/operator-auth/**","/actuator/health","/actuator/metrics","/actuator/metrics/**").permitAll().anyRequest().authenticated())
             .exceptionHandling(e->e.authenticationEntryPoint((req,res,x)->writeError(res,401,"AUTH_REQUIRED","로그인이 필요합니다.")).accessDeniedHandler((req,res,x)->writeError(res,403,"FORBIDDEN","접근 권한이 없습니다.")))
             .addFilterBefore(jwt,UsernamePasswordAuthenticationFilter.class)
             // JwtFilter 뒤여야 한다. 운영자 접근 통제는 "누가 보냈는가"를 알아야
@@ -45,7 +45,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
     }
     String issue(AdminUser u){return JWT.create().withSubject(u.id.toString()).withClaim("role",u.role.name()).withExpiresAt(clock.instant().plusSeconds(28800)).sign(algorithm);}
     String issueOperator(AdminUser u){
-        if(u.role!=AdminRole.SYSTEM_ADMIN)throw new IllegalArgumentException("operator token requires SYSTEM_ADMIN");
+        if(u.role!=AdminRole.OPERATOR)throw new IllegalArgumentException("operator token requires OPERATOR role");
         Instant now=clock.instant();
         return JWT.create().withSubject(u.id.toString()).withClaim("role",u.role.name())
             .withClaim("session_type",OPERATOR_SESSION).withIssuedAt(now)

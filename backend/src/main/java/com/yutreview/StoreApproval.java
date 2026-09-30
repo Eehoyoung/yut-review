@@ -53,7 +53,7 @@ interface StoreApprovalEventRepository extends JpaRepository<StoreApprovalEvent,
     /** 운영자 전용 문. 요금제 변경과 같은 이유로 멤버십이 아니라 계정 역할로만 연다. */
     AdminUser requireOperator(Long adminId){
         AdminUser admin=adminId==null?null:admins.findById(adminId).orElse(null);
-        if(admin==null||admin.role!=AdminRole.SYSTEM_ADMIN)
+        if(admin==null||admin.role!=AdminRole.OPERATOR)
             throw new AppException("OPERATOR_ONLY","운영자만 사용할 수 있는 기능입니다.",HttpStatus.FORBIDDEN);
         return admin;
     }
@@ -121,7 +121,10 @@ interface StoreApprovalEventRepository extends JpaRepository<StoreApprovalEvent,
     @Transactional Map<String,Object> changeOwner(AdminUser actor,Long storeId,String email,String note){
         Store store=lock(storeId);
         AdminUser next=admins.findByEmail(Inputs.email(email))
-            .orElseThrow(()->new AppException("ADMIN_NOT_FOUND","해당 이메일로 가입된 관리자 계정이 없습니다."));
+            .orElseThrow(()->new AppException("ADMIN_NOT_FOUND","해당 이메일로 가입된 매장 관리자 계정이 없습니다."));
+        // 운영자가 매장 멤버가 되면 자기 매장을 스스로 심사하게 된다. 운영자 신설이 매장을 만들지 않는 것과 같은 이유.
+        if(next.role==AdminRole.OPERATOR)
+            throw new AppException("OWNERSHIP_TO_OPERATOR","운영자 계정에는 매장 소유권을 넘길 수 없습니다. 매장 관리자 계정 이메일을 입력해 주세요.");
         Instant now=clock.instant();
         for(AdminStoreMembership m:memberships.findByStoreId(storeId))
             if(m.role==MembershipRole.OWNER)memberships.delete(m);
@@ -173,7 +176,7 @@ interface StoreApprovalEventRepository extends JpaRepository<StoreApprovalEvent,
  * 브라우저가 이 요청에 자격증명을 자동으로 실어 주지 않기 때문이다(그것이 CSRF의 전제다).
  * 재전송 방어는 각 동작을 멱등하게 만들어서 얻는다.
  */
-@RestController @RequestMapping("/api/admin/operator") class OperatorController {
+@RestController @RequestMapping("/api/operator") class OperatorController {
     private final StoreApprovalService approvals;private final StoreRepository stores;
     private final PhoneHashMigrationService phoneHashes;private final PublicOriginResolver publicOrigins;private final OperatorMonitoringService monitoring;
     private final OperatorOverviewService overview;private final OperatorOtpAuthService otp;private final JwtService jwt;

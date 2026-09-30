@@ -38,7 +38,7 @@ class OperatorOtpAuthTest {
     @BeforeEach void setup(){
         operator=new AdminUser();operator.email="otp-"+System.nanoTime()+"@example.com";
         operator.passwordHash=encoder.encode("secret1234");operator.name="운영자";
-        operator.role=AdminRole.SYSTEM_ADMIN;operator.createdAt=clock.instant();admins.save(operator);
+        operator.role=AdminRole.OPERATOR;operator.createdAt=clock.instant();admins.save(operator);
     }
 
     @Test void otpLivesTwoMinutesAndIssuesANonRenewingTenMinuteOperatorSession(){
@@ -83,7 +83,7 @@ class OperatorOtpAuthTest {
     }
 
     @Test void operatorApisRejectOrdinaryJwtAndAcceptOnlyTheOtpSession() throws Exception {
-        mvc.perform(get("/api/admin/operator/summary")
+        mvc.perform(get("/api/operator/summary")
                 .header("Authorization","Bearer "+jwt.issue(operator)))
             .andExpect(status().isUnauthorized())
             .andExpect(jsonPath("$.error.code").value("OPERATOR_SESSION_REQUIRED"));
@@ -92,7 +92,7 @@ class OperatorOtpAuthTest {
         ArgumentCaptor<String> code=ArgumentCaptor.forClass(String.class);
         verify(mail).send(eq(operator.email),code.capture(),eq(120L));
         Map<String,Object> session=auth.verify((String)issued.get("challengeToken"),code.getValue());
-        mvc.perform(get("/api/admin/operator/summary")
+        mvc.perform(get("/api/operator/summary")
                 .header("Authorization","Bearer "+session.get("accessToken")))
             .andExpect(status().isOk());
     }
