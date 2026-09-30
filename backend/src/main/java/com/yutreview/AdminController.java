@@ -106,7 +106,6 @@ import org.springframework.transaction.annotation.Transactional;
     @GetMapping("/stores/{id}/event-settings") ApiResponse<?> eventSettings(@PathVariable Long id,Authentication a){operable(a,id);return ApiResponse.ok(eventSettingsView(id));}
     @PutMapping("/stores/{id}/event-settings") ApiResponse<?> saveEventSettings(@PathVariable Long id,@RequestBody EventSettingsUpdate r,Authentication a){operable(a,id);eventSettings.save(store(id),r.couponValidityDays());return ApiResponse.ok(eventSettingsView(id));}
     @GetMapping("/stores/{id}/qr-codes") ApiResponse<?> qrs(@PathVariable Long id,Authentication a){operable(a,id);return ApiResponse.ok(qrs.findByStoreIdOrderByCreatedAtDesc(id).stream().map(q->Map.of("token",q.publicToken,"status",q.status,"createdAt",q.createdAt)).toList());}
-    @PostMapping("/stores/{id}/qr-codes/regenerate") @Transactional ApiResponse<?> regenerateQr(@PathVariable Long id,Authentication a,HttpServletRequest req){operable(a,id);Store s=stores.findForUpdate(id).orElseThrow(()->new AppException("STORE_NOT_FOUND","매장을 찾을 수 없습니다."));qrs.findFirstByStoreIdAndStatus(id,QrStatus.ACTIVE).ifPresent(q->{q.status=QrStatus.REVOKED;q.revokedAt=clock.instant();});StoreQrCode q=new StoreQrCode();q.store=s;q.publicToken=Tokens.random();q.status=QrStatus.ACTIVE;q.createdAt=clock.instant();qrs.save(q);posters.save(s,q.publicToken,origin(req));return ApiResponse.ok(Map.of("token",q.publicToken,"posterReady",true));}
     /**
      * 기본(GAME) 안내물은 저장본을 준다. 이벤트·재방문 안내물은 저장하지 않고 요청 때 그리되,
      * 저장본과 같은 origin을 써서 세 장이 늘 같은 QR 주소를 가리키게 한다.

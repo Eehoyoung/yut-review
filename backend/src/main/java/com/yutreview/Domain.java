@@ -126,6 +126,13 @@ enum AccountRecoveryPurpose { FIND_EMAIL, RESET_PASSWORD }
     @Column(nullable=false,unique=true,length=100) String publicToken;
     @Enumerated(EnumType.STRING) @Column(nullable=false) QrStatus status;
     @Column(nullable=false) Instant createdAt; Instant revokedAt;
+    /**
+     * 누가 왜 폐기했는지. 재발급은 운영자만 하며(PrintKits.java) 이 두 칸이 그 감사 기록이다.
+     * `store_approval_events`의 enum에 행동을 추가하지 않은 이유: Hibernate가 enum 컬럼에 CHECK 제약을 만들고
+     * `ddl-auto=update`는 그 제약을 고치지 못해 운영 DB에서 새 값 INSERT가 실패한다.
+     */
+    @Column(name="revoked_by_email",length=255) String revokedByEmail;
+    @Column(name="revoke_reason",length=200) String revokeReason;
 }
 @Entity @Table(name="store_posters") class StorePoster {
     @Id @GeneratedValue(strategy=GenerationType.IDENTITY) Long id;

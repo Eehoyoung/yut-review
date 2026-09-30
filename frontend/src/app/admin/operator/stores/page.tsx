@@ -10,6 +10,7 @@ import {
   STORE_STATUS_TONE,
 } from "@/features/admin/labels";
 import { OperatorFrame } from "@/features/admin/OperatorFrame";
+import { QrRegenerateDialog } from "@/features/admin/QrRegenerateDialog";
 import { Dialog } from "@/features/ui/Dialog";
 import { formatBusinessNumber, formatPhone } from "@/features/normalize";
 import { api, errorMessage } from "@/lib/api";
@@ -99,6 +100,7 @@ export default function OperatorQueue() {
   const [value, setValue] = useState("");
   const [tried, setTried] = useState(false);
   const [flash, setFlash] = useState("");
+  const [qrStore, setQrStore] = useState<OperatorStore>();
 
   const summary = useQuery({ queryKey: ["operator-summary"], queryFn: () => api<OperatorSummary>("/admin/operator/summary") });
   const stores = useQuery({
@@ -341,6 +343,9 @@ export default function OperatorQueue() {
             <button type="button" className="btn ghost btn-inline" onClick={() => setSheet({ kind: "ownership", store: s })}>
               소유권 이전
             </button>
+            <button type="button" className="btn ghost btn-inline" onClick={() => setQrStore(s)}>
+              QR 재발급
+            </button>
           </div>
 
           {/* 접었다 펴는 것은 브라우저가 이미 한다. 열린 행에서만 이력을 불러온다. */}
@@ -352,6 +357,8 @@ export default function OperatorQueue() {
       ))}
 
       <ActivityPager page={page} totalPages={stores.data?.totalPages ?? 0} onChange={setPage} />
+
+      <QrRegenerateDialog store={qrStore} onClose={() => setQrStore(undefined)} onDone={setFlash} />
 
       <Dialog open={sheet !== undefined} onClose={closeSheet} labelledBy="sheet-title">
         <form className="stack" onSubmit={submitSheet}>

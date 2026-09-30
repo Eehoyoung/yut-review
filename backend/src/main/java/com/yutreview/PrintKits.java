@@ -40,9 +40,11 @@ interface StorePrintKitRepository extends JpaRepository<StorePrintKit,Long> {
 
 @Service class PrintKitService {
     private final EntityManager em;private final StorePrintKitRepository kits;private final StoreRepository stores;
-    private final QrRepository qrs;private final StorePosterRepository posters;private final Clock clock;
-    PrintKitService(EntityManager em,StorePrintKitRepository kits,StoreRepository stores,QrRepository qrs,StorePosterRepository posters,Clock clock){
-        this.em=em;this.kits=kits;this.stores=stores;this.qrs=qrs;this.posters=posters;this.clock=clock;
+    private final QrRepository qrs;private final StorePosterRepository posters;private final StorePosterService posterService;private final Clock clock;
+    /** 재발급 직후 같은 요청이 한 번 더 와도(두 번 클릭, 재전송) 새 QR을 또 만들지 않는 간격. */
+    static final java.time.Duration QR_REGENERATE_COOLDOWN=java.time.Duration.ofMinutes(10);
+    PrintKitService(EntityManager em,StorePrintKitRepository kits,StoreRepository stores,QrRepository qrs,StorePosterRepository posters,StorePosterService posterService,Clock clock){
+        this.em=em;this.kits=kits;this.stores=stores;this.qrs=qrs;this.posters=posters;this.posterService=posterService;this.clock=clock;
     }
 
     record Page(List<Map<String,Object>> content,int page,int size,long totalElements,int totalPages,Map<String,Long> counts){}
@@ -91,6 +93,47 @@ interface StorePrintKitRepository extends JpaRepository<StorePrintKit,Long> {
         StorePrintKit kit=kits.findByStoreId(storeId).orElseGet(()->{StorePrintKit k=new StorePrintKit();k.store=store;k.createdAt=now;return k;});
         kit.status=status;kit.updatedByEmail=actor.email;kit.updatedAt=now;kits.save(kit);
         return Map.of("storeId",storeId,"status",status,"statusUpdatedAt",now,"statusUpdatedBy",actor.email);
+    }
+
+    /** 재발급 확인창이 먼저 보여 줄 것: 지금 QR 발급 시각, 입점 키트 단계, 지난 폐기 이력. */
+    @Transactional(readOnly=true)
+    Map<String,Object> qrInfo(Long storeId){
+        Store store=stores.findById(storeId).orElseThrow(()->new AppException("STORE_NOT_FOUND","매장을 찾을 수 없습니다.",HttpStatus.NOT_FOUND));
+        Map<String,Object> out=new LinkedHashMap<>();
+        out.put("storeId",store.id);out.put("name",store.name);out.put("storeStatus",store.status);
+        out.put("issuedAt",qrs.findFirstByStoreIdAndStatus(storeId,QrStatus.ACTIVE).map(q->q.createdAt).orElse(null));
+        out.put("printKitStatus",kits.findByStoreId(storeId).map(k->k.status).orElse(PrintKitStatus.WAITING));
+        out.put("history",qrs.findByStoreIdOrderByCreatedAtDesc(storeId).stream().filter(q->q.status==QrStatus.REVOKED).limit(20).map(q->{
+            Map<String,Object> m=new LinkedHashMap<>();m.put("issuedAt",q.createdAt);m.put("revokedAt",q.revokedAt);
+            m.put("revokedBy",Objects.toString(q.revokedByEmail,""));m.put("reason",Objects.toString(q.revokeReason,""));return m;}).toList());
+        return out;
+    }
+
+    /**
+     * QR 재발급. 운영자만 한다. 기존 QR은 즉시 죽고, 이미 인쇄·발송한 안내물도 함께 쓸 수 없게 된다.
+     *
+     * 실수 방지 세 겹: 매장명을 그대로 다시 입력해야 하고(confirmName), 사유가 필수이며, 마지막 발급 후
+     * 10분 안에는 다시 발급하지 않는다(두 번 클릭·재전송). 입점 키트가 인쇄 중 이후 단계였다면
+     * 인쇄 대기로 되돌려 새 QR로 다시 뽑아야 한다는 사실이 목록에 드러나게 한다.
+     */
+    @Transactional
+    Map<String,Object> regenerateQr(AdminUser actor,Long storeId,String confirmName,String reason,String publicOrigin){
+        Store store=stores.findForUpdate(storeId).orElseThrow(()->new AppException("STORE_NOT_FOUND","매장을 찾을 수 없습니다.",HttpStatus.NOT_FOUND));
+        if(confirmName==null||!confirmName.trim().equals(store.name.trim()))
+            throw new AppException("QR_REGENERATE_CONFIRM_MISMATCH","매장명을 정확히 입력해야 재발급됩니다.");
+        String why=Inputs.required(reason,"재발급 사유를 입력해 주세요.");
+        Instant now=clock.instant();
+        Optional<StoreQrCode> current=qrs.findFirstByStoreIdAndStatus(storeId,QrStatus.ACTIVE);
+        if(current.isPresent()&&current.get().createdAt.isAfter(now.minus(QR_REGENERATE_COOLDOWN)))
+            throw new AppException("QR_RECENTLY_REGENERATED","방금 발급된 QR입니다. 10분 뒤에 다시 시도해 주세요.",HttpStatus.CONFLICT);
+        current.ifPresent(q->{q.status=QrStatus.REVOKED;q.revokedAt=now;q.revokedByEmail=actor.email;q.revokeReason=why;});
+        StoreQrCode next=new StoreQrCode();next.store=store;next.publicToken=Tokens.random();next.status=QrStatus.ACTIVE;next.createdAt=now;qrs.save(next);
+        // 안내물 저장본에는 옛 QR이 그려져 있다. 운영 중이면 새 QR로 다시 그리고, 아니면 지운다(승인 때 다시 만든다).
+        if(store.status==StoreStatus.ACTIVE)posterService.save(store,next.publicToken,publicOrigin,store.posterTagline);
+        else posters.findByStoreId(storeId).ifPresent(posters::delete);
+        PrintKitStatus previous=kits.findByStoreId(storeId).map(k->k.status).orElse(PrintKitStatus.WAITING);
+        if(previous!=PrintKitStatus.WAITING)kits.findByStoreId(storeId).ifPresent(k->{k.status=PrintKitStatus.WAITING;k.updatedByEmail=actor.email;k.updatedAt=now;});
+        return Map.of("storeId",storeId,"issuedAt",now,"previousPrintKitStatus",previous,"printKitReset",previous!=PrintKitStatus.WAITING);
     }
 
     /**
@@ -145,3 +188,23 @@ interface StorePrintKitRepository extends JpaRepository<StorePrintKit,Long> {
     private Long adminId(Authentication a){return a==null?null:(Long)a.getPrincipal();}
 }
 
+/** 매장 QR 재발급. 사장 쪽 API는 없앴다 — 실물로 보낸 안내물을 한 번의 요청으로 죽일 수 있어서다. */
+@RestController @RequestMapping("/api/admin/operator/stores/{storeId}/qr") class OperatorQrController {
+    private final PrintKitService kits;private final StoreApprovalService approvals;private final PublicOriginResolver publicOrigins;
+    OperatorQrController(PrintKitService kits,StoreApprovalService approvals,PublicOriginResolver publicOrigins){this.kits=kits;this.approvals=approvals;this.publicOrigins=publicOrigins;}
+
+    record RegenerateBody(@jakarta.validation.constraints.NotBlank @jakarta.validation.constraints.Size(max=100) String confirmName,
+                          @jakarta.validation.constraints.NotBlank @jakarta.validation.constraints.Size(max=200) String reason){}
+
+    @GetMapping ApiResponse<?> info(@PathVariable Long storeId,Authentication auth){
+        approvals.requireOperator(adminId(auth));
+        return ApiResponse.ok(kits.qrInfo(storeId));
+    }
+
+    @PostMapping("/regenerate") ApiResponse<?> regenerate(@PathVariable Long storeId,@Valid @RequestBody RegenerateBody body,Authentication auth,HttpServletRequest request){
+        AdminUser actor=approvals.requireOperator(adminId(auth));
+        return ApiResponse.ok(kits.regenerateQr(actor,storeId,body.confirmName(),body.reason(),publicOrigins.resolve(request)));
+    }
+
+    private Long adminId(Authentication a){return a==null?null:(Long)a.getPrincipal();}
+}

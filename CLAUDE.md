@@ -365,7 +365,13 @@ DB를 버려도 되는 로컬이라면 `docker compose down -v` 후 새 키로 �
   파일명·문서 제목에 적는다. 색은 RGB이며 CMYK 변환은 인쇄소에 맡긴다.
 - 운영자 PDF 다운로드는 저장본을 만들지 않는다(운영자 조회가 매장 데이터를 바꾸지 않게). 저장본이 없으면 현재 공개 origin.
 - 가입 때 주소를 받지 않는다. 주소가 비어 있으면 콘솔이 "주소 미입력"으로 표시하고, 운영자가 발송 전에 확인한다.
-- 테스트: `PrintKitTest.java`(스티커 QR 디코딩, PDF 박스 치수, 검색·필터·상태 변경, 사장 다운로드).
+- **QR 재발급은 운영자 전용이다**(`OperatorQrController`, 콘솔 "매장" 카드의 "QR 재발급"). 사장 API를 되살리지 말 것 —
+  보낸 키트를 요청 한 번으로 죽인다. 안전장치: 매장명 재입력, 사유 필수, 10분 재발급 간격, 키트 단계를 인쇄 대기로 되돌림.
+- 재발급 기록은 `store_qr_codes.revoked_by_email/revoke_reason`에 둔다. `store_approval_events`의 enum에 행동을 추가하지
+  말 것: Hibernate가 enum 값 목록을 DDL에 박는다(PostgreSQL은 CHECK 제약, 테스트 H2는 ENUM 타입). `ddl-auto=update`는
+  그 목록을 고치지 못해 새 값 INSERT가 실패한다.
+  **기존 테이블의 enum에 값을 추가하는 변경은 전부 같은 위험이 있다.**
+- 테스트: `PrintKitTest.java`(스티커 QR 디코딩, PDF 박스 치수, 검색·필터·상태 변경, 사장 다운로드, QR 재발급 안전장치).
 
 ## 로그아웃
 

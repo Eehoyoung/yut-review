@@ -686,9 +686,19 @@ Response:
 
 ## QR 조회/재발급
 ```http
-GET  /api/admin/stores/{storeId}/qr-codes
-POST /api/admin/stores/{storeId}/qr-codes/regenerate
+GET  /api/admin/stores/{storeId}/qr-codes                       # 매장 멤버
+GET  /api/admin/operator/stores/{storeId}/qr                    # 운영자: 발급 시각·입점 키트 단계·폐기 이력
+POST /api/admin/operator/stores/{storeId}/qr/regenerate         # 운영자 전용
+     { "confirmName": "매장명 그대로", "reason": "재발급 사유(200자)" }
 ```
+
+2026-10-01부터 **재발급은 운영자만** 한다. 실물로 보낸 안내물을 한 번의 요청으로 죽일 수 있어서 사장 API
+(`POST /api/admin/stores/{id}/qr-codes/regenerate`)는 없앴다. 서버 안전장치:
+
+- `confirmName`이 매장명과 정확히 같아야 한다. 다르면 400 `QR_REGENERATE_CONFIRM_MISMATCH`.
+- `reason` 필수. 폐기된 QR 행의 `revoke_reason`, `revoked_by_email`에 남는다.
+- 활성 QR이 발급된 지 10분 안이면 409 `QR_RECENTLY_REGENERATED`(연타·재전송 방지).
+- 입점 키트가 인쇄 중 이후 단계였다면 인쇄 대기로 되돌리고 `printKitReset: true`, `previousPrintKitStatus`를 돌려준다.
 
 매장 생성과 회원가입은 요청의 현재 공개 origin으로 A6 비율 PNG 안내물을 서버 DB에 함께 저장한다.
 매장명 변경과 QR 토큰 재발급은 저장된 안내물도 갱신한다.

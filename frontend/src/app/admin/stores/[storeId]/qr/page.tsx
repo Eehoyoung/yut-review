@@ -6,7 +6,6 @@ import { useParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AdminFrame } from "@/features/admin/AdminFrame";
 import { api, downloadWithAuth, errorMessage } from "@/lib/api";
-import { Dialog } from "@/features/ui/Dialog";
 
 type Qr = { token: string; status?: string };
 type Poster = { blob: Blob; publicOrigin: string };
@@ -40,7 +39,6 @@ export default function QrPage() {
   const qc = useQueryClient();
   const [preview, setPreview] = useState("");
   const [message, setMessage] = useState("");
-  const [askingRegenQr, setAskingRegenQr] = useState(false);
   const [variant, setVariant] = useState<Variant>("GAME");
   const q = useQuery({ queryKey: ["qr", id], queryFn: () => api<Qr[]>(`/admin/stores/${id}/qr-codes`) });
   const poster = useQuery({ queryKey: ["poster", id, variant], queryFn: () => posterBlob(id, variant) });
@@ -49,14 +47,6 @@ export default function QrPage() {
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["poster", id] });
       setMessage("현재 주소로 안내물을 다시 만들었어요.");
-    },
-  });
-  const regenerateQr = useMutation({
-    mutationFn: () => api<Qr>(`/admin/stores/${id}/qr-codes/regenerate`, { method: "POST" }),
-    onSuccess: () => {
-      setAskingRegenQr(false);
-      qc.invalidateQueries({ queryKey: ["qr", id] });
-      qc.invalidateQueries({ queryKey: ["poster", id] });
     },
   });
 
@@ -151,34 +141,12 @@ export default function QrPage() {
             {pdfState === "error" && <p className="error" role="alert">PDF를 만들지 못했어요. 다시 시도해 주세요.</p>}
           </div>
           {message && <p className="success" role="status">{message}</p>}
-          {(regenerate.isError || regenerateQr.isError) && <p className="error" role="alert">{errorMessage(regenerate.error ?? regenerateQr.error)}</p>}
+          {regenerate.isError && <p className="error" role="alert">{errorMessage(regenerate.error)}</p>}
           <p className="notice">안내물 QR 주소: <span className="wrap-anywhere">{url}</span></p>
           {originChanged && <p className="error" role="alert">안내물의 접속 주소와 현재 접속 주소가 다릅니다. 관리자에게 확인해 주세요.</p>}
         </div>
       </section>
 
-      <Dialog open={askingRegenQr} onClose={() => setAskingRegenQr(false)} labelledBy="qr-regen-title">
-        <div className="stack">
-          <h2 id="qr-regen-title">QR을 다시 발급할까요?</h2>
-          {/* 제목이 이미 묻고 있다. 본문은 되묻는 대신 무엇을 감수해야 하는지를 말한다. */}
-          <p className="lead">
-            기존 QR은 즉시 사용할 수 없게 됩니다. 매장에 붙여 둔 안내물도 새 QR로 다시 출력해야 합니다.
-          </p>
-          <div className="sheet-actions">
-            <button type="button" className="btn ghost" onClick={() => setAskingRegenQr(false)}>
-              취소
-            </button>
-            <button
-              type="button"
-              className="btn"
-              disabled={regenerateQr.isPending}
-              onClick={() => regenerateQr.mutate()}
-            >
-              {regenerateQr.isPending ? "발급 중" : "새 QR 발급"}
-            </button>
-          </div>
-        </div>
-      </Dialog>
     </AdminFrame>
   );
 }
