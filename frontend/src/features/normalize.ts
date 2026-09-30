@@ -34,6 +34,19 @@ export function formatPhone(value: string) {
   return d.length === PHONE_LENGTH ? `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}` : d;
 }
 
+/** 매장 전화 최대 자릿수(휴대전화 11자리). 유선·대표번호는 더 짧다. 서버 `Inputs.storePhone`과 같은 규칙. */
+export const STORE_PHONE_MAX = 11;
+export const isStorePhone = (value: string) => /^(0\d{8,10}|1[5-9]\d{6})$/.test(value);
+
+/** 매장 전화 표시: 02-123-4567, 031-1234-5678, 010-1234-5678, 1588-1234. 규칙 밖이면 숫자 그대로. */
+export function formatTel(value: string) {
+  const d = onlyDigits(value, STORE_PHONE_MAX);
+  if (/^1[5-9]\d{6}$/.test(d)) return `${d.slice(0, 4)}-${d.slice(4)}`;
+  if (/^02\d{7,8}$/.test(d)) return `02-${d.slice(2, d.length - 4)}-${d.slice(-4)}`;
+  if (/^0\d{9,10}$/.test(d)) return `${d.slice(0, 3)}-${d.slice(3, d.length - 4)}-${d.slice(-4)}`;
+  return d;
+}
+
 export function formatBusinessNumber(value: string) {
   const d = onlyDigits(value, BUSINESS_NUMBER_LENGTH);
   return d.length === BUSINESS_NUMBER_LENGTH ? `${d.slice(0, 3)}-${d.slice(3, 5)}-${d.slice(5)}` : d;

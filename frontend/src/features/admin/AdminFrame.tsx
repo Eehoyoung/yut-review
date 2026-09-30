@@ -8,7 +8,7 @@ const menuGroups = [
   { label: "운영", items: [["dashboard", "대시보드"], ["prizes", "상품 설정"], ["qr", "QR 안내물"]] },
   { label: "현장 관리", items: [["staff-pin", "직원 PIN"], ["game-plays", "참여 내역"], ["coupons", "쿠폰 내역"]] },
   { label: "분석", items: [["analytics", "통계"], ["ai", "AI 도우미"]] },
-  { label: "계정", items: [["plan", "요금제"]] },
+  { label: "계정", items: [["settings", "매장 정보"], ["plan", "요금제"]] },
 ] as const;
 
 export function AdminFrame({ title, children }: { title: string; children: React.ReactNode }) {
@@ -44,6 +44,7 @@ export function AdminFrame({ title, children }: { title: string; children: React
         </nav>
         <div className="admin-rail-actions">
           <Link className="admin-text-action" href="/admin">매장 변경</Link>
+          <Link className="admin-text-action" href="/admin/account">내 정보</Link>
           <LogoutButton />
         </div>
       </aside>
@@ -55,6 +56,7 @@ export function AdminFrame({ title, children }: { title: string; children: React
           </div>
           <div className="admin-head-actions">
             <Link className="admin-text-action" href="/admin">매장 변경</Link>
+            <Link className="admin-text-action" href="/admin/account">내 정보</Link>
             <LogoutButton />
           </div>
           <details className="admin-mobile-menu">
