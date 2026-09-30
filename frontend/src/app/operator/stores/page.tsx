@@ -9,8 +9,8 @@ import {
   STORE_STATUS_LABEL,
   STORE_STATUS_TONE,
 } from "@/features/admin/labels";
-import { OperatorFrame } from "@/features/admin/OperatorFrame";
-import { QrRegenerateDialog } from "@/features/admin/QrRegenerateDialog";
+import { OperatorFrame } from "@/features/operator/OperatorFrame";
+import { QrRegenerateDialog } from "@/features/operator/QrRegenerateDialog";
 import { Dialog } from "@/features/ui/Dialog";
 import { formatBusinessNumber, formatPhone } from "@/features/normalize";
 import { api, errorMessage } from "@/lib/api";
@@ -18,7 +18,7 @@ import type { ApprovalEvent, OperatorStore, OperatorSummary, PageData, StoreStat
 
 /**
  * 소담랩스 운영자 전용 매장 목록. 가입 정보, 매장별 게임·쿠폰 숫자, 요금제와 심사 동작을 한 카드에 둔다.
- * SYSTEM_ADMIN이 아니면 서버가 403 OPERATOR_ONLY로 막고, 링크는 /admin 헤더에서 역할을 확인한 뒤에만 나온다.
+ * 운영자(OPERATOR)가 아니면 서버가 막는다(운영자 OTP 세션 필터 401, 역할 검사 403 OPERATOR_ONLY).
  *
  * 가입이 곧바로 운영 중이 되는지(승인제 여부)는 서버 설정이다. 화면은 `summary.approvalRequired`를 따를 뿐
  * 따로 적지 않는다. 승인제를 꺼 둬도 예전에 대기·거부된 매장과 운영 중단은 여기서 다룬다.
@@ -58,7 +58,7 @@ const SHEET_TITLE: Record<Sheet["kind"], string> = {
 function ApprovalEvents({ storeId }: { storeId: number }) {
   const q = useQuery({
     queryKey: ["operator-events", storeId],
-    queryFn: () => api<ApprovalEvent[]>(`/admin/operator/stores/${storeId}/approval-events`),
+    queryFn: () => api<ApprovalEvent[]>(`/operator/stores/${storeId}/approval-events`),
   });
   if (q.isPending)
     return (
@@ -102,12 +102,12 @@ export default function OperatorQueue() {
   const [flash, setFlash] = useState("");
   const [qrStore, setQrStore] = useState<OperatorStore>();
 
-  const summary = useQuery({ queryKey: ["operator-summary"], queryFn: () => api<OperatorSummary>("/admin/operator/summary") });
+  const summary = useQuery({ queryKey: ["operator-summary"], queryFn: () => api<OperatorSummary>("/operator/summary") });
   const stores = useQuery({
     queryKey: ["operator-stores", status, page],
     queryFn: () =>
       api<PageData<OperatorStore>>(
-        `/admin/operator/stores?page=${page}&size=20${status ? `&status=${status}` : ""}`,
+        `/operator/stores?page=${page}&size=20${status ? `&status=${status}` : ""}`,
       ),
   });
 
@@ -119,7 +119,7 @@ export default function OperatorQueue() {
 
   const act = useMutation({
     mutationFn: ({ id, path, body }: { id: number; path: string; body: Record<string, string> }) =>
-      api<ActionResult>(`/admin/operator/stores/${id}/${path}`, { method: "POST", body: JSON.stringify(body) }),
+      api<ActionResult>(`/operator/stores/${id}/${path}`, { method: "POST", body: JSON.stringify(body) }),
     onSuccess: (data, vars) => {
       setFlash(
         vars.path === "approve"

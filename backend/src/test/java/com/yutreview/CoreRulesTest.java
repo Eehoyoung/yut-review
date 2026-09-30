@@ -108,13 +108,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         String body=new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules().writeValueAsString(overview);
         assertFalse(body.contains("01011110001"));assertFalse(body.contains("손님1"));
 
-        AdminUser op=new AdminUser();op.email="overview-op@test.com";op.passwordHash="x";op.name="운영자";op.role=AdminRole.SYSTEM_ADMIN;op.createdAt=Instant.now();admins.save(op);
-        mvc.perform(get("/api/admin/operator/overview").header("Authorization","Bearer "+jwt.issueOperator(op)))
+        AdminUser op=new AdminUser();op.email="overview-op@test.com";op.passwordHash="x";op.name="운영자";op.role=AdminRole.OPERATOR;op.createdAt=Instant.now();admins.save(op);
+        mvc.perform(get("/api/operator/overview").header("Authorization","Bearer "+jwt.issueOperator(op)))
             .andExpect(status().isOk()).andExpect(jsonPath("$.data.approvalRequired").isBoolean());
-        mvc.perform(get("/api/admin/operator/session-policy").header("Authorization","Bearer "+jwt.issueOperator(op)))
+        mvc.perform(get("/api/operator/session-policy").header("Authorization","Bearer "+jwt.issueOperator(op)))
             .andExpect(status().isOk()).andExpect(jsonPath("$.data.sessionTtlSeconds").isNumber()).andExpect(jsonPath("$.data.otpTtlSeconds").isNumber());
         AdminUser owner=new AdminUser();owner.email="overview-owner@test.com";owner.passwordHash="x";owner.name="사장";owner.role=AdminRole.STORE_ADMIN;owner.createdAt=Instant.now();admins.save(owner);
-        mvc.perform(get("/api/admin/operator/overview").header("Authorization","Bearer "+jwt.issue(owner))).andExpect(status().is4xxClientError());
+        mvc.perform(get("/api/operator/overview").header("Authorization","Bearer "+jwt.issue(owner))).andExpect(status().is4xxClientError());
     }
     @Test void customerEndpointsRequireAgeConfirmation() throws Exception{
         String base="\"name\":\"홍길동\",\"phone\":\"01012345678\",\"privacyAgreed\":true,\"privacyConsentVersion\":\""+LegalConsentPolicy.CUSTOMER_PRIVACY_VERSION+"\"";

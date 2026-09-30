@@ -35,12 +35,12 @@ class OperatorAccountTest {
 
         // 이메일은 소문자로 정규화된다. 로그인이 소문자로만 찾기 때문이다.
         assertEquals("new.operator@test.com", created.get("email"));
-        assertEquals("SYSTEM_ADMIN", created.get("role"));
+        assertEquals("OPERATOR", created.get("role"));
         // 매장을 만들지 않는다. 운영자가 어느 매장의 멤버가 되면 자기 매장을 스스로 심사할 수 있다.
         assertEquals(0L, created.get("storeCount"));
 
         AdminUser saved = admins.findByEmail("new.operator@test.com").orElseThrow();
-        assertEquals(AdminRole.SYSTEM_ADMIN, saved.role);
+        assertEquals(AdminRole.OPERATOR, saved.role);
         assertFalse(encoder.matches("operator1234", saved.passwordHash),
                 "운영자는 사용할 수 있는 비밀번호를 만들지 않는다");
         // 응답 어디에도 해시가 실리지 않는다.
@@ -61,7 +61,7 @@ class OperatorAccountTest {
 
         Map<String, Object> first = accounts.grant(actor, target.id, "지점 운영 인수");
         assertEquals(Boolean.TRUE, first.get("changed"));
-        assertEquals("SYSTEM_ADMIN", first.get("role"));
+        assertEquals("OPERATOR", first.get("role"));
         // 매장 소유권은 그대로 남는다. 권한을 준 것이지 매장을 뺏은 것이 아니다.
         assertEquals(1L, first.get("storeCount"));
 
@@ -94,10 +94,10 @@ class OperatorAccountTest {
     @Test void theSystemCannotBeLeftWithoutAnyOperator() {
         // 기존 테스트가 만든 운영자들을 치우고 딱 한 명만 남긴다.
         for (AdminUser a : admins.findAll()) {
-            if (a.role == AdminRole.SYSTEM_ADMIN) { a.role = AdminRole.STORE_ADMIN; admins.save(a); }
+            if (a.role == AdminRole.OPERATOR) { a.role = AdminRole.STORE_ADMIN; admins.save(a); }
         }
         AdminUser only = operator("last-operator@test.com");
-        assertEquals(1, admins.countByRole(AdminRole.SYSTEM_ADMIN));
+        assertEquals(1, admins.countByRole(AdminRole.OPERATOR));
 
         assertEquals("OPERATOR_SELF_REVOKE",
                 assertThrows(AppException.class, () -> accounts.revoke(only, only.id, null)).code,
@@ -109,7 +109,7 @@ class OperatorAccountTest {
 
         // 둘 있을 때는 서로 회수할 수 있다.
         assertEquals(Boolean.TRUE, accounts.revoke(only, second.id, null).get("changed"));
-        assertEquals(1, admins.countByRole(AdminRole.SYSTEM_ADMIN));
+        assertEquals(1, admins.countByRole(AdminRole.OPERATOR));
 
         // 이제 only가 마지막 한 명이다. 자기 자신이 아닌 다른 사람이 시도해도 내려가지 않는다.
         // 자기 회수 검사가 먼저 걸려서 이 경로가 가려지지 않는지 확인하는 것이 요점이다.
@@ -117,7 +117,7 @@ class OperatorAccountTest {
         assertEquals("OPERATOR_LAST_ONE",
                 assertThrows(AppException.class, () -> accounts.revoke(demoted, only.id, null)).code,
                 "마지막 운영자는 누가 시도해도 내려가지 않는다");
-        assertEquals(1, admins.countByRole(AdminRole.SYSTEM_ADMIN));
+        assertEquals(1, admins.countByRole(AdminRole.OPERATOR));
     }
 
     @Test void accountListIsSearchableAndNeverLeaksPasswordHashes() {
@@ -203,7 +203,7 @@ class OperatorAccountTest {
     private AdminUser operator(String email) {
         AdminUser a = new AdminUser();
         a.email = email; a.passwordHash = encoder.encode("secret1234"); a.name = "운영자";
-        a.role = AdminRole.SYSTEM_ADMIN; a.createdAt = clock.instant();
+        a.role = AdminRole.OPERATOR; a.createdAt = clock.instant();
         return admins.save(a);
     }
 }

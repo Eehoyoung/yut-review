@@ -113,9 +113,9 @@ interface OperatorAuditEventRepository extends JpaRepository<OperatorAuditEvent,
         if(admins.existsByEmail(email))throw new AppException("DUPLICATE_EMAIL","이미 가입된 이메일입니다.");
         Instant now=clock.instant();
         AdminUser created=new AdminUser();
-        // SYSTEM_ADMIN은 비밀번호 로그인을 사용할 수 없다. DB non-null 제약만 만족하는 무작위 폐기값이다.
+        // 운영자(OPERATOR)는 비밀번호 로그인을 사용할 수 없다. DB non-null 제약만 만족하는 무작위 폐기값이다.
         created.email=email;created.passwordHash=encoder.encode(Tokens.random()+Tokens.random());created.name=displayName;
-        created.role=AdminRole.SYSTEM_ADMIN;created.createdAt=now;
+        created.role=AdminRole.OPERATOR;created.createdAt=now;
         admins.save(created);
         record(actor,created,OperatorAuditAction.OPERATOR_CREATED,note,now);
         return view(created);
@@ -124,8 +124,8 @@ interface OperatorAuditEventRepository extends JpaRepository<OperatorAuditEvent,
     /** 기존 매장 사장을 운영자로 올린다. 이미 운영자면 아무 일도 하지 않는다(멱등). */
     @Transactional Map<String,Object> grant(AdminUser actor,Long targetId,String note){
         AdminUser target=require(targetId);
-        if(target.role==AdminRole.SYSTEM_ADMIN)return changed(target,false);
-        target.role=AdminRole.SYSTEM_ADMIN;
+        if(target.role==AdminRole.OPERATOR)return changed(target,false);
+        target.role=AdminRole.OPERATOR;
         record(actor,target,OperatorAuditAction.OPERATOR_GRANTED,note,clock.instant());
         return changed(target,true);
     }
@@ -138,10 +138,10 @@ interface OperatorAuditEventRepository extends JpaRepository<OperatorAuditEvent,
      */
     @Transactional Map<String,Object> revoke(AdminUser actor,Long targetId,String note){
         AdminUser target=require(targetId);
-        if(target.role!=AdminRole.SYSTEM_ADMIN)return changed(target,false);
+        if(target.role!=AdminRole.OPERATOR)return changed(target,false);
         if(actor.id.equals(target.id))
             throw new AppException("OPERATOR_SELF_REVOKE","자신의 운영자 권한은 회수할 수 없습니다.");
-        if(admins.countByRole(AdminRole.SYSTEM_ADMIN)<=1)
+        if(admins.countByRole(AdminRole.OPERATOR)<=1)
             throw new AppException("OPERATOR_LAST_ONE","마지막 운영자는 회수할 수 없습니다.");
         target.role=AdminRole.STORE_ADMIN;
         record(actor,target,OperatorAuditAction.OPERATOR_REVOKED,note,clock.instant());
@@ -217,10 +217,10 @@ interface OperatorAuditEventRepository extends JpaRepository<OperatorAuditEvent,
 /**
  * 운영자 계정 API.
  *
- * {@link OperatorController}와 같은 `/api/admin/operator` 아래지만 파일을 나눠 둔다. 매장 심사와
+ * {@link OperatorController}와 같은 `/api/operator` 아래지만 파일을 나눠 둔다. 매장 심사와
  * 계정 관리는 바뀌는 이유가 다르고, 한 파일에 두면 심사 로직을 고치다 권한 로직을 건드리게 된다.
  */
-@RestController @RequestMapping("/api/admin/operator") class OperatorAccountController {
+@RestController @RequestMapping("/api/operator") class OperatorAccountController {
     private final StoreApprovalService approvals;private final OperatorAccountService accounts;
     OperatorAccountController(StoreApprovalService approvals,OperatorAccountService accounts){
         this.approvals=approvals;this.accounts=accounts;
@@ -288,7 +288,7 @@ interface OperatorAuditEventRepository extends JpaRepository<OperatorAuditEvent,
         if(email==null||email.isBlank())return;
         // 이미 운영자가 있으면 손대지 않는다. 계정 목록이 아니라 역할로 본다 — 이메일만 보면
         // 운영자가 권한을 잃은 뒤 재기동에서 조용히 되돌아온다.
-        if(admins.countByRole(AdminRole.SYSTEM_ADMIN)>0)return;
+        if(admins.countByRole(AdminRole.OPERATOR)>0)return;
         // 설정이 잘못돼도 기동을 막지 않는다. 여기서 예외가 CommandLineRunner 밖으로 나가면
         // Spring Boot가 통째로 뜨지 않고, 운영자 계정 하나 때문에 손님 화면까지 내려간다.
         // 계정은 나중에 고쳐서 다시 만들 수 있지만 내려간 서비스는 그 사이 장사를 못 한다.
@@ -306,7 +306,7 @@ interface OperatorAuditEventRepository extends JpaRepository<OperatorAuditEvent,
         AdminUser a=new AdminUser();
         a.email=normalized;a.passwordHash=encoder.encode(Tokens.random()+Tokens.random());
         a.name=Inputs.required(name,"이름을 입력해 주세요.");
-        a.role=AdminRole.SYSTEM_ADMIN;a.createdAt=clock.instant();
+        a.role=AdminRole.OPERATOR;a.createdAt=clock.instant();
         admins.save(a);
         log.info("operator bootstrap created the first operator account");
     }

@@ -146,16 +146,6 @@ export default function PlanPage() {
     checkout.mutate({ plan, billingKey: result.billingKey, consentText });
   }
 
-  const change = useMutation({
-    mutationFn: (plan: Plan) =>
-      api<Subscription>(`/admin/stores/${id}/subscription`, { method: "PUT", body: JSON.stringify({ plan }) }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["subscription", id] });
-      qc.invalidateQueries({ queryKey: ["ai-status", id] });
-      qc.invalidateQueries({ queryKey: ["analytics", id] });
-    },
-  });
-
   if (current.isPending || plans.isPending)
     return (
       <AdminFrame title="요금제">
@@ -433,11 +423,7 @@ export default function PlanPage() {
                     </button>
                   </>
                 )
-              : !isCurrent && (
-                  <button className="btn secondary" disabled={change.isPending} onClick={() => change.mutate(plan)}>
-                    {PLAN_LABEL[plan]}로 변경
-                  </button>
-                )}
+              : null /* 결제를 받지 않는 동안 요금제 변경은 운영자만 한다(/api/operator/...). 아래 안내문이 그 사실을 말한다. */}
           </section>
         );
       })}
@@ -456,17 +442,7 @@ export default function PlanPage() {
           결제수단을 등록했어요.
         </p>
       )}
-      {change.isError && (
-        <p className="error" role="alert">
-          {errorMessage(change.error)}
-        </p>
-      )}
-      {change.isSuccess && (
-        <p className="success" role="status">
-          요금제를 변경했어요.
-        </p>
-      )}
-      {!canPay && <p className="hint">지금은 온라인 결제를 받지 않아요. 요금제 변경은 소담랩스에 문의해 주세요.</p>}
+      {!canPay && <p className="hint">지금은 온라인 결제를 받지 않아요. 요금제 변경은 소담랩스 운영자에게 문의해 주세요.</p>}
       <p className="hint">
         집계 보관 기간과 브랜딩·AI 운영 기능이 요금제별로 다릅니다. 고객 개인정보는 모든 요금제에서 120일 보관합니다.
       </p>

@@ -18,11 +18,13 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
     },
   });
   const body = (await response.json().catch(() => null)) as Envelope<T> | null;
-  if (response.status === 401 && path.startsWith("/admin/operator") && !path.startsWith("/admin/operator-auth/") && typeof window !== "undefined") {
+  // 운영자 API(/operator/**)와 매장 관리자 API(/admin/**)는 주소가 겹치지 않는다. 로그인 화면도 각자 따로다.
+  // /operator-auth/**(인증번호 요청·확인)는 로그인 그 자체라 401이어도 이동시키지 않는다.
+  const operatorApi = path === "/operator" || path.startsWith("/operator/");
+  if (response.status === 401 && operatorApi && typeof window !== "undefined") {
     clearAdminSession();
-    window.location.assign("/admin/operator/login");
-  } else if (response.status === 401 && path.startsWith("/admin/") && path !== "/admin/auth/login"
-    && !path.startsWith("/admin/operator-auth/") && typeof window !== "undefined") {
+    window.location.assign("/operator/login");
+  } else if (response.status === 401 && path.startsWith("/admin/") && path !== "/admin/auth/login" && typeof window !== "undefined") {
     clearAdminSession();
     window.location.assign("/admin/login");
   }
@@ -88,7 +90,7 @@ export function clearAdminSession() {
  * 고객이 실제로 만날 수 있는 오류만 여기 둔다.
  *
  * 요금제·AI 오류 문구를 여기 넣었다가 고객 번들 다섯 개에 '요금제'가 실려 나갔다. 이 모듈은 손님
- * 화면도 import한다. 관리자 전용 코드는 서버가 보내는 메시지를 그대로 쓰면 되고, 실제로 그쪽이 더
+ * 화면도 import한다. 매장 관리자 전용 코드는 서버가 보내는 메시지를 그대로 쓰면 되고, 실제로 그쪽이 더
  * 구체적이다(어느 날짜부터 볼 수 있는지까지 들어 있다).
  */
 const friendly: Record<string, string> = {

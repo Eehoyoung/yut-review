@@ -196,7 +196,7 @@ final class Inputs {
         for(Prize p:prizes.findByStoreIdOrderByRank(store.id))byRank.put(p.rank,p);
         for(int rank=1;rank<=rankCount;rank++){
             Prize prize=byRank.remove(rank);
-            if(prize==null){prize=new Prize();prize.store=store;prize.rank=rank;prize.name=defaultPrizeName(rank);prize.description="관리자에서 상품을 설정하세요.";prize.redeemPolicy=RedeemPolicy.ANYTIME;prize.createdAt=now;}
+            if(prize==null){prize=new Prize();prize.store=store;prize.rank=rank;prize.name=defaultPrizeName(rank);prize.description=null;prize.redeemPolicy=RedeemPolicy.ANYTIME;prize.createdAt=now;}
             prize.active=true;prize.updatedAt=now;prizes.save(prize);
         }
         // Ranks that dropped out of the ladder are deactivated, never deleted: issued coupons still point at them.

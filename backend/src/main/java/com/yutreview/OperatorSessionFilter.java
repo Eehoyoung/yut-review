@@ -10,13 +10,18 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-/** `/api/admin/operator/**`에 이메일 OTP로 발급된 고정 만료 세션만 허용한다. */
+/**
+ * `/api/operator/**`(운영자 API 전부)에 이메일 OTP로 발급된 고정 만료 세션만 허용한다.
+ * 운영자 API는 매장 관리자 API(`/api/admin/**`)와 주소가 겹치지 않는다. 운영자 전용 동작을 `/api/admin` 아래에 두지 말 것 —
+ * 이 필터를 지나지 않아 일반 비밀번호 세션으로도 닿게 된다(요금제 변경이 실제로 그랬다).
+ */
 @Component class OperatorAccessFilter extends OncePerRequestFilter {
     private final JwtService jwt;
     OperatorAccessFilter(JwtService jwt){this.jwt=jwt;}
 
     @Override protected boolean shouldNotFilter(HttpServletRequest request){
-        return !request.getRequestURI().startsWith("/api/admin/operator/");
+        String uri=request.getRequestURI();
+        return !(uri.equals("/api/operator")||uri.startsWith("/api/operator/"));
     }
 
     @Override protected void doFilterInternal(HttpServletRequest request,HttpServletResponse response,

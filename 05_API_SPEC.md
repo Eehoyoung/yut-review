@@ -299,7 +299,7 @@ Response:
 { "id": 3, "email": "owner@example.com", "name": "홍대표", "role": "STORE_ADMIN" }
 ```
 
-`role`은 `SYSTEM_ADMIN` 또는 `STORE_ADMIN`이다. 관리자 화면은 이 값으로만 운영자 메뉴 노출을
+`role`은 `OPERATOR` 또는 `STORE_ADMIN`이다. 관리자 화면은 이 값으로만 운영자 메뉴 노출을
 판단하고, JWT를 직접 해석하지 않는다.
 
 ## 내 매장
@@ -369,15 +369,15 @@ PUT  /api/admin/stores/{storeId}
 
 ### 시스템 운영자 이메일 OTP 로그인
 
-일반 매장 관리자 비밀번호 로그인과 분리한다. `SYSTEM_ADMIN`은
+일반 매장 관리자 비밀번호 로그인과 분리한다. `OPERATOR`은
 `POST /api/admin/auth/login`을 사용할 수 없으며 `OPERATOR_OTP_REQUIRED`를 받는다.
 
 ```http
-POST /api/admin/operator-auth/request
+POST /api/operator-auth/request
 { "email": "operator@example.com" }
 ```
 
-응답은 계정 존재 여부를 구분하지 않는다. 등록된 `SYSTEM_ADMIN`이면 6자리 인증번호를 메일로 보내며
+응답은 계정 존재 여부를 구분하지 않는다. 등록된 `OPERATOR`이면 6자리 인증번호를 메일로 보내며
 인증번호는 기본 120초 동안 유효하다.
 
 ```json
@@ -385,7 +385,7 @@ POST /api/admin/operator-auth/request
 ```
 
 ```http
-POST /api/admin/operator-auth/verify
+POST /api/operator-auth/verify
 { "challengeToken": "opaque", "code": "123456" }
 ```
 
@@ -403,30 +403,30 @@ POST /api/admin/operator-auth/verify
 `OPERATOR_OTP_EMAIL_UNAVAILABLE`, `OPERATOR_SESSION_REQUIRED`.
 
 ```http
-GET  /api/admin/operator/overview
-GET  /api/admin/operator/session-policy
-GET  /api/admin/operator/summary
-GET  /api/admin/operator/monitoring
-GET  /api/admin/operator/stores?status=&page=0&size=20
-POST /api/admin/operator/stores/{storeId}/approve
-POST /api/admin/operator/stores/{storeId}/reject
-POST /api/admin/operator/stores/{storeId}/review-again
-POST /api/admin/operator/stores/{storeId}/ownership
-GET  /api/admin/operator/stores/{storeId}/approval-events
-POST /api/admin/operator/phone-hash/rehash
-GET  /api/admin/operator/admins?q=&page=0&size=20
-POST /api/admin/operator/admins
-POST /api/admin/operator/admins/{adminId}/grant
-POST /api/admin/operator/admins/{adminId}/revoke
-GET  /api/admin/operator/audit
+GET  /api/operator/overview
+GET  /api/operator/session-policy
+GET  /api/operator/summary
+GET  /api/operator/monitoring
+GET  /api/operator/stores?status=&page=0&size=20
+POST /api/operator/stores/{storeId}/approve
+POST /api/operator/stores/{storeId}/reject
+POST /api/operator/stores/{storeId}/review-again
+POST /api/operator/stores/{storeId}/ownership
+GET  /api/operator/stores/{storeId}/approval-events
+POST /api/operator/phone-hash/rehash
+GET  /api/operator/admins?q=&page=0&size=20
+POST /api/operator/admins
+POST /api/operator/admins/{adminId}/grant
+POST /api/operator/admins/{adminId}/revoke
+GET  /api/operator/audit
 ```
 
-### 계정 — `/api/admin/operator/admins`
+### 계정 — `/api/operator/admins`
 
 목록은 `{id, email, name, role, storeCount, createdAt}`만 내려간다. `passwordHash`는 어떤 경로로도
 나가지 않는다. `q`는 이메일과 이름을 대소문자 무시로 부분 일치시킨다.
 
-`POST /admins`는 `{email, name, note?}`를 받아 `SYSTEM_ADMIN`을 만든다. 운영자는 이메일 OTP로만
+`POST /admins`는 `{email, name, note?}`를 받아 `OPERATOR`을 만든다. 운영자는 이메일 OTP로만
 로그인하므로 화면이나 API에서 비밀번호를 만들거나 받지 않는다.
 **매장은 만들지 않는다** — 운영자가 어느 매장의 멤버가 되면 자기 매장을 스스로 심사할 수 있다.
 비밀번호 규칙은 일반 가입과 같다(영문+숫자 10자 이상, `WEAK_PASSWORD`/`PASSWORD_MISMATCH`).
@@ -444,7 +444,7 @@ GET  /api/admin/operator/audit
 둘 다 승인할 사람이 아무도 없는 상태를 막는다. 그 상태가 되면 운영자를 다시 만드는 API도
 운영자만 쓸 수 있어서 DB를 직접 고쳐야 한다.
 
-### 활동 기록 — `GET /api/admin/operator/audit`
+### 활동 기록 — `GET /api/operator/audit`
 
 매장 심사(`store_approval_events`)와 계정 변경(`operator_audit_events`)을 시간순으로 합쳐
 최근 200건까지 준다. 한 줄은 `{kind, action, actor, target, storeId?, note, createdAt}`이며
@@ -489,7 +489,7 @@ GET  /api/admin/operator/audit
 검증이 꺼져 있으면 `openingDate`는 보내지 않아도 되고 보내도 저장되지 않는다.
 중복 사업자등록번호(`DUPLICATE_BUSINESS_NUMBER`)는 이 설정과 무관하게 항상 막힌다.
 
-### 현황판 — `GET /api/admin/operator/overview`
+### 현황판 — `GET /api/operator/overview`
 
 콘솔 첫 화면. 집계와 매장·사장 정보만 나가고 고객 이름·전화번호·쿠폰 토큰은 없다.
 
@@ -500,14 +500,14 @@ GET  /api/admin/operator/audit
 - `topStoresToday`: 오늘 게임이 많은 매장 10곳과 오늘 쿠폰 사용 수
 - `approvalRequired`: `STORE_APPROVAL_REQUIRED` 현재 값
 
-`GET /api/admin/operator/stores`의 각 행에는 `businessVerifiedAt`과 `stats`
+`GET /api/operator/stores`의 각 행에는 `businessVerifiedAt`과 `stats`
 (`gamesToday`, `gamesTotal`, `couponsIssued`, `couponsRedeemed`, `lastPlayedAt`, `plan`, `serviceState`)가 붙는다.
 정렬은 `status=PENDING_APPROVAL`이면 가입 오래된 순(심사 큐), 그 밖에는 최근 가입 순이다.
 `summary`는 `inactive`, `approvalRequired`를 함께 준다.
 
-`GET /api/admin/operator/session-policy`는 `otpTtlSeconds`, `sessionTtlSeconds` 실제 설정값을 준다.
+`GET /api/operator/session-policy`는 `otpTtlSeconds`, `sessionTtlSeconds` 실제 설정값을 준다.
 
-### 자원 현황 — `GET /api/admin/operator/monitoring`
+### 자원 현황 — `GET /api/operator/monitoring`
 
 공개 게임 생성의 자원 고갈 방어를 눈으로 보는 자리다. 집계와 매장 공개 라벨만 나가며 고객
 개인정보는 한 칸도 들어 있지 않다.
@@ -533,7 +533,7 @@ GET  /api/admin/operator/audit
 - `busiestStores`는 오늘 참여가 많은 순 최대 10곳이다.
 - 임계값 판단 기준은 `docs/LOAD_TEST_PLAN.md` 5장에 있다.
 
-`/api/admin/operator/**`는 `SYSTEM_ADMIN` 전용이다. 일반 관리자가 호출하면 403 `OPERATOR_ONLY`다.
+`/api/operator/**`는 `OPERATOR` 전용이다. 일반 관리자가 호출하면 403 `OPERATOR_ONLY`다.
 운영자는 어느 매장의 멤버도 아니므로 이 경로에서는 매장 membership 검사를 하지 않는다.
 
 `GET /summary`:
@@ -687,8 +687,8 @@ Response:
 ## QR 조회/재발급
 ```http
 GET  /api/admin/stores/{storeId}/qr-codes                       # 매장 멤버
-GET  /api/admin/operator/stores/{storeId}/qr                    # 운영자: 발급 시각·입점 키트 단계·폐기 이력
-POST /api/admin/operator/stores/{storeId}/qr/regenerate         # 운영자 전용
+GET  /api/operator/stores/{storeId}/qr                    # 운영자: 발급 시각·입점 키트 단계·폐기 이력
+POST /api/operator/stores/{storeId}/qr/regenerate         # 운영자 전용
      { "confirmName": "매장명 그대로", "reason": "재발급 사유(200자)" }
 ```
 
@@ -755,9 +755,9 @@ GET /api/admin/stores/{storeId}/coupons?page=0&size=50
 
 ## 요금제 조회/변경
 ```http
-GET /api/admin/stores/{storeId}/subscription
-PUT /api/admin/stores/{storeId}/subscription
-GET /api/admin/stores/{storeId}/subscription/plans
+GET /api/admin/stores/{storeId}/subscription           # 매장 관리자
+GET /api/admin/stores/{storeId}/subscription/plans     # 매장 관리자
+PUT /api/operator/stores/{storeId}/subscription        # 운영자 전용 (2026-10-01 이전: /api/admin/stores/{id}/subscription)
 ```
 Request(PUT):
 ```json
@@ -769,7 +769,7 @@ Request(PUT):
 `trialStartedAt`, `trialEndedAt`은 체험 종료 뒤에도 계정의 체험 이력 표시를 위해 유지한다.
 체험 중 카드를 등록하면 해당 시각에 선택한 요금제로 첫 정기결제를 시도한다. 카드가 없으면
 `BASIC`으로 전환되고 결제 유예기간 뒤 이용이 제한될 수 있다.
-구독 행이 없는 매장도 `BASIC`으로 응답한다. 위 `PUT`은 운영자 수동 조정용이며, 매장의 유료 전환은
+구독 행이 없는 매장도 `BASIC`으로 응답한다. 위 `PUT`은 운영자 수동 조정용(운영자 OTP 세션 필요)이며, 매장의 유료 전환은
 아래 결제 API로만 일어난다.
 
 ### 요금제 결제 (포트원 V2 빌링키)
@@ -976,9 +976,9 @@ DUPLICATE_BUSINESS_NUMBER
 ## 입점 키트 (운영자, 2026-10-01)
 
 ```
-GET /api/admin/operator/print-kits?q=&status=WAITING|PRINTING|PRINTED|SHIPPED&page=0&size=20
-PUT /api/admin/operator/print-kits/{storeId}   { "status": "PRINTING" }
-GET /api/admin/operator/print-kits/{storeId}/pdf
+GET /api/operator/print-kits?q=&status=WAITING|PRINTING|PRINTED|SHIPPED&page=0&size=20
+PUT /api/operator/print-kits/{storeId}   { "status": "PRINTING" }
+GET /api/operator/print-kits/{storeId}/pdf
 ```
 
 - 운영 중(ACTIVE) 매장만 나온다. `q`는 매장명 부분 일치 또는 사업자등록번호(숫자 3자리 이상, 하이픈 무시).

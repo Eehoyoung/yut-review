@@ -227,11 +227,17 @@ export interface StoreSummary {
   prizes?: PublicPrize[];
 }
 
+/**
+ * 계정 역할. 서버 `AdminRole`. OPERATOR = 소담랩스 운영자(/operator), STORE_ADMIN = 매장 관리자(/admin).
+ * 2026-10-01 전에는 운영자가 "SYSTEM_ADMIN"이었다.
+ */
+export type AccountRole = "OPERATOR" | "STORE_ADMIN";
+
 export interface AdminMe {
   id: number;
   email: string;
   name: string;
-  role: "SYSTEM_ADMIN" | "STORE_ADMIN";
+  role: AccountRole;
   /** 지인에게 알려 주는 코드. 계정당 하나이고 바뀌지 않는다. */
   inviteCode: string;
   /** 이 코드로 가입한 사람 수. 리워드 정책은 아직 없고 숫자만 보여 준다. */
@@ -323,12 +329,12 @@ export interface OperatorMonitoring {
   busiestStores: { storeId: number; name: string; playsToday: number; dailyLimit: number; usedPercent: number }[];
 }
 
-/** 관리자 계정. 비밀번호 해시는 서버가 내려보내지 않는다. */
+/** 운영자 콘솔 계정 목록의 한 행(운영자와 매장 관리자 모두). 비밀번호 해시는 서버가 내려보내지 않는다. */
 export interface OperatorAdmin {
   id: number;
   email: string;
   name: string;
-  role: "SYSTEM_ADMIN" | "STORE_ADMIN";
+  role: AccountRole;
   /** 이 계정이 속한 매장 수. 운영자는 0이어야 정상이다. */
   storeCount: number;
   createdAt: string;

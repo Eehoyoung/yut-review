@@ -2,13 +2,13 @@
 import { FormEvent, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ActivityPager } from "@/features/admin/ActivityTable";
-import { OperatorFrame } from "@/features/admin/OperatorFrame";
+import { OperatorFrame } from "@/features/operator/OperatorFrame";
 import { Dialog } from "@/features/ui/Dialog";
 import { api, errorMessage } from "@/lib/api";
 import type { AdminMe, OperatorAdmin, PageData } from "@/types/api";
 
 /**
- * 관리자 계정 목록과 운영자 권한 관리.
+ * 전체 계정 목록(운영자 + 매장 관리자)과 운영자 권한 관리.
  *
  * 운영자 권한은 모든 매장의 승인·거부·소유권 이전을 여는 열쇠라 매장 심사보다 되돌리기 어렵다.
  * 그래서 부여·회수·신설 전부 Dialog에서 한 번 더 확인하고, 서버가 append-only 기록을 남긴다
@@ -43,7 +43,7 @@ export default function OperatorAccountsPage() {
     queryKey: ["operator-admins", page, submitted],
     queryFn: () =>
       api<PageData<OperatorAdmin>>(
-        `/admin/operator/admins?page=${page}&size=20${submitted ? `&q=${encodeURIComponent(submitted)}` : ""}`,
+        `/operator/admins?page=${page}&size=20${submitted ? `&q=${encodeURIComponent(submitted)}` : ""}`,
       ),
   });
 
@@ -56,7 +56,7 @@ export default function OperatorAccountsPage() {
 
   const role = useMutation({
     mutationFn: ({ id, path }: { id: number; path: "grant" | "revoke"; email: string }) =>
-      api<OperatorAdmin & { changed: boolean }>(`/admin/operator/admins/${id}/${path}`, {
+      api<OperatorAdmin & { changed: boolean }>(`/operator/admins/${id}/${path}`, {
         method: "POST",
         body: JSON.stringify({ note: note.trim() }),
       }),
@@ -77,7 +77,7 @@ export default function OperatorAccountsPage() {
 
   const create = useMutation({
     mutationFn: () =>
-      api<OperatorAdmin>("/admin/operator/admins", {
+      api<OperatorAdmin>("/operator/admins", {
         method: "POST",
         body: JSON.stringify({ ...form, note: note.trim() }),
       }),
@@ -115,7 +115,7 @@ export default function OperatorAccountsPage() {
   };
 
   const busy = role.isPending || create.isPending;
-  const operators = admins.data?.content.filter((a) => a.role === "SYSTEM_ADMIN").length ?? 0;
+  const operators = admins.data?.content.filter((a) => a.role === "OPERATOR").length ?? 0;
 
   return (
     <OperatorFrame title="계정">
@@ -174,12 +174,12 @@ export default function OperatorAccountsPage() {
       {admins.data?.content.length === 0 && (
         <section className="panel stack">
           <h2>찾는 계정이 없어요</h2>
-          <p className="lead">{submitted ? "검색어를 바꿔 보세요." : "가입한 관리자가 아직 없습니다."}</p>
+          <p className="lead">{submitted ? "검색어를 바꿔 보세요." : "가입한 계정이 아직 없습니다."}</p>
         </section>
       )}
 
       {admins.data?.content.map((a) => {
-        const isOperator = a.role === "SYSTEM_ADMIN";
+        const isOperator = a.role === "OPERATOR";
         const isMe = me.data?.email === a.email;
         return (
           <section className="panel stack" key={a.id}>

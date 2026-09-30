@@ -33,7 +33,7 @@ cat <<NOTE
   2) 재기동
      docker compose -f docker-compose.yml -f docker-compose.prod.yml \
        --env-file $TARGET up -d
-  3) /admin/operator/login 에서 이메일 OTP로 로그인
+  3) /operator/login 에서 이메일 OTP로 로그인
   4) 첫 운영자 생성 확인 후 OPERATOR_BOOTSTRAP_EMAIL을 비우고 재기동
 
 NOTE

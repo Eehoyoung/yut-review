@@ -2,8 +2,8 @@
 import { FormEvent, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ActivityPager } from "@/features/admin/ActivityTable";
-import { PRINT_KIT_STATUS_LABEL, PRINT_KIT_STATUS_TONE } from "@/features/admin/labels";
-import { OperatorFrame } from "@/features/admin/OperatorFrame";
+import { PRINT_KIT_STATUS_LABEL, PRINT_KIT_STATUS_TONE } from "@/features/operator/labels";
+import { OperatorFrame } from "@/features/operator/OperatorFrame";
 import { formatBusinessNumber, formatPhone } from "@/features/normalize";
 import { api, downloadWithAuth, errorMessage } from "@/lib/api";
 import type { PrintKitPage, PrintKitStatus } from "@/types/api";
@@ -30,13 +30,13 @@ export default function PrintKitsPage() {
     queryKey: ["print-kits", query, status, page],
     queryFn: () =>
       api<PrintKitPage>(
-        `/admin/operator/print-kits?page=${page}&size=20${query ? `&q=${encodeURIComponent(query)}` : ""}${status ? `&status=${status}` : ""}`,
+        `/operator/print-kits?page=${page}&size=20${query ? `&q=${encodeURIComponent(query)}` : ""}${status ? `&status=${status}` : ""}`,
       ),
   });
 
   const change = useMutation({
     mutationFn: ({ storeId, next }: { storeId: number; next: PrintKitStatus; name: string }) =>
-      api(`/admin/operator/print-kits/${storeId}`, { method: "PUT", body: JSON.stringify({ status: next }) }),
+      api(`/operator/print-kits/${storeId}`, { method: "PUT", body: JSON.stringify({ status: next }) }),
     onSuccess: (_, vars) => {
       setFlash(`${vars.name}: ${PRINT_KIT_STATUS_LABEL[vars.next]}(으)로 바꿨습니다.`);
       qc.invalidateQueries({ queryKey: ["print-kits"] });
@@ -53,7 +53,7 @@ export default function PrintKitsPage() {
     setDownloadError("");
     setDownloading(storeId);
     try {
-      await downloadWithAuth(`/admin/operator/print-kits/${storeId}/pdf`, `${name}_입점키트.pdf`);
+      await downloadWithAuth(`/operator/print-kits/${storeId}/pdf`, `${name}_입점키트.pdf`);
     } catch (error) {
       setDownloadError(errorMessage(error));
     } finally {

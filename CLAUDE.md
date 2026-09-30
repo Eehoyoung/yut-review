@@ -184,7 +184,7 @@ docker compose --env-file .env.field-test --profile field-test up -d   # Cloudfl
 - 되돌릴 수 있는 실패는 공급자에 닿기 전 것뿐이다. 타임아웃과 응답 형식 오류는 이미 과금됐다.
 - 관리자 자유 입력(`tone`/`additionalRequest`/채팅)은 `Inputs`가 아니라
   `AiContextService.withoutPersonalData`를 지난다. 여기가 유일한 PII 유입 경로였다.
-- 등급 변경은 `SYSTEM_ADMIN`만. 멤버십 검사를 운영자 검사보다 먼저 두지 말 것(운영자는 어느 매장의
+- 등급 변경은 `OPERATOR`만. 멤버십 검사를 운영자 검사보다 먼저 두지 말 것(운영자는 어느 매장의
   멤버도 아니라서 자기가 해야 할 변경을 스스로 막게 된다).
 
 기본 공급자 모드는 auto다. `OPENAI_API_KEY`가 있으면 OpenAI, 없으면 fake를 선택한다.
@@ -200,7 +200,7 @@ CI와 로컬 테스트에서 네트워크 호출을 확실히 막을 때는 `AI_
   서로 다른 키가 들어올수록 메모리가 단조 증가했다). Redis도 도입하지 말 것.
 - `Recovery.java` — 5분·1회용 쿠폰 회수 티켓. 평문은 저장하지 않고 SHA-256만 남긴다.
   `customer-state` 응답에서 `couponToken`을 다시 돌려주지 말 것. 그게 원래 문제였다.
-- `StoreApproval.java` — `PENDING_APPROVAL` → 운영자 승인. 감사 로그 + `/api/admin/operator/**`.
+- `StoreApproval.java` — `PENDING_APPROVAL` → 운영자 승인. 감사 로그 + `/api/operator/**`.
   거부 사유는 `stores` 컬럼이 아니라 마지막 `REJECT` 이벤트에서 읽는다(사실을 두 곳에 두지 않는다).
 - `PhoneHashMigration.java` — HMAC 키 회전의 마지막 단계. 원문이 AES-GCM으로 남아 있어 되돌릴 수 있다.
 - `AiChat.java` — 서버가 소유하는 AI 대화 이력. **클라이언트 `history`를 다시 받지 말 것.**
@@ -250,7 +250,7 @@ Base64로 디코딩해 32바이트 이상이어야 하고, 아니면 **기동하
 
 1. `PHONE_HMAC_PREVIOUS_SECRET`에 **기존 값 그대로**, `PHONE_HMAC_SECRET`에 새 Base64 키를 넣는다.
 2. 재기동한다. 이 동안 쿨타임·쿠폰 조회는 두 해시를 함께 본다.
-3. 운영자 계정으로 `POST /api/admin/operator/phone-hash/rehash`를 1회 실행한다.
+3. 운영자 계정으로 `POST /api/operator/phone-hash/rehash`를 1회 실행한다.
 4. `PHONE_HMAC_PREVIOUS_SECRET`을 비우고 재기동한다.
 
 DB를 버려도 되는 로컬이라면 `docker compose down -v` 후 새 키로 올리는 쪽이 빠르다.
@@ -359,7 +359,7 @@ DB를 버려도 되는 로컬이라면 `docker compose down -v` 후 새 키로 �
 - 스티커는 90×50mm(명함 스티커 규격) 한 가지, 10장 모두 같은 QR이다. `StorePosterService.sticker`.
 - 사장: `GET /api/admin/stores/{id}/sticker-sheet`(A4 한 장에 10칸 PNG), `GET .../print-kit`(인쇄용 PDF).
   둘 다 저장하지 않고 그때 그리며, QR 주소는 GAME 저장본의 origin을 쓴다.
-- 운영자: `/admin/operator/print-kits`. 매장명·사업자등록번호 검색, 진행 단계(인쇄 대기/인쇄 중/인쇄 완료/발송 완료)
+- 운영자: `/operator/print-kits`. 매장명·사업자등록번호 검색, 진행 단계(인쇄 대기/인쇄 중/인쇄 완료/발송 완료)
   필터와 변경, PDF 저장. 구현은 `PrintKits.java`, 상태는 `store_print_kits`(행 없음 = 인쇄 대기). 대상은 ACTIVE 매장뿐.
 - PDF는 PDFBox로 만든다. 쪽마다 MediaBox=BleedBox(재단+3mm), TrimBox(재단선). A6 3쪽 + 스티커 1쪽이고 수량 10매는
   파일명·문서 제목에 적는다. 색은 RGB이며 CMYK 변환은 인쇄소에 맡긴다.
@@ -378,30 +378,54 @@ DB를 버려도 되는 로컬이라면 `docker compose down -v` 후 새 키로 �
 `features/admin/LogoutButton.tsx` 하나다. `/admin`, `AdminFrame`, `OperatorFrame` 세 헤더에 붙는다.
 
 - `clearAdminSession()`이 JWT와 운영자 고정 만료 시각을 같이 지운다. 운영자 세션이 만료되면
-  `/admin/operator/login`으로 이동해 이메일 OTP를 다시 요구한다.
+  `/operator/login`으로 이동해 이메일 OTP를 다시 요구한다.
 - TanStack Query 캐시도 비운다. 안 비우면 다른 계정으로 로그인했을 때 잠깐 남의 매장이 보인다.
 - `router.push`가 아니라 `window.location.assign`이다. 클라이언트 전환은 메모리 상태를 끌고 온다.
 
+## 역할·주소 분리 (2026-10-01)
+
+**"admin" = 매장 관리자(매장 사장·직원 계정), "operator" = 소담랩스 운영자(시스템 콘솔).** 두 뜻을 섞지 않는다.
+
+| | 매장 관리자 | 운영자 |
+|---|---|---|
+| 역할 값(`AdminRole`) | `STORE_ADMIN` | `OPERATOR` (예전 `SYSTEM_ADMIN`) |
+| 화면 | `/admin/**` | `/operator/**` (예전 `/admin/operator/**`는 Next 308 리디렉트) |
+| API | `/api/admin/**` | `/api/operator/**`, 로그인 `/api/operator-auth/**` |
+| 로그인 | `/admin/login` 비밀번호 | `/operator/login` 이메일 OTP |
+| 프런트 코드 | `features/admin/` | `features/operator/` (`OperatorFrame`, `QrRegenerateDialog`, `ResourceMonitor`, `labels.ts`) |
+
+- DB 값은 `AdminRoleMigration`이 **JPA보다 먼저** 바꾼다(`SYSTEM_ADMIN`→`OPERATOR`, CHECK 제약 교체). 멱등, 한 트랜잭션,
+  PostgreSQL에서만. 같은 자리에서 손님 화면에 보이던 기본 상품 설명 "관리자에서 상품을 설정하세요."도 비운다.
+- 운영자 전용 동작을 `/api/admin/**` 아래에 두지 말 것. `OperatorAccessFilter`(OTP 세션 검사)가 `/api/operator/**`만 본다.
+  요금제 수동 변경이 그렇게 새어 있었다(사장 화면에 누르면 항상 거절되는 버튼까지 있었다).
+- 운영자에게 매장 소유권을 넘기지 않는다(`OWNERSHIP_TO_OPERATOR`). 운영자 권한 부여는 기존 매장을 빼앗지 않으므로
+  운영자이면서 매장 멤버인 계정은 있을 수 있다. 그 계정은 `/admin`에 직접 들어가야 한다(운영자 헤더에 "내 매장" 링크 없음).
+- 화면 문구: 매장 쪽은 "매장 관리자", 운영자는 "(소담랩스) 운영자". "관리자"를 단독으로 쓰지 않는다.
+  법정 문서(약관·개인정보처리방침)의 "매장 관리자"는 그대로다.
+- 로그아웃은 각자 로그인 화면으로 간다(`LogoutButton loginPath`). 브라우저 저장 키 `adminToken`은 둘이 같이 쓴다 —
+  한 브라우저에서 두 역할에 동시에 로그인할 수 없다.
+- 테스트: `RoleSeparationTest.java`.
+
 ## 운영자 콘솔 (2026-09-22)
 
-`/admin/operator` 아래 네 화면이다. `OperatorFrame.tsx`가 공통 껍데기이며 `AdminFrame`과 합치지
+`/operator` 아래 네 화면이다. `OperatorFrame.tsx`가 공통 껍데기이며 `AdminFrame`과 합치지
 말 것(저쪽은 `storeId`가 반드시 있고 이쪽은 없다. 합치면 선택값이 되고 그 선택값을 잊은 화면이
 다른 매장을 가리킨다).
 
 | 경로 | 화면 |
 |---|---|
-| `/admin/operator` | 현황판: 오늘·누적 가입/게임/쿠폰, 14일 흐름, 최근 가입, 오늘 매장별 게임 |
-| `/admin/operator/stores` | 매장 목록 + 매장별 게임·쿠폰·요금제 숫자, 승인·거부(운영 중단)·재심사·소유권 이전 |
-| `/admin/operator/accounts` | 관리자 계정 목록, 운영자 권한 부여·회수, 운영자 신설 |
-| `/admin/operator/resources` | 자원 현황 + 전화번호 해시 재계산 |
-| `/admin/operator/audit` | 매장 심사와 계정 변경을 합친 활동 기록 |
-| `/admin/operator/devices` | OTP·고정 세션 보안 상태와 만료 시각 |
+| `/operator` | 현황판: 오늘·누적 가입/게임/쿠폰, 14일 흐름, 최근 가입, 오늘 매장별 게임 |
+| `/operator/stores` | 매장 목록 + 매장별 게임·쿠폰·요금제 숫자, 승인·거부(운영 중단)·재심사·소유권 이전 |
+| `/operator/accounts` | 관리자 계정 목록, 운영자 권한 부여·회수, 운영자 신설 |
+| `/operator/resources` | 자원 현황 + 전화번호 해시 재계산 |
+| `/operator/audit` | 매장 심사와 계정 변경을 합친 활동 기록 |
+| `/operator/devices` | OTP·고정 세션 보안 상태와 만료 시각 |
 
 - 숫자는 `Monitoring.java`의 `OperatorOverviewService`가 만든다. 매장 목록의 매장별 숫자는 페이지의 id 묶음으로
   집계 쿼리를 한 번씩만 돌린다. 매장마다 쿼리를 돌리는 방식으로 바꾸지 말 것.
 - 운영자는 매장 멤버가 아니라서 `/admin/stores/{id}/...` 화면은 403이다. 콘솔에서 매장 대시보드로 링크하지 말 것.
-  요금제 변경 API(`PUT /api/admin/stores/{id}/subscription`)는 운영자 전용으로 남아 있지만 콘솔 화면은 없다
-  (자동결제 도입 뒤 사장이 직접 바꾼다).
+  요금제 수동 변경 API(`PUT /api/operator/stores/{id}/subscription`, `OperatorSubscriptionController`)는 운영자 전용이며
+  콘솔 화면은 없다(자동결제 도입 뒤 사장이 직접 바꾼다). 사장 요금제 화면에 이 API를 부르는 버튼을 다시 두지 말 것.
 - `Operators.java` — `OperatorAuditEvent`(append-only), `OperatorAccountService`,
   `OperatorAccountController`, `OperatorBootstrap`.
 - 계정 사건을 `store_approval_events`에 끼워 넣지 말 것. 그쪽은 `store_id`가 NOT NULL이라
@@ -419,13 +443,13 @@ DB를 버려도 되는 로컬이라면 `docker compose down -v` 후 새 키로 �
 
 ### 운영자 이메일 OTP와 고정 세션
 
-- `SYSTEM_ADMIN`은 일반 `/api/admin/auth/login` 비밀번호 로그인을 사용할 수 없다.
-- `/api/admin/operator-auth/request`가 등록 이메일로 6자리 OTP를 보내며 기본 유효시간은 120초다.
+- `OPERATOR`은 일반 `/api/admin/auth/login` 비밀번호 로그인을 사용할 수 없다.
+- `/api/operator-auth/request`가 등록 이메일로 6자리 OTP를 보내며 기본 유효시간은 120초다.
 - OTP는 최대 5회 확인, 1회용이며 DB에는 토큰과 코드의 SHA-256만 저장한다.
 - 성공하면 `session_type=OPERATOR_EMAIL_OTP`인 전용 JWT를 발급한다. 기본 수명은 600초다.
 - 요청 활동으로 만료를 미루지 않고 refresh token도 없다. 만료 후 OTP부터 다시 로그인한다.
 - 장시간 작업 때만 `OPERATOR_SESSION_TTL_SECONDS`를 배포 환경에서 바꾸고 작업 후 600으로 복구한다.
-- `OperatorAccessFilter`는 `/api/admin/operator/**`에서 역할뿐 아니라 전용 세션 claim과 고정 만료를
+- `OperatorAccessFilter`는 `/api/operator/**`에서 역할뿐 아니라 전용 세션 claim과 고정 만료를
   검증한다. 일반 관리자 JWT나 과거 운영자 비밀번호 JWT로 통과시키지 말 것.
 - 운영자 계정 신설은 비밀번호를 받지 않는다. DB non-null 칸에는 로그인에 사용할 수 없는 무작위
   폐기 해시만 저장한다.

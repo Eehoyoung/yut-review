@@ -117,7 +117,7 @@ class AiController {
     }
 }
 
-/** 요금제 조회·변경. 결제 연동 전이라 변경은 관리자 조작으로만 일어난다. */
+/** 요금제 조회(매장 관리자). 운영자 수동 변경은 {@link OperatorSubscriptionController}(`/api/operator/...`)에 있다. */
 @RestController
 @RequestMapping("/api/admin/stores/{storeId}/subscription")
 class SubscriptionController {
@@ -150,24 +150,6 @@ class SubscriptionController {
         return ApiResponse.ok(view(storeId, subscriptions.planOf(storeId)));
     }
 
-    /**
-     * 등급 변경은 운영자 전용이다.
-     *
-     * 멤버십만 확인하면 가입한 사람이 스스로 PRO로 올려 유료 기능과 운영자 API 키로 나가는 AI
-     * 호출을 전부 열 수 있다. 결제가 붙기 전까지 이 문은 운영자만 연다.
-     */
-    @PutMapping
-    ApiResponse<?> change(@PathVariable Long storeId, @Valid @RequestBody PlanChange body, Authentication auth) {
-        Long adminId = (Long) auth.getPrincipal();
-        // 운영자 확인이 먼저다. 멤버십을 먼저 보면 운영자는 어느 매장의 멤버도 아니라서 자기가
-        // 만들어야 할 변경을 스스로 막게 된다. 실제로 그렇게 되어 아무도 등급을 못 바꿨다.
-        subscriptions.requireOperator(admins.findById(adminId).orElse(null));
-        Store store = stores.findById(storeId)
-                .orElseThrow(() -> new AppException("STORE_NOT_FOUND", "매장을 찾을 수 없습니다."));
-        StoreSubscription saved = subscriptions.changePlan(store, body.plan(), body.note());
-        return ApiResponse.ok(view(storeId, saved.plan));
-    }
-
     /** 요금제 안내에 쓰는 정적 목록. 화면이 가격과 포함 기능을 서버와 같은 값으로 보게 한다. */
     @GetMapping("/plans")
     ApiResponse<?> plans(@PathVariable Long storeId, Authentication auth) {
@@ -192,7 +174,7 @@ class SubscriptionController {
         return ApiResponse.ok(out);
     }
 
-    private Map<String, Object> view(Long storeId, Plan plan) {
+    Map<String, Object> view(Long storeId, Plan plan) {
         Map<String, Object> out = new java.util.LinkedHashMap<>();
         ServiceState serviceState=servicePolicy.state(storeId);
         boolean restricted=serviceState==ServiceState.RESTRICTED;
@@ -216,5 +198,41 @@ class SubscriptionController {
             out.put("note", s.note == null ? "" : s.note);
         });
         return out;
+    }
+}
+
+/**
+ * 운영자 전용 요금제 수동 변경.
+ *
+ * 2026-10-01까지 `/api/admin/stores/{id}/subscription` PUT이었다. 역할 검사는 했지만 매장 관리자 주소 아래라
+ * 운영자 OTP 세션 필터(`OperatorAccessFilter`)를 지나지 않았고, 사장 요금제 화면이 이 PUT을 부르는 버튼까지
+ * 갖고 있었다(누르면 항상 거절). 운영자 주소로 옮겨 운영자 세션만 닿게 했다.
+ *
+ * 멤버십만 확인하면 가입한 사람이 스스로 PRO로 올려 유료 기능과 운영자 API 키로 나가는 AI
+ * 호출을 전부 열 수 있다. 그래서 이 문은 운영자만 연다.
+ */
+@RestController
+@RequestMapping("/api/operator/stores/{storeId}/subscription")
+class OperatorSubscriptionController {
+    private final SubscriptionService subscriptions;
+    private final StoreRepository stores;
+    private final AdminUserRepository admins;
+    private final SubscriptionController views;
+
+    OperatorSubscriptionController(SubscriptionService subscriptions, StoreRepository stores,
+                                   AdminUserRepository admins, SubscriptionController views) {
+        this.subscriptions = subscriptions;
+        this.stores = stores;
+        this.admins = admins;
+        this.views = views;
+    }
+
+    @PutMapping
+    ApiResponse<?> change(@PathVariable Long storeId, @Valid @RequestBody SubscriptionController.PlanChange body, Authentication auth) {
+        subscriptions.requireOperator(admins.findById((Long) auth.getPrincipal()).orElse(null));
+        Store store = stores.findById(storeId)
+                .orElseThrow(() -> new AppException("STORE_NOT_FOUND", "매장을 찾을 수 없습니다."));
+        StoreSubscription saved = subscriptions.changePlan(store, body.plan(), body.note());
+        return ApiResponse.ok(views.view(storeId, saved.plan));
     }
 }

@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { STORE_STATUS_LABEL, STORE_STATUS_TONE } from "@/features/admin/labels";
-import { OperatorFrame } from "@/features/admin/OperatorFrame";
+import { OperatorFrame } from "@/features/operator/OperatorFrame";
 import { api, errorMessage } from "@/lib/api";
 import type { OperatorOverview } from "@/types/api";
 
@@ -35,7 +35,7 @@ function TrendBar({ label, value, max }: { label: string; value: number; max: nu
 export default function OperatorOverviewPage() {
   const q = useQuery({
     queryKey: ["operator-overview"],
-    queryFn: () => api<OperatorOverview>("/admin/operator/overview"),
+    queryFn: () => api<OperatorOverview>("/operator/overview"),
     refetchInterval: REFRESH_MS,
   });
   const o = q.data;
@@ -109,7 +109,7 @@ export default function OperatorOverviewPage() {
               {o.totals.pendingStores > 0 && (
                 <>
                   {" · "}
-                  <Link href="/admin/operator/stores">승인 대기 {count(o.totals.pendingStores)}곳</Link>
+                  <Link href="/operator/stores">승인 대기 {count(o.totals.pendingStores)}곳</Link>
                 </>
               )}
             </p>
@@ -143,7 +143,7 @@ export default function OperatorOverviewPage() {
               </div>
             )}
             <p className="hint">
-              상위 10곳입니다. 매장 전체의 누적 숫자는 <Link href="/admin/operator/stores">매장</Link>에서 봅니다.
+              상위 10곳입니다. 매장 전체의 누적 숫자는 <Link href="/operator/stores">매장</Link>에서 봅니다.
             </p>
           </section>
 

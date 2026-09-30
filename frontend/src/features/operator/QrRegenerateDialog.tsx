@@ -1,7 +1,7 @@
 "use client";
 import { FormEvent, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { PRINT_KIT_STATUS_LABEL } from "@/features/admin/labels";
+import { PRINT_KIT_STATUS_LABEL } from "@/features/operator/labels";
 import { Dialog } from "@/features/ui/Dialog";
 import { api, errorMessage } from "@/lib/api";
 import type { PrintKitStatus } from "@/types/api";
@@ -33,13 +33,13 @@ export function QrRegenerateDialog({ store, onClose, onDone }: {
 
   const info = useQuery({
     queryKey: ["operator-qr", store?.id],
-    queryFn: () => api<QrInfo>(`/admin/operator/stores/${store!.id}/qr`),
+    queryFn: () => api<QrInfo>(`/operator/stores/${store!.id}/qr`),
     enabled: store !== undefined,
   });
 
   const regenerate = useMutation({
     mutationFn: () =>
-      api<Result>(`/admin/operator/stores/${store!.id}/qr/regenerate`, {
+      api<Result>(`/operator/stores/${store!.id}/qr/regenerate`, {
         method: "POST",
         body: JSON.stringify({ confirmName, reason: reason.trim() }),
       }),

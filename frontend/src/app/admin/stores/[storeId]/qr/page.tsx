@@ -143,7 +143,7 @@ export default function QrPage() {
           {message && <p className="success" role="status">{message}</p>}
           {regenerate.isError && <p className="error" role="alert">{errorMessage(regenerate.error)}</p>}
           <p className="notice">안내물 QR 주소: <span className="wrap-anywhere">{url}</span></p>
-          {originChanged && <p className="error" role="alert">안내물의 접속 주소와 현재 접속 주소가 다릅니다. 관리자에게 확인해 주세요.</p>}
+          {originChanged && <p className="error" role="alert">안내물의 접속 주소와 현재 접속 주소가 다릅니다. 소담랩스 운영자에게 문의해 주세요.</p>}
         </div>
       </section>
 

@@ -33,7 +33,7 @@ export function OperatorFrame({ title, children }: { title: string; children: Re
       setRemaining(seconds);
       if (seconds === 0) {
         clearAdminSession();
-        window.location.replace("/admin/operator/login");
+        window.location.replace("/operator/login");
       }
     };
     tick();
@@ -54,16 +54,13 @@ export function OperatorFrame({ title, children }: { title: string; children: Re
               세션 {Math.floor(remaining / 60)}:{String(remaining % 60).padStart(2, "0")}
             </span>
           )}
-          <Link className="btn ghost btn-inline" href="/admin">
-            내 매장
-          </Link>
-          <LogoutButton />
+          <LogoutButton loginPath="/operator/login" />
         </div>
       </header>
 
       <nav className="nav" aria-label="운영자 메뉴">
         {menus.map(([path, label]) => {
-          const href = path ? `/admin/operator/${path}` : "/admin/operator";
+          const href = path ? `/operator/${path}` : "/operator";
           return (
             <Link key={label} href={href} aria-current={pathname === href ? "page" : undefined}>
               {label}

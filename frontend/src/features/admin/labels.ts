@@ -1,7 +1,8 @@
-import type { AiFeature, Plan, PrintKitStatus, ServiceState, StoreStatus } from "@/types/api";
+import type { AiFeature, Plan, ServiceState, StoreStatus } from "@/types/api";
 
 /**
- * 관리자 화면에서만 쓰는 라벨.
+ * 매장 관리자 화면(/admin)에서 쓰는 라벨. 매장 상태·요금제처럼 운영자 콘솔(/operator)도 같은 뜻으로 쓰는 것은
+ * 여기서 함께 가져간다. 운영자 콘솔에서만 쓰는 것은 `features/operator/labels.ts`에 둔다.
  *
  * 공용 labels.ts에 두면 고객 화면이 그 모듈을 import하는 순간 요금제와 AI 문자열까지 고객 번들에
  * 실린다. 실제로 그렇게 됐던 적이 있어 여기로 옮겼다. 손님에게 갈 코드에는 요금제 개념이 없어야 한다.
@@ -32,7 +33,7 @@ export const PAYMENT_STATUS_LABEL: Record<"PENDING" | "PAID" | "FAILED", string>
 export const priceLabel = (krw: number) => `월 ${krw.toLocaleString("ko-KR")}원`;
 
 /**
- * 관리자 화면에서만 나오는 오류 문구.
+ * 매장 관리자 화면에서만 나오는 오류 문구.
  *
  * 공용 lib/api.ts에 두면 고객 번들로 샌다(실제로 '요금제'가 새어 나간 적이 있다). 대부분은 서버
  * 메시지를 그대로 쓰는 편이 더 구체적이라, 여기에는 화면에서 다시 풀어 줘야 하는 것만 둔다.
@@ -79,32 +80,4 @@ export const STORE_STATUS_HINT: Record<StoreStatus, string> = {
   ACTIVE: "",
   INACTIVE: "운영을 중지한 매장입니다. 다시 열려면 소담랩스에 문의해 주세요.",
   REJECTED: "승인이 거부된 매장입니다. 아래 사유를 확인하고 소담랩스에 문의해 주세요.",
-};
-
-/**
- * 차단 코드를 운영자가 읽을 문장으로. 서버 코드를 그대로 보여 주면 무엇이 막힌 것인지
- * 매번 스펙 문서를 찾아봐야 한다.
- */
-export const THROTTLE_LABEL: Record<string, string> = {
-  GAME_RATE_LIMITED: "게임 생성 (매장·IP 분당 한도)",
-  STORE_DAILY_LIMIT: "게임 생성 (매장 일일 상한)",
-  SIGNUP_RATE_LIMITED: "매장 가입 신청",
-  AUTH_RATE_LIMITED: "관리자 로그인",
-  STAFF_PIN_RATE_LIMITED: "직원 PIN 확인",
-  RATE_LIMITED: "고객 상태 조회",
-};
-
-/** 입점 키트(A6 안내물 3종 + 테이블 스티커 10장) 실물 발송 단계. 운영자 콘솔 전용. */
-export const PRINT_KIT_STATUS_LABEL: Record<PrintKitStatus, string> = {
-  WAITING: "인쇄 대기",
-  PRINTING: "인쇄 중",
-  PRINTED: "인쇄 완료",
-  SHIPPED: "발송 완료",
-};
-
-export const PRINT_KIT_STATUS_TONE: Record<PrintKitStatus, string> = {
-  WAITING: "wait",
-  PRINTING: "wood",
-  PRINTED: "ok",
-  SHIPPED: "off",
 };

@@ -471,12 +471,12 @@ Treat public identifiers as attacker-controlled input.
 ### System operator authentication
 
 - Store admins use email/password and a Bearer JWT in `sessionStorage`.
-- `SYSTEM_ADMIN` must not use the ordinary password-login endpoint. The operator flow is a six-digit email OTP via
-  `/api/admin/operator-auth/**`, followed by a short-lived JWT containing `session_type=OPERATOR_EMAIL_OTP`.
+- `OPERATOR` must not use the ordinary password-login endpoint. The operator flow is a six-digit email OTP via
+  `/api/operator-auth/**`, followed by a short-lived JWT containing `session_type=OPERATOR_EMAIL_OTP`.
 - Default OTP and operator-session lifetimes are 120 and 600 seconds. Sessions are fixed-expiry: do not add silent
   extension or a refresh token. Longer maintenance windows require an explicit temporary deployment setting.
 - Store only hashes of OTP/challenge material, enforce attempt/rate limits, and never log codes or tokens.
-- `/api/admin/operator/**` requires both the `SYSTEM_ADMIN` role and the operator-session claim. A normal admin JWT,
+- `/api/operator/**` requires both the `OPERATOR` role and the operator-session claim. A normal admin JWT,
   an old password-issued operator JWT, or a UI-only check must never satisfy this boundary.
 - The first operator is bootstrapped by email only; its required password column contains an unusable random hash.
   Do not reintroduce `OPERATOR_BOOTSTRAP_PASSWORD`, WebAuthn/passkey access, IP allowlists, or a fail-open access toggle

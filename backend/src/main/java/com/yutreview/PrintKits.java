@@ -160,7 +160,7 @@ interface StorePrintKitRepository extends JpaRepository<StorePrintKit,Long> {
     }
 }
 
-@RestController @RequestMapping("/api/admin/operator/print-kits") class PrintKitController {
+@RestController @RequestMapping("/api/operator/print-kits") class PrintKitController {
     private final PrintKitService kits;private final StoreApprovalService approvals;private final PublicOriginResolver publicOrigins;
     PrintKitController(PrintKitService kits,StoreApprovalService approvals,PublicOriginResolver publicOrigins){this.kits=kits;this.approvals=approvals;this.publicOrigins=publicOrigins;}
 
@@ -189,7 +189,7 @@ interface StorePrintKitRepository extends JpaRepository<StorePrintKit,Long> {
 }
 
 /** 매장 QR 재발급. 사장 쪽 API는 없앴다 — 실물로 보낸 안내물을 한 번의 요청으로 죽일 수 있어서다. */
-@RestController @RequestMapping("/api/admin/operator/stores/{storeId}/qr") class OperatorQrController {
+@RestController @RequestMapping("/api/operator/stores/{storeId}/qr") class OperatorQrController {
     private final PrintKitService kits;private final StoreApprovalService approvals;private final PublicOriginResolver publicOrigins;
     OperatorQrController(PrintKitService kits,StoreApprovalService approvals,PublicOriginResolver publicOrigins){this.kits=kits;this.approvals=approvals;this.publicOrigins=publicOrigins;}
 

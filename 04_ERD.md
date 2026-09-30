@@ -34,7 +34,7 @@ erDiagram
 | password_hash | VARCHAR(255) | |
 | name | VARCHAR(100) | 대표자 이름 |
 | phone | VARCHAR(30) | 대표 연락처 |
-| role | VARCHAR(30) | SYSTEM_ADMIN / STORE_ADMIN |
+| role | VARCHAR(30) | OPERATOR / STORE_ADMIN (2026-10-01 전 운영자 값은 `SYSTEM_ADMIN`, `AdminRoleMigration`이 기동 시 변환) |
 | created_at | DATETIME | |
 
 ## `marketing_consent_events`

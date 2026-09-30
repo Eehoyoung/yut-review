@@ -330,7 +330,7 @@ class SubscriptionAiTest {
         operator.email = "operator@test.com";
         operator.passwordHash = "x";
         operator.name = "운영자";
-        operator.role = AdminRole.SYSTEM_ADMIN;
+        operator.role = AdminRole.OPERATOR;
         operator.createdAt = Instant.now();
         admins.save(operator);
         subscriptions.requireOperator(operator);

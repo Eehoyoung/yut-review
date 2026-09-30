@@ -49,24 +49,24 @@ class PrintKitTest {
         String owner="Bearer "+jwt.issue(admins.findByEmail("printkit@test.com").orElseThrow());
         Long id=p.store().id;
 
-        mvc.perform(get("/api/admin/operator/print-kits").param("q","인쇄키트").header("Authorization",op))
+        mvc.perform(get("/api/operator/print-kits").param("q","인쇄키트").header("Authorization",op))
             .andExpect(status().isOk()).andExpect(jsonPath("$.data.content[0].storeId").value(id))
             .andExpect(jsonPath("$.data.content[0].status").value("WAITING"));
         // 사업자등록번호는 하이픈을 섞어 넣어도 찾는다.
-        mvc.perform(get("/api/admin/operator/print-kits").param("q","555-11-10093").header("Authorization",op))
+        mvc.perform(get("/api/operator/print-kits").param("q","555-11-10093").header("Authorization",op))
             .andExpect(jsonPath("$.data.totalElements").value(1));
 
-        mvc.perform(put("/api/admin/operator/print-kits/{id}",id).header("Authorization",op).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(put("/api/operator/print-kits/{id}",id).header("Authorization",op).contentType(MediaType.APPLICATION_JSON)
             .content("{\"status\":\"PRINTING\"}")).andExpect(status().isOk()).andExpect(jsonPath("$.data.statusUpdatedBy").value("printkit-op@test.com"));
-        mvc.perform(get("/api/admin/operator/print-kits").param("q","인쇄키트").param("status","PRINTING").header("Authorization",op))
+        mvc.perform(get("/api/operator/print-kits").param("q","인쇄키트").param("status","PRINTING").header("Authorization",op))
             .andExpect(jsonPath("$.data.totalElements").value(1));
-        mvc.perform(get("/api/admin/operator/print-kits").param("q","인쇄키트").param("status","WAITING").header("Authorization",op))
+        mvc.perform(get("/api/operator/print-kits").param("q","인쇄키트").param("status","WAITING").header("Authorization",op))
             .andExpect(jsonPath("$.data.totalElements").value(0));
 
-        mvc.perform(get("/api/admin/operator/print-kits/{id}/pdf",id).header("Authorization",op))
+        mvc.perform(get("/api/operator/print-kits/{id}/pdf",id).header("Authorization",op))
             .andExpect(status().isOk()).andExpect(content().contentType(MediaType.APPLICATION_PDF));
         // 매장 사장 토큰은 운영자 OTP 세션이 아니라 운영자 필터가 막고, 자기 매장 파일은 직접 받는다.
-        mvc.perform(get("/api/admin/operator/print-kits").header("Authorization",owner)).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/operator/print-kits").header("Authorization",owner)).andExpect(status().isUnauthorized());
         mvc.perform(get("/api/admin/stores/{id}/print-kit",id).header("Authorization",owner))
             .andExpect(status().isOk()).andExpect(content().contentType(MediaType.APPLICATION_PDF));
         mvc.perform(get("/api/admin/stores/{id}/sticker-sheet",id).header("Authorization",owner))
@@ -83,27 +83,27 @@ class PrintKitTest {
 
         // 사장 API는 없어졌다.
         mvc.perform(post("/api/admin/stores/{id}/qr-codes/regenerate",id).header("Authorization",owner)).andExpect(status().is4xxClientError());
-        mvc.perform(post("/api/admin/operator/stores/{id}/qr/regenerate",id).header("Authorization",owner).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/api/operator/stores/{id}/qr/regenerate",id).header("Authorization",owner).contentType(MediaType.APPLICATION_JSON)
             .content(body.formatted("큐알회전상회","유출"))).andExpect(status().isUnauthorized());
 
         // 방금 가입해 QR이 10분 안에 만들어졌다 → 연타·재전송 방지에 걸린다.
-        mvc.perform(post("/api/admin/operator/stores/{id}/qr/regenerate",id).header("Authorization",op).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/api/operator/stores/{id}/qr/regenerate",id).header("Authorization",op).contentType(MediaType.APPLICATION_JSON)
             .content(body.formatted("큐알회전상회","유출"))).andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("QR_RECENTLY_REGENERATED"));
         StoreQrCode old=qrs.findFirstByStoreIdAndStatus(id,QrStatus.ACTIVE).orElseThrow();
         old.createdAt=clock.instant().minus(java.time.Duration.ofDays(1));qrs.save(old);
 
         // 매장명이 다르거나 사유가 없으면 아무 것도 바뀌지 않는다.
-        mvc.perform(post("/api/admin/operator/stores/{id}/qr/regenerate",id).header("Authorization",op).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/api/operator/stores/{id}/qr/regenerate",id).header("Authorization",op).contentType(MediaType.APPLICATION_JSON)
             .content(body.formatted("큐알회전","유출"))).andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("QR_REGENERATE_CONFIRM_MISMATCH"));
-        mvc.perform(post("/api/admin/operator/stores/{id}/qr/regenerate",id).header("Authorization",op).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/api/operator/stores/{id}/qr/regenerate",id).header("Authorization",op).contentType(MediaType.APPLICATION_JSON)
             .content(body.formatted("큐알회전상회"," "))).andExpect(status().isBadRequest());
         assertEquals(old.publicToken,qrs.findFirstByStoreIdAndStatus(id,QrStatus.ACTIVE).orElseThrow().publicToken);
 
         // 발송까지 끝난 키트였다면 인쇄 대기로 되돌린다.
-        mvc.perform(put("/api/admin/operator/print-kits/{id}",id).header("Authorization",op).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(put("/api/operator/print-kits/{id}",id).header("Authorization",op).contentType(MediaType.APPLICATION_JSON)
             .content("{\"status\":\"SHIPPED\"}")).andExpect(status().isOk());
         posterService.save(p.store(),old.publicToken,"https://field-test.example");
-        mvc.perform(post("/api/admin/operator/stores/{id}/qr/regenerate",id).header("Authorization",op).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/api/operator/stores/{id}/qr/regenerate",id).header("Authorization",op).contentType(MediaType.APPLICATION_JSON)
             .content(body.formatted("큐알회전상회","QR 사진이 외부에 퍼짐"))).andExpect(status().isOk())
             .andExpect(jsonPath("$.data.previousPrintKitStatus").value("SHIPPED")).andExpect(jsonPath("$.data.printKitReset").value(true));
 
@@ -114,13 +114,13 @@ class PrintKitTest {
         // 사장 안내물 저장본도 새 QR로 바뀐다.
         var image=ImageIO.read(new ByteArrayInputStream(posterService.bytes(posters.findByStoreId(id).orElseThrow())));
         assertTrue(new MultiFormatReader().decode(new BinaryBitmap(new HybridBinarizer(new BufferedImageLuminanceSource(image)))).getText().endsWith("/s/"+now.publicToken));
-        mvc.perform(get("/api/admin/operator/stores/{id}/qr",id).header("Authorization",op))
+        mvc.perform(get("/api/operator/stores/{id}/qr",id).header("Authorization",op))
             .andExpect(jsonPath("$.data.printKitStatus").value("WAITING")).andExpect(jsonPath("$.data.history[0].reason").value("QR 사진이 외부에 퍼짐"));
     }
 
     private static double mm(float pt){return pt*25.4/72;}
     private AdminUser operator(String email){
         AdminUser a=new AdminUser();a.email=email;a.passwordHash=encoder.encode("secret1234");a.name="운영자";
-        a.role=AdminRole.SYSTEM_ADMIN;a.createdAt=clock.instant();return admins.save(a);
+        a.role=AdminRole.OPERATOR;a.createdAt=clock.instant();return admins.save(a);
     }
 }

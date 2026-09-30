@@ -1,7 +1,7 @@
 "use client";
 import { useQuery } from "@tanstack/react-query";
 import { api, errorMessage } from "@/lib/api";
-import { THROTTLE_LABEL } from "@/features/admin/labels";
+import { THROTTLE_LABEL } from "@/features/operator/labels";
 import type { OperatorMonitoring } from "@/types/api";
 
 /**
@@ -39,7 +39,7 @@ function Usage({ label, used, total }: { label: string; used: number; total: num
 export function ResourceMonitor() {
   const q = useQuery({
     queryKey: ["operator-monitoring"],
-    queryFn: () => api<OperatorMonitoring>("/admin/operator/monitoring"),
+    queryFn: () => api<OperatorMonitoring>("/operator/monitoring"),
     refetchInterval: REFRESH_MS,
   });
 

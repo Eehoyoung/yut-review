@@ -7,7 +7,7 @@ import type { AiChatAnswer, AiChatTurn, AiEventCopy, AiFeature, AiImprovement, A
 import { Dialog } from "@/features/ui/Dialog";
 
 /**
- * 관리자 전용 AI 화면.
+ * 매장 관리자 전용 AI 화면.
  *
  * 고객 경로(`/s/[storeToken]`)는 이 파일을 import하지 않는다. AI 공급자가 죽어도 손님이 윷을
  * 던지는 데 영향이 없어야 하고, 번들도 섞이면 안 된다.
@@ -38,7 +38,7 @@ function useAiStatus(storeId: string) {
   return useQuery({ queryKey: ["ai-status", storeId], queryFn: () => api<AiStatus>(`/admin/stores/${storeId}/ai/status`) });
 }
 
-/** 관리자 전용 코드는 여기서 풀고, 나머지는 서버 메시지를 그대로 쓴다. */
+/** 매장 관리자 전용 코드는 여기서 풀고, 나머지는 서버 메시지를 그대로 쓴다. */
 function adminError(error: unknown) {
   const hint = error instanceof ApiClientError ? ADMIN_ERROR_HINT[error.code] : undefined;
   return hint ?? errorMessage(error);

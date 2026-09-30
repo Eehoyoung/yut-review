@@ -3,7 +3,7 @@
 작성일: 2026-09-22
 대상: 보안점검 finding #1(공개 게임 생성 자원 고갈), #5(공개 가입 자원 고갈)
 스크립트: `scripts/load-test/yut-review.js` (k6)
-관측: `/admin/operator` 자원 현황 패널 + `GET /api/admin/operator/monitoring`
+관측: `/operator` 자원 현황 패널 + `GET /api/operator/monitoring`
 
 ## 0. 이 테스트가 답해야 하는 질문
 
@@ -66,10 +66,10 @@ curl -sS -X POST "$BASE/api/admin/auth/signup" -H 'Content-Type: application/jso
   "termsAgreed":true,"termsVersion":"<현재 버전>",
   "privacyAgreed":true,"privacyVersion":"<현재 버전>"}'
 
-# 2) 운영자 로그인 → 승인 (SYSTEM_ADMIN 계정 필요)
+# 2) 운영자 로그인 → 승인 (OPERATOR 계정 필요)
 OP=$(curl -sS -X POST "$BASE/api/admin/auth/login" -H 'Content-Type: application/json' \
   -d '{"email":"operator@example.test","password":"..."}' | jq -r .data.accessToken)
-curl -sS -X POST "$BASE/api/admin/operator/stores/1/approve" \
+curl -sS -X POST "$BASE/api/operator/stores/1/approve" \
   -H "Authorization: Bearer $OP" -H 'Content-Type: application/json' -d '{"note":"부하 테스트"}'
 
 # 3) QR 토큰 꺼내기 (매장 소유자 토큰으로)
@@ -131,7 +131,7 @@ done
 | 게임 생성 p99 | < 2,000ms | k6 |
 | 5xx | 0건 | k6 `http_req_failed`, backend 로그 |
 | S3에서 밀어붙이지 않은 매장의 429 | **0건** | k6 체크 + 운영자 화면 |
-| S3에서 밀어붙인 매장의 429 시작 지점 | 분당 31번째 요청 | `/admin/operator/monitoring` |
+| S3에서 밀어붙인 매장의 429 시작 지점 | 분당 31번째 요청 | `/operator/monitoring` |
 | backend 메모리 | 768MB 한도 내, OOM kill 0 | `docker stats` |
 | postgres 커넥션 | 풀 고갈 없음 | backend 로그의 Hikari 경고 |
 | `rate_counters` 행 수 | 50,000 미만, S5 종료 후 감소 | 운영자 화면 '저장량' |
@@ -148,7 +148,7 @@ watch -n 5 'docker stats --no-stream; df -h /; free -m'
 docker compose logs -f backend | grep -iE 'hikari|OutOfMemory|ERROR'
 ```
 
-브라우저에서는 `/admin/operator` 자원 현황 패널을 열어 둔다. 1분마다 갱신되며 코드별 차단 수,
+브라우저에서는 `/operator` 자원 현황 패널을 열어 둔다. 1분마다 갱신되며 코드별 차단 수,
 카운터 행 수, 오늘 붐비는 매장의 상한 대비 사용률을 보여 준다. S3에서 **밀어붙이지 않은 매장의
 사용률이 조용한지**가 핵심 관측점이다.
 
