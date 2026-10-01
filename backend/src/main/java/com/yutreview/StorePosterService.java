@@ -105,7 +105,7 @@ enum PosterVariant { GAME, EVENT, REVISIT, REVIEW }
     }
 
     /**
-     * 인쇄소용 입점 키트 PDF. A6 4쪽(기본·이벤트·재방문·네이버 리뷰, 각 도련 3mm, TrimBox=재단선) + A4 스티커 판 1쪽(10장, 재단 표시).
+     * 인쇄소용 입점 키트 PDF. A6 4쪽(기본·이벤트·재방문·리뷰 부탁, 각 도련 3mm, TrimBox=재단선) + A4 스티커 판 1쪽(10장, 재단 표시).
      * 스티커를 단품 1쪽으로 두면 수량을 파일명으로만 전해야 해서 1장만 인쇄되는 일이 생긴다. 판 그대로 10장이 찍힌다.
      * 색은 RGB다. CMYK 변환은 인쇄소 RIP에 맡긴다(오렌지가 약간 가라앉는다).
      */
@@ -152,7 +152,8 @@ enum PosterVariant { GAME, EVENT, REVISIT, REVIEW }
      * 네 안내물은 같은 뼈대(상호 → 제목 두 줄 → 보조문 → QR 판 → 참여 3단계 → 하단 띠)이고 가운데 축 하나로 정렬한다.
      * 색·장식·문구만 다르다. QR 판의 크기와 위치가 모두 같아서 어느 것을 붙여도 스캔 거리가 같다.
      * tagline은 매장이 직접 쓴 한 줄이며 PRO에서만 채워진다. 없으면 종류별 기본 보조문을 쓴다.
-     * REVIEW만 "네이버 리뷰 → 윷 → 상품" 순서를 적는다(사용자 결정 2026-10-01). 별점·내용은 조건이 아님을 하단에 밝힌다.
+     * REVIEW는 리뷰를 부탁하되 참여 조건으로 걸지 않는다(2026-10-02 사용자 결정). "리뷰를 쓰면 상품"은 플랫폼 이름을 빼도
+     * 대가성 리뷰라서, 참여는 누구나 바로 하고 리뷰는 하단에 경품과 무관한 부탁으로만 적는다.
      */
     private static BufferedImage poster(PosterVariant variant,String storeName,String url,String tagline,Palette p,int bleed){
         BufferedImage image=new BufferedImage(WIDTH+2*bleed,HEIGHT+2*bleed,BufferedImage.TYPE_INT_RGB);Graphics2D g=start(image);
@@ -230,7 +231,7 @@ enum PosterVariant { GAME, EVENT, REVISIT, REVIEW }
             case GAME->new Copy("윷 한 판 던지고","쿠폰 받아 가세요","도·개·걸·윷·모, 무엇이 나와도 쿠폰을 드려요","쿠폰 쓰는 방법은 결과 화면에서 알려 드려요",PLAY);
             case EVENT->new Copy("만나서 반가워요","깜짝 선물 받아 가세요","윷 한 번 던지면 오늘의 선물이 정해져요","쿠폰 쓰는 방법은 결과 화면에서 알려 드려요",PLAY);
             case REVISIT->new Copy("오늘 즐거우셨나요?","감사 선물 받아 가세요","오늘 던지셨다면 모레 또 던질 수 있어요","쓰지 않은 쿠폰이 있으면 그 쿠폰부터 보여 드려요",PLAY);
-            case REVIEW->new Copy("네이버 리뷰 남기고","윷 던져 상품 받기","리뷰를 쓰신 뒤 QR을 비추면 바로 윷을 던져요","별점·내용과 관계없이 누구나 참여할 수 있어요",new String[]{"네이버 리뷰","윷 던지기","상품 당첨"});
+            case REVIEW->new Copy("오늘 방문 어떠셨나요?","윷 던지고 선물 받으세요","리뷰와 관계없이 누구나 바로 참여할 수 있어요","좋으셨다면 네이버 리뷰도 남겨 주세요",PLAY);
         };}
     }
 
