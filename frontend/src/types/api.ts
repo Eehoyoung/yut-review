@@ -342,7 +342,7 @@ export interface OperatorAdmin {
 
 /** 매장 심사와 계정 변경을 시간순으로 합친 활동 피드의 한 줄. */
 export interface OperatorAuditEntry {
-  kind: "STORE" | "ACCOUNT";
+  kind: "STORE" | "ACCOUNT" | "SUPPORT";
   action:
     | "APPROVE"
     | "REJECT"
@@ -350,7 +350,8 @@ export interface OperatorAuditEntry {
     | "OWNERSHIP_CHANGE"
     | "OPERATOR_CREATED"
     | "OPERATOR_GRANTED"
-    | "OPERATOR_REVOKED";
+    | "OPERATOR_REVOKED"
+    | StoreCareAction;
   actor: string | null;
   target: string | null;
   storeId?: number | null;
@@ -423,3 +424,125 @@ export interface PrintKitRow {
   statusUpdatedBy: string;
 }
 export type PrintKitPage = PageData<PrintKitRow> & { counts: Record<PrintKitStatus, number> };
+
+/** 운영자가 매장에 해 준 일(`operator_store_actions`). 매장 운영 설정은 여기에 없다. */
+export type StoreCareAction =
+  | "PROFILE_UPDATED"
+  | "BILLING_POSTPONED"
+  | "COMPLIMENTARY_PLAN_GRANTED"
+  | "COMPLIMENTARY_PLAN_ENDED"
+  | "STATS_EXPORTED";
+export type SubscriptionPaymentStatus = "PENDING" | "PAID" | "FAILED";
+
+export interface OperatorPayment {
+  id: number;
+  paymentId: string;
+  storeId: number;
+  storeName: string;
+  plan: Plan;
+  amount: number;
+  status: SubscriptionPaymentStatus;
+  failureReason: string;
+  createdAt: string;
+  paidAt: string | null;
+}
+
+/** 기능 등급(effectivePlan)과 청구 등급(billingPlan)이 다를 수 있다 — 보상 등급은 청구에 쓰이지 않는다. */
+export interface OperatorSubscription {
+  billingPlan: Plan;
+  effectivePlan: Plan;
+  serviceState: ServiceState;
+  billingTarget: boolean;
+  monthlyPriceKrw?: number;
+  complimentaryPlan?: Plan;
+  complimentaryUntil?: string;
+  trialEndsAt?: string;
+  nextBillingAt?: string;
+  restrictedFrom?: string;
+  lastPaidAt?: string;
+  nextPlan?: Plan | null;
+  autoRenew?: boolean;
+  hasCard?: boolean;
+  pg?: string | null;
+  renewalFailures?: number;
+  note?: string;
+}
+
+export interface OperatorStoreCare {
+  store: {
+    id: number;
+    name: string;
+    status: StoreStatus;
+    createdAt: string;
+    businessNumber: string;
+    representativeName: string;
+    openingDate: string;
+    businessVerifiedAt: string | null;
+    phone: string;
+    address: string;
+    naverPlaceUrl: string;
+  };
+  members: { name: string; email: string; phone: string; role: "OWNER" | "MANAGER"; since: string }[];
+  subscription: OperatorSubscription;
+  payments: OperatorPayment[];
+  usage: OperatorStoreStats & {
+    last30Days: { from: string; to: string; plays: number; couponsIssued: number; couponsRedeemed: number; redemptionRatePercent: number };
+  };
+  careLog: { action: StoreCareAction; actor: string; reason: string; detail: string; createdAt: string }[];
+}
+
+export interface OperatorMetrics {
+  date: string;
+  customers: { dau: number; wau: number; mau: number };
+  stores: { total: number; active: number; pending: number; engaged30: number; newThisMonth: number };
+  revenue: {
+    mrr: number;
+    arr: number;
+    payingStores: number;
+    arpu: number;
+    paidThisMonth: number;
+    paidLastMonth: number;
+    failedThisMonth: number;
+    pendingToReconcile: number;
+  };
+  plans: Record<Plan, number>;
+  serviceStates: Record<ServiceState, number>;
+  health: {
+    complimentary: number;
+    autoRenewOff: number;
+    renewalFailing: number;
+    trialEnded: number;
+    trialConverted: number;
+    trialConversionPercent: number | null;
+  };
+  engagementThisMonth: {
+    games: number;
+    couponsIssued: number;
+    couponsRedeemed: number;
+    redemptionPercent: number;
+    gamesPerEngagedStore: number;
+  };
+  monthly: {
+    month: string;
+    signups: number;
+    games: number;
+    couponsIssued: number;
+    couponsRedeemed: number;
+    revenue: number;
+    payments: number;
+    mau: number | null;
+  }[];
+  daily: {
+    date: string;
+    dau: number;
+    wau: number;
+    mau: number;
+    games: number;
+    couponsIssued: number;
+    couponsRedeemed: number;
+    signups: number;
+    engagedStores: number;
+    payingStores: number | null;
+    mrr: number | null;
+  }[];
+}

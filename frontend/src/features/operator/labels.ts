@@ -1,4 +1,4 @@
-import type { PrintKitStatus } from "@/types/api";
+import type { PrintKitStatus, StoreCareAction, SubscriptionPaymentStatus } from "@/types/api";
 
 /**
  * 운영자 콘솔(/operator) 전용 문구. 매장 관리자 화면(/admin)과 공유하는 매장 상태·요금제 라벨은
@@ -32,3 +32,26 @@ export const PRINT_KIT_STATUS_TONE: Record<PrintKitStatus, string> = {
   PRINTED: "ok",
   SHIPPED: "off",
 };
+
+/** 운영자가 매장에 해 준 일. 활동 기록과 매장 상담 화면이 같이 쓴다. */
+export const CARE_ACTION_LABEL: Record<StoreCareAction, string> = {
+  PROFILE_UPDATED: "매장 정보 수정",
+  BILLING_POSTPONED: "결제일 연기",
+  COMPLIMENTARY_PLAN_GRANTED: "보상 등급 제공",
+  COMPLIMENTARY_PLAN_ENDED: "보상 등급 종료",
+  STATS_EXPORTED: "통계 추출",
+};
+
+export const PAYMENT_STATUS_LABEL: Record<SubscriptionPaymentStatus, string> = {
+  PENDING: "결과 확인 중",
+  PAID: "결제 완료",
+  FAILED: "결제 실패",
+};
+
+export const PAYMENT_STATUS_TONE: Record<SubscriptionPaymentStatus, string> = {
+  PENDING: "wait",
+  PAID: "ok",
+  FAILED: "bad",
+};
+
+export const won = (n: number) => `${n.toLocaleString("ko-KR")}원`;

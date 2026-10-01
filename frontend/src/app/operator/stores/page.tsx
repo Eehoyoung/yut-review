@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ActivityPager } from "@/features/admin/ActivityTable";
@@ -94,6 +95,8 @@ function ApprovalEvents({ storeId }: { storeId: number }) {
 export default function OperatorQueue() {
   const qc = useQueryClient();
   const [status, setStatus] = useState("");
+  const [draft, setDraft] = useState("");
+  const [query, setQuery] = useState("");
   const [page, setPage] = useState(0);
   const [openEvents, setOpenEvents] = useState<number>();
   const [sheet, setSheet] = useState<Sheet>();
@@ -104,10 +107,10 @@ export default function OperatorQueue() {
 
   const summary = useQuery({ queryKey: ["operator-summary"], queryFn: () => api<OperatorSummary>("/operator/summary") });
   const stores = useQuery({
-    queryKey: ["operator-stores", status, page],
+    queryKey: ["operator-stores", status, query, page],
     queryFn: () =>
       api<PageData<OperatorStore>>(
-        `/operator/stores?page=${page}&size=20${status ? `&status=${status}` : ""}`,
+        `/operator/stores?page=${page}&size=20${status ? `&status=${status}` : ""}${query ? `&q=${encodeURIComponent(query)}` : ""}`,
       ),
   });
 
@@ -205,6 +208,25 @@ export default function OperatorQueue() {
         </p>
       )}
 
+      <form
+        className="op-toolbar"
+        role="search"
+        onSubmit={(e) => {
+          e.preventDefault();
+          setQuery(draft.trim());
+          setPage(0);
+        }}
+      >
+        <div className="field">
+          <label htmlFor="operator-query">매장명 또는 사업자등록번호</label>
+          <input
+            id="operator-query"
+            maxLength={100}
+            placeholder="전화 온 사장님 매장을 찾으세요"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+          />
+        </div>
       <div className="field">
         <label htmlFor="operator-filter">상태</label>
         <select
@@ -222,6 +244,12 @@ export default function OperatorQueue() {
           ))}
         </select>
       </div>
+        <div className="sheet-actions">
+          <button type="submit" className="btn btn-inline">
+            찾기
+          </button>
+        </div>
+      </form>
 
       {stores.isPending && (
         <div className="stack" aria-live="polite" aria-busy="true">
@@ -238,123 +266,130 @@ export default function OperatorQueue() {
         </section>
       )}
 
-      {stores.data?.content.map((s) => (
-        <section className="panel stack" key={s.id}>
-          <div className="row">
-            <h2>{s.name}</h2>
-            <span className="pill" data-tone={STORE_STATUS_TONE[s.status]}>
-              {STORE_STATUS_LABEL[s.status]}
-            </span>
-          </div>
-          <div className="list">
-            <div className="list-item">
-              <span className="lead">사업자등록번호</span>
-              <span className="name">{formatBusinessNumber(s.businessNumber)}</span>
-            </div>
-            <div className="list-item">
-              <span className="lead">대표자</span>
-              <span className="name">{s.ownerName}</span>
-            </div>
-            <div className="list-item">
-              <span className="lead">이메일</span>
-              <span className="name">{s.ownerEmail}</span>
-            </div>
-            <div className="list-item">
-              <span className="lead">연락처</span>
-              <span className="name">{formatPhone(s.ownerPhone)}</span>
-            </div>
-            <div className="list-item">
-              <span className="lead">가입</span>
-              <span className="name">{new Date(s.createdAt).toLocaleString("ko-KR")}</span>
-            </div>
-            <div className="list-item">
-              <span className="lead">사업자 확인</span>
-              <span className="name">
-                {s.businessVerifiedAt
-                  ? `국세청 확인 ${new Date(s.businessVerifiedAt).toLocaleDateString("ko-KR")}`
-                  : "확인 기록 없음"}
+      <div className="op-cards">
+        {stores.data?.content.map((s) => (
+          <section className="panel stack op-card" key={s.id}>
+            <div className="row">
+              <h2>
+                <Link href={`/operator/stores/${s.id}`}>{s.name}</Link>
+              </h2>
+              <span className="pill" data-tone={STORE_STATUS_TONE[s.status]}>
+                {STORE_STATUS_LABEL[s.status]}
               </span>
             </div>
-            <div className="list-item">
-              <span className="lead">요금제</span>
-              <span className="name">
-                {s.stats?.plan ? PLAN_LABEL[s.stats.plan] : "-"}
-                {s.stats?.serviceState && (
-                  <>
-                    {" "}
-                    <span className="pill" data-tone={SERVICE_STATE_TONE[s.stats.serviceState]}>
-                      {SERVICE_STATE_LABEL[s.stats.serviceState]}
-                    </span>
-                  </>
-                )}
-              </span>
+            <div className="list">
+              <div className="list-item">
+                <span className="lead">사업자등록번호</span>
+                <span className="name">{formatBusinessNumber(s.businessNumber)}</span>
+              </div>
+              <div className="list-item">
+                <span className="lead">대표자</span>
+                <span className="name">{s.ownerName}</span>
+              </div>
+              <div className="list-item">
+                <span className="lead">이메일</span>
+                <span className="name">{s.ownerEmail}</span>
+              </div>
+              <div className="list-item">
+                <span className="lead">연락처</span>
+                <span className="name">{formatPhone(s.ownerPhone)}</span>
+              </div>
+              <div className="list-item">
+                <span className="lead">가입</span>
+                <span className="name">{new Date(s.createdAt).toLocaleString("ko-KR")}</span>
+              </div>
+              <div className="list-item">
+                <span className="lead">사업자 확인</span>
+                <span className="name">
+                  {s.businessVerifiedAt
+                    ? `국세청 확인 ${new Date(s.businessVerifiedAt).toLocaleDateString("ko-KR")}`
+                    : "확인 기록 없음"}
+                </span>
+              </div>
+              <div className="list-item">
+                <span className="lead">요금제</span>
+                <span className="name">
+                  {s.stats?.plan ? PLAN_LABEL[s.stats.plan] : "-"}
+                  {s.stats?.serviceState && (
+                    <>
+                      {" "}
+                      <span className="pill" data-tone={SERVICE_STATE_TONE[s.stats.serviceState]}>
+                        {SERVICE_STATE_LABEL[s.stats.serviceState]}
+                      </span>
+                    </>
+                  )}
+                </span>
+              </div>
             </div>
-          </div>
-          {s.stats && (
-            <dl className="stats" aria-label={`${s.name} 이용 숫자`}>
-              <div>
-                <dt>오늘 게임</dt>
-                <dd>{count(s.stats.gamesToday)}</dd>
-              </div>
-              <div>
-                <dt>누적 게임</dt>
-                <dd>{count(s.stats.gamesTotal)}</dd>
-              </div>
-              <div>
-                <dt>쿠폰 발급</dt>
-                <dd>{count(s.stats.couponsIssued)}</dd>
-              </div>
-              <div>
-                <dt>쿠폰 사용</dt>
-                <dd>
-                  {count(s.stats.couponsRedeemed)}
-                  <small className="hint">{rate(s.stats.couponsRedeemed, s.stats.couponsIssued)}</small>
-                </dd>
-              </div>
-            </dl>
-          )}
-          {s.stats && (
-            <p className="hint">
-              마지막 참여: {s.stats.lastPlayedAt ? new Date(s.stats.lastPlayedAt).toLocaleString("ko-KR") : "아직 없음"}
-            </p>
-          )}
-          {s.note && <p className="notice">사유: {s.note}</p>}
+            {s.stats && (
+              <dl className="stats" aria-label={`${s.name} 이용 숫자`}>
+                <div>
+                  <dt>오늘 게임</dt>
+                  <dd>{count(s.stats.gamesToday)}</dd>
+                </div>
+                <div>
+                  <dt>누적 게임</dt>
+                  <dd>{count(s.stats.gamesTotal)}</dd>
+                </div>
+                <div>
+                  <dt>쿠폰 발급</dt>
+                  <dd>{count(s.stats.couponsIssued)}</dd>
+                </div>
+                <div>
+                  <dt>쿠폰 사용</dt>
+                  <dd>
+                    {count(s.stats.couponsRedeemed)}
+                    <small className="hint">{rate(s.stats.couponsRedeemed, s.stats.couponsIssued)}</small>
+                  </dd>
+                </div>
+              </dl>
+            )}
+            {s.stats && (
+              <p className="hint">
+                마지막 참여: {s.stats.lastPlayedAt ? new Date(s.stats.lastPlayedAt).toLocaleString("ko-KR") : "아직 없음"}
+              </p>
+            )}
+            {s.note && <p className="notice">사유: {s.note}</p>}
 
-          <div className="sheet-actions">
-            {s.status === "PENDING_APPROVAL" && (
-              <button type="button" className="btn btn-inline" onClick={() => setSheet({ kind: "approve", store: s })}>
-                승인
+            <div className="sheet-actions">
+              <Link className="btn secondary btn-inline" href={`/operator/stores/${s.id}`}>
+                상담 · 결제 관리
+              </Link>
+              {s.status === "PENDING_APPROVAL" && (
+                <button type="button" className="btn btn-inline" onClick={() => setSheet({ kind: "approve", store: s })}>
+                  승인
+                </button>
+              )}
+              {s.status !== "REJECTED" && (
+                <button type="button" className="btn secondary btn-inline" onClick={() => setSheet({ kind: "reject", store: s })}>
+                  {s.status === "PENDING_APPROVAL" ? "거부" : "운영 중단"}
+                </button>
+              )}
+              {s.status === "REJECTED" && (
+                <button
+                  type="button"
+                  className="btn secondary btn-inline"
+                  onClick={() => act.mutate({ id: s.id, path: "review-again", body: {} })}
+                >
+                  재심사
+                </button>
+              )}
+              <button type="button" className="btn ghost btn-inline" onClick={() => setSheet({ kind: "ownership", store: s })}>
+                소유권 이전
               </button>
-            )}
-            {s.status !== "REJECTED" && (
-              <button type="button" className="btn secondary btn-inline" onClick={() => setSheet({ kind: "reject", store: s })}>
-                {s.status === "PENDING_APPROVAL" ? "거부" : "운영 중단"}
+              <button type="button" className="btn ghost btn-inline" onClick={() => setQrStore(s)}>
+                QR 재발급
               </button>
-            )}
-            {s.status === "REJECTED" && (
-              <button
-                type="button"
-                className="btn secondary btn-inline"
-                onClick={() => act.mutate({ id: s.id, path: "review-again", body: {} })}
-              >
-                재심사
-              </button>
-            )}
-            <button type="button" className="btn ghost btn-inline" onClick={() => setSheet({ kind: "ownership", store: s })}>
-              소유권 이전
-            </button>
-            <button type="button" className="btn ghost btn-inline" onClick={() => setQrStore(s)}>
-              QR 재발급
-            </button>
-          </div>
+            </div>
 
-          {/* 접었다 펴는 것은 브라우저가 이미 한다. 열린 행에서만 이력을 불러온다. */}
-          <details onToggle={(e) => setOpenEvents(e.currentTarget.open ? s.id : undefined)}>
-            <summary>변경 이력</summary>
-            {openEvents === s.id && <ApprovalEvents storeId={s.id} />}
-          </details>
-        </section>
-      ))}
+            {/* 접었다 펴는 것은 브라우저가 이미 한다. 열린 행에서만 이력을 불러온다. */}
+            <details onToggle={(e) => setOpenEvents(e.currentTarget.open ? s.id : undefined)}>
+              <summary>변경 이력</summary>
+              {openEvents === s.id && <ApprovalEvents storeId={s.id} />}
+            </details>
+          </section>
+        ))}
+      </div>
 
       <ActivityPager page={page} totalPages={stores.data?.totalPages ?? 0} onChange={setPage} />
 
