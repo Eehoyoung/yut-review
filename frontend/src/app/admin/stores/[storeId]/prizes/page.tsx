@@ -1,12 +1,13 @@
 "use client";
 import { FormEvent, useEffect, useId, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AdminFrame } from "@/features/admin/AdminFrame";
 import { api, errorMessage } from "@/lib/api";
 import type { EventSettings, GameConfig, Prize, RedeemPolicy, YutResult } from "@/types/api";
 import { YUT_LABEL, rankLabel } from "@/features/labels";
 import { onlyDecimal, onlyDigits } from "@/features/normalize";
+import { PRESET_INFO, PRESET_ORDER, findIndustry, type PresetKey } from "@/features/examples/industries";
 
 const YUT_ORDER: YutResult[] = ["DO", "GAE", "GEOL", "YUT", "MO"];
 const LADDERS = [3, 4, 5];
@@ -236,6 +237,9 @@ export default function Prizes() {
   });
   const prizes = useQuery({ queryKey: ["prizes", id], queryFn: () => api<Prize[]>(`/admin/stores/${id}/prizes`) });
   const [draft, setDraft] = useState<Draft>();
+  // 대시보드의 업종 검색에서 넘어오면 추천 구성을 고를 수 있게 한다. 초안만 바꾸고 저장은 사장이 누른다.
+  const example = findIndustry(useSearchParams().get("example") ?? "");
+  const [appliedPreset, setAppliedPreset] = useState<PresetKey>();
 
   useEffect(() => {
     if (config.data && prizes.data) setDraft(buildDraft(config.data, prizes.data));
@@ -296,8 +300,45 @@ export default function Prizes() {
       ) as Record<YutResult, OutcomeDraft>,
     });
 
+  // 확률은 그대로 두고 3등급 매핑과 상품 세 개만 바꾼다. 확률표는 사장이 정한 값이다.
+  const applyPreset = (key: PresetKey) => {
+    setDraft({
+      ...draft,
+      ladder: 3,
+      outcomes: Object.fromEntries(
+        YUT_ORDER.map((y) => [y, { ...draft.outcomes[y], prizeRank: PRESETS[3][y] }]),
+      ) as Record<YutResult, OutcomeDraft>,
+      prizes: { ...draft.prizes, ...example!.presets[key] },
+    });
+    setAppliedPreset(key);
+  };
+
   return (
     <AdminFrame title="상품 설정">
+      {example && (
+        <section className="panel stack" aria-labelledby="example-preset-title">
+          <h2 id="example-preset-title">{example.name} 추천 구성</h2>
+          <p className="lead">고르면 아래 등급 수와 상품이 채워져요. 확률은 바뀌지 않고, 저장을 눌러야 손님 화면에 반영돼요.</p>
+          <div className="preset-row" role="group" aria-label="추천 구성">
+            {PRESET_ORDER.map((key) => (
+              <button
+                key={key}
+                type="button"
+                className={appliedPreset === key ? "btn secondary is-on" : "btn secondary"}
+                aria-pressed={appliedPreset === key}
+                onClick={() => applyPreset(key)}
+              >
+                {PRESET_INFO[key].name}
+              </button>
+            ))}
+          </div>
+          {appliedPreset && (
+            <p className="notice" role="status">
+              {PRESET_INFO[appliedPreset].name}을 불러왔어요. 상품명을 매장에 맞게 고친 뒤 저장하세요.
+            </p>
+          )}
+        </section>
+      )}
       <form
         className="stack prize-settings-form"
         onSubmit={(e: FormEvent) => {

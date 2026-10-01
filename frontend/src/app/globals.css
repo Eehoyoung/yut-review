@@ -443,6 +443,75 @@ a {
 
 .landing a:focus-visible { outline: 3px solid #fc672d; outline-offset: 4px; }
 
+/* ---------- 업종별 활용 예시 (/examples) — 소개 페이지 색을 그대로 쓴다 ---------- */
+.landing-final.no-mascot { grid-template-columns: minmax(0, 1fr) minmax(230px, 0.42fr); }
+.examples-teaser .ex-chips { margin-top: 40px; }
+.examples-teaser .landing-text-link { display: inline-block; margin-top: 28px; }
+.ex-page { padding-bottom: 24px; }
+.ex-hero, .ex-block, .ex-group, .ex-groups, .ex-missing { width: min(100%, 1080px); margin-inline: auto; padding-inline: clamp(20px, 4vw, 48px); }
+.ex-hero { padding-top: clamp(56px, 8vw, 96px); padding-bottom: 32px; }
+.ex-hero h1 { font-size: clamp(2.2rem, 5vw, 3.6rem); line-height: 1.14; letter-spacing: -0.04em; }
+.ex-hero > p { max-width: 40em; margin-top: 18px; color: #53605b; font-size: 1.04rem; line-height: 1.75; }
+.ex-hero > .ex-headline { color: #16231f; font-size: 1.2rem; font-weight: 750; line-height: 1.5; }
+.ex-eyebrow, .ex-breadcrumb { margin-bottom: 16px; color: #a43f13; font-size: 0.9rem; font-weight: 800; }
+.ex-breadcrumb { display: flex; gap: 8px; }
+.ex-breadcrumb a { color: inherit; text-underline-offset: 4px; }
+.ex-tags, .ex-chips { margin: 22px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; list-style: none; }
+.ex-tags li { padding: 5px 12px; border-radius: 999px; background: #efe7dc; color: #7a3412; font-size: 0.84rem; font-weight: 750; }
+.ex-chips a { display: inline-flex; min-height: 44px; align-items: center; padding: 0 16px; border: 1px solid #b9b7ad; border-radius: 999px; background: #fff; color: #24302c; font-weight: 750; text-decoration: none; }
+.ex-chips a:hover { border-color: #c14a15; color: #a43f13; }
+
+.ex-search { position: relative; max-width: 560px; margin-top: 28px; }
+.ex-search input { width: 100%; min-height: 56px; padding: 0 18px; border: 1.5px solid #8e968f; border-radius: 14px; background: #fff; color: #16231f; font: inherit; font-size: 1.05rem; }
+.ex-search input:focus-visible { outline: 3px solid #fc672d; outline-offset: 2px; }
+.ex-search-results { margin: 8px 0 0; padding: 6px; border: 1px solid #d8d6ce; border-radius: 14px; background: #fff; list-style: none; box-shadow: 0 16px 34px rgba(22, 36, 54, 0.12); }
+.ex-search-results a { display: grid; gap: 2px; padding: 12px; border-radius: 10px; color: #16231f; text-decoration: none; }
+.ex-search-results a:hover, .ex-search-results a:focus-visible { background: #f7f1ea; }
+.ex-search-results span, .ex-search-empty { color: #63706b; font-size: 0.88rem; line-height: 1.5; }
+.ex-search-empty { padding: 12px; }
+
+.ex-groups { position: sticky; top: 0; z-index: 2; display: flex; gap: 8px; overflow-x: auto; padding-block: 12px; background: #f7f5ef; border-bottom: 1px solid #e4e1d8; scrollbar-width: none; }
+.ex-groups a { flex: none; padding: 8px 14px; border-radius: 999px; color: #3d4945; font-size: 0.9rem; font-weight: 750; text-decoration: none; }
+.ex-groups a:hover { background: #efe7dc; color: #7a3412; }
+.ex-group { padding-top: 48px; scroll-margin-top: 64px; }
+.ex-group h2, .ex-block h2 { font-size: clamp(1.5rem, 3vw, 2rem); letter-spacing: -0.03em; }
+.ex-cards { margin: 20px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; list-style: none; }
+.ex-cards a { height: 100%; display: grid; align-content: start; gap: 8px; padding: 20px; border: 1px solid #e0ddd4; border-radius: 16px; background: #fff; color: #16231f; text-decoration: none; transition: border-color 180ms var(--ease), transform 180ms var(--ease); }
+.ex-cards a:hover { border-color: #c14a15; transform: translateY(-2px); }
+.ex-cards b { font-size: 1.1rem; }
+.ex-cards span { color: #63706b; font-size: 0.92rem; line-height: 1.55; }
+.ex-missing { padding-block: 56px 24px; color: #63706b; }
+
+.ex-block { padding-top: 56px; }
+.ex-usecases { margin-top: 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.ex-usecases > div { padding: 22px; border-radius: 16px; background: #fff; border: 1px solid #e0ddd4; }
+.ex-usecases h3 { font-size: 1.08rem; }
+.ex-usecases p { margin-top: 8px; color: #53605b; line-height: 1.7; }
+.ex-rewards { margin: 20px 0 0; padding: 0; display: grid; gap: 8px; list-style: none; max-width: 640px; }
+.ex-rewards li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 18px; border-radius: 12px; background: #fff; border: 1px solid #e0ddd4; font-weight: 700; }
+.ex-rewards em { flex: none; padding: 3px 10px; border-radius: 999px; background: #eef2ef; color: #3d4945; font-size: 0.8rem; font-style: normal; }
+.ex-rewards em[data-revisit="true"] { background: #fbe6d8; color: #8f3510; }
+.ex-note { margin-top: 10px; color: #63706b; font-size: 0.92rem; line-height: 1.6; }
+.ex-presets { margin-top: 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+.ex-preset { padding: 22px; border-radius: 18px; background: #fff; border: 1px solid #e0ddd4; }
+.ex-preset h3 { font-size: 1.12rem; }
+.ex-preset > p { margin-top: 6px; color: #63706b; font-size: 0.9rem; line-height: 1.55; }
+.ex-preset ol { margin: 16px 0 0; padding: 0; display: grid; gap: 12px; list-style: none; }
+.ex-preset li { display: grid; grid-template-columns: 64px 1fr; gap: 12px; align-items: start; padding-top: 12px; border-top: 1px solid #ece9e1; }
+.ex-preset li > div { display: grid; gap: 3px; }
+.ex-preset li small { color: #63706b; font-size: 0.84rem; line-height: 1.5; }
+.ex-rank { color: #a43f13; font-weight: 850; }
+.ex-rank small { display: block; color: #63706b; font-weight: 700; }
+.ex-tips { margin: 20px 0 0; padding-left: 1.2em; display: grid; gap: 10px; max-width: 46em; color: #3d4945; line-height: 1.7; }
+.ex-caution { margin-top: 16px; padding: 14px 18px; border-radius: 12px; background: #fff4e5; color: #7a4a00; }
+.ex-detail { padding-bottom: 72px; }
+.ex-siblings { padding-bottom: 48px; }
+
+@media (max-width: 760px) {
+  .landing-final.no-mascot { grid-template-columns: 1fr; }
+  .ex-preset li { grid-template-columns: 52px 1fr; }
+}
+
 @media (max-width: 1100px) {
   .landing-hero { min-height: auto; padding: 0; grid-template-columns: 1fr; }
   .hero-message { padding: 72px clamp(24px, 6vw, 64px) 48px; }
