@@ -747,6 +747,13 @@ POST /api/admin/stores/{storeId}/poster/regenerate
 - 기존 매장에 저장본이 없으면 첫 `GET`에서 한 번 생성한다.
 - Quick Tunnel 주소가 바뀐 세션에서는 `POST` 후 새 안내물을 내려받아야 한다.
 
+## 직원 PIN 조회
+```http
+GET /api/admin/stores/{storeId}/staff-pin
+```
+
+`{"pin":"123456"}`. 2026-10-02 이전 매장은 재발급 전까지 `pin`이 `null`이다.
+
 ## 직원 PIN 재발급
 ```http
 POST /api/admin/stores/{storeId}/staff-pin/regenerate

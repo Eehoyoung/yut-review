@@ -93,6 +93,11 @@ enum AccountRecoveryPurpose { FIND_EMAIL, RESET_PASSWORD }
     /** 기존 매장은 null을 SODAM으로 해석한다. */
     @Enumerated(EnumType.STRING) @Column(name="poster_brand_theme",length=20) PosterBrandTheme posterBrandTheme;
     @Column(nullable=false) String staffPinHash;
+    /**
+     * 매장 관리자 화면에 PIN을 계속 보여 주기 위한 AES-GCM 암호문(2026-10-02 사용자 요청).
+     * 검증은 여전히 staffPinHash로만 한다. 이 기능 이전 매장은 null이며 한 번 재발급하면 채워진다.
+     */
+    @Column(name="staff_pin_encrypted") String staffPinEncrypted;
     @Enumerated(EnumType.STRING) @Column(nullable=false) StoreStatus status;
     @Column(nullable=false) Instant createdAt; @Column(nullable=false) Instant updatedAt;
 }
