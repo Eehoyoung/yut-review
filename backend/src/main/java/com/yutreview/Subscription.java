@@ -119,7 +119,14 @@ class SubscriptionService {
             subscription.updatedAt = clock.instant();
             subscriptions.save(subscription);
         }
-        return subscription.plan;
+        return effective(subscription, clock.instant());
+    }
+
+    /** 운영자 보상 등급이 살아 있고 기본 등급보다 높으면 그 등급. 청구 등급(`plan`)은 바꾸지 않는다. */
+    static Plan effective(StoreSubscription s, Instant now) {
+        boolean complimentary = s.complimentaryPlan != null && s.complimentaryUntil != null
+                && now.isBefore(s.complimentaryUntil) && s.complimentaryPlan.ordinal() > s.plan.ordinal();
+        return complimentary ? s.complimentaryPlan : s.plan;
     }
 
     Optional<StoreSubscription> find(Long storeId) {

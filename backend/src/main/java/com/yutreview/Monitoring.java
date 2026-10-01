@@ -181,7 +181,7 @@ import org.springframework.transaction.annotation.Transactional;
             m.put("couponsIssued",issued.getOrDefault(id,0L));
             m.put("couponsRedeemed",redeemed.getOrDefault(id,0L));
             m.put("lastPlayedAt",lastPlayed.get(id));
-            subscriptions.findByStoreId(id).ifPresent(s->{m.put("plan",s.plan.name());m.put("serviceState",policy.state(s).name());});
+            subscriptions.findByStoreId(id).ifPresent(s->{m.put("plan",SubscriptionService.effective(s,clock.instant()).name());m.put("serviceState",policy.state(s).name());});
             out.put(id,m);
         }
         return out;

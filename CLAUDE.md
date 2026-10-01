@@ -581,3 +581,24 @@ collector 중지는 호스트의 `/etc/cron.d/sodam-ops` 삭제로 충분하다.
 - 손님 오류 문구에 결제 얘기를 넣지 말 것. 사장의 결제 문제를 손님에게 알리지 않는다.
 
 아직 없는 것: 환불·부분취소 API(포트원 콘솔에서 처리), 웹훅(동기 응답과 재조회로 대신한다), PENDING 자동 대조.
+
+## 운영자 매장 지원·결제 원장·사업 지표 (2026-10-01)
+
+사장님 전화 응대와 보상, 소담랩스 전체 지표. `OperatorCare.java` 한 파일에 서비스·엔터티·컨트롤러가 있다.
+화면은 `/operator/stores/[storeId]`(상담), `/operator/payments`(결제 원장), `/operator/metrics`(사업 지표).
+계약은 `05_API_SPEC.md` 같은 날짜 절. 테스트는 `OperatorCareTest.java`.
+
+- **매장 운영에는 손대지 않는다.** 운영자가 바꾸는 것은 연락처성 정보(매장명·전화·주소·지도 링크)와 소담랩스가 지는
+  계약(결제일·보상 등급)뿐이다. 상품·확률·쿠폰·직원 PIN·쿠폰 기한을 이 경로에 추가하지 말 것. 사업자등록번호·대표자·
+  개업일은 국세청 확인 값이라 운영자도 못 바꾼다. 매장명은 사장이 못 바꾸므로 상호 변경 창구가 여기다.
+- 모든 쓰기는 사유 필수, `operator_store_actions`(append-only, 운영자 이메일·매장명 동결)에 남고 활동 기록에 `SUPPORT`로 합쳐진다.
+- **보상 등급은 `plan`을 바꾸지 않는다.** `store_subscriptions.complimentary_plan/_until`에 두고
+  `SubscriptionService.effective`가 기능 등급만 올린다. 수동 `changePlan`을 보상에 쓰면 다음 자동결제가 높은 등급 요금으로 나간다.
+- 결제일 연기는 결제 잠금(`lockBilling`)을 먼저 잡고, 체험 중이면 체험 종료도 같이 민다(둘이 갈라지면 BASIC으로 떨어진 채 기다린다).
+  실패 횟수를 0으로 되돌린다. 이용 제한 중이어도 새 날짜가 미래면 바로 풀린다.
+- 운영자 통계 추출은 요금제와 무관하게 PRO 구간 규칙(`AnalyticsService.report/dailyCsv(storeId, Window)`)으로 뽑는다.
+  사장 경로의 요금제 확인은 그대로다.
+- **MAU 등 고객 수는 스냅숏(`platform_daily_metrics`)으로 보존한다.** 전화번호 해시가 120일 뒤 비식별되므로 지난 달 MAU는
+  나중에 다시 셀 수 없다. `PlatformMetricsScheduler`가 03:05(비식별 03:15보다 먼저)에 빈 날을 최근 90일까지 채우고,
+  `/metrics` 첫 조회도 어제 값이 없으면 채운다. MRR·유료 매장은 그날 찍은 값만 의미가 있어 과거 날짜는 비워 둔다.
+- `StoreCareAction` enum에 값을 더하면 PostgreSQL CHECK 제약을 함께 고쳐야 한다(위 "기존 테이블의 enum" 주의와 같다).

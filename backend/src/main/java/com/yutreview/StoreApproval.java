@@ -228,14 +228,19 @@ interface StoreApprovalEventRepository extends JpaRepository<StoreApprovalEvent,
             "approvalRequired",approvalRequired));
     }
 
-    @GetMapping("/stores") ApiResponse<?> list(@RequestParam(required=false) StoreStatus status,
+    @GetMapping("/stores") ApiResponse<?> list(@RequestParam(required=false) StoreStatus status,@RequestParam(required=false) String q,
         @RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="20") int size,Authentication auth){
         approvals.requireOperator(adminId(auth));
         if(page<0||size<1||size>100)throw new AppException("INVALID_REQUEST","page는 0 이상, size는 1~100이어야 합니다.");
         // 승인 대기는 먼저 온 순서(큐), 나머지는 최근 가입 순서.
         Sort.Direction direction=status==StoreStatus.PENDING_APPROVAL?Sort.Direction.ASC:Sort.Direction.DESC;
         PageRequest request=PageRequest.of(page,size,Sort.by(direction,"createdAt"));
-        Page<Store> found=status==null?stores.findAll(request):stores.findByStatus(status,request);
+        String text=q==null?"":q.trim();
+        if(text.length()>100)throw new AppException("INVALID_REQUEST","검색어는 100자 이하로 입력해 주세요.");
+        String digits=Inputs.digits(text);
+        Page<Store> found=!text.isEmpty()
+            ? stores.search("%"+text.toLowerCase(java.util.Locale.ROOT)+"%",digits.length()>=3?"%"+digits+"%":"-",status,request)
+            : status==null?stores.findAll(request):stores.findByStatus(status,request);
         Map<Long,Map<String,Object>> stats=overview.storeStats(found.map(s->s.id).getContent());
         Page<Map<String,Object>> view=found.map(s->{Map<String,Object> m=view(s);m.put("stats",stats.get(s.id));return m;});
         return ApiResponse.ok(new AdminController.PageView<>(view.getContent(),view.getNumber(),view.getSize(),
