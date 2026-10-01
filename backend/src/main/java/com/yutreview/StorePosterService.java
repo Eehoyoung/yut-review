@@ -27,11 +27,11 @@ import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.graphics.image.LosslessFactory;
 import org.springframework.stereotype.Service;
 
-/** 안내물 종류. GAME이 기본이며 저장되는 것도 GAME뿐이다. 나머지는 요청할 때 그린다. */
-enum PosterVariant { GAME, EVENT, REVISIT }
+/** 안내물 종류. GAME이 기본이며 저장되는 것도 GAME뿐이다. 나머지는 요청할 때 그린다. 입점 키트에는 넷 다 들어간다. */
+enum PosterVariant { GAME, EVENT, REVISIT, REVIEW }
 
 /**
- * 입점 키트 = A6 안내물 3종 + 테이블 스티커(90×50mm) 10장.
+ * 입점 키트 = A6 안내물 4종 + 테이블 스티커(90×50mm) 10장.
  *
  * 모든 치수는 300dpi 픽셀이다(1mm ≈ 11.8px, 1pt ≈ 4.17px). 화면·사장 다운로드용 PNG는 재단 크기 그대로,
  * 인쇄소용 PDF는 사방 3mm 도련을 붙여 같은 함수로 그린다. 배경과 하단 띠만 도련까지 번지고
@@ -47,7 +47,8 @@ enum PosterVariant { GAME, EVENT, REVISIT }
 
     // DESIGN.md 팔레트(소담랩스 로고 색). 밝은 바탕 위 글자·채움은 딥 오렌지, 네이비 위 강조만 로고 원색.
     private static final Color NAVY=new Color(0x162436),PAPER=Color.WHITE,ORANGE=new Color(0xFC672D),ORANGE_DEEP=new Color(0xC14A15),
-        CREAM=new Color(0xFCDAC2),YELLOW=new Color(0xFFE27A),WOOD=new Color(0x9A5B2A),WOOD_LIGHT=new Color(0xD9A873),MUTED=new Color(0x4C5A6B);
+        CREAM=new Color(0xFCDAC2),YELLOW=new Color(0xFFE27A),WOOD=new Color(0x9A5B2A),WOOD_LIGHT=new Color(0xD9A873),MUTED=new Color(0x4C5A6B),
+        NAVER_GREEN=new Color(0x03C75A),FOREST_INK=new Color(0x0F3A25);
     // 큰 제목만 주아체(귀여움), 나머지는 Pretendard. 둘 다 OFL이고 번들한다 — 시스템 글꼴에 맡기면
     // 운영 이미지와 개발 PC가 서로 다른 글꼴로 그려서 자간까지 달라졌다.
     private static final Font CUTE=load("/fonts/Jua-Regular.ttf"),BOLD=load("/fonts/Pretendard-Bold.ttf"),REGULAR=load("/fonts/Pretendard-Regular.ttf");
@@ -104,7 +105,7 @@ enum PosterVariant { GAME, EVENT, REVISIT }
     }
 
     /**
-     * 인쇄소용 입점 키트 PDF. A6 3쪽(기본·이벤트·재방문, 각 도련 3mm, TrimBox=재단선) + A4 스티커 판 1쪽(10장, 재단 표시).
+     * 인쇄소용 입점 키트 PDF. A6 4쪽(기본·이벤트·재방문·네이버 리뷰, 각 도련 3mm, TrimBox=재단선) + A4 스티커 판 1쪽(10장, 재단 표시).
      * 스티커를 단품 1쪽으로 두면 수량을 파일명으로만 전해야 해서 1장만 인쇄되는 일이 생긴다. 판 그대로 10장이 찍힌다.
      * 색은 RGB다. CMYK 변환은 인쇄소 RIP에 맡긴다(오렌지가 약간 가라앉는다).
      */
@@ -112,7 +113,7 @@ enum PosterVariant { GAME, EVENT, REVISIT }
         try(PDDocument doc=new PDDocument();ByteArrayOutputStream out=new ByteArrayOutputStream()){
             for(PosterVariant v:PosterVariant.values())addPage(doc,poster(v,storeName,url,tagline,Palette.of(v,brand),BLEED),BLEED);
             addPage(doc,stickerPrintSheet(storeName,url,Palette.of(PosterVariant.GAME,brand)),0);
-            doc.getDocumentInformation().setTitle(storeName+" 입점 키트 — A6 안내물 3종 각 1매, 테이블 스티커 90×50mm "+STICKER_COUNT+"매");
+            doc.getDocumentInformation().setTitle(storeName+" 입점 키트 — A6 안내물 "+PosterVariant.values().length+"종 각 1매, 테이블 스티커 90×50mm "+STICKER_COUNT+"매");
             doc.getDocumentInformation().setCreator("소담한판");
             doc.save(out);return out.toByteArray();
         }catch(IOException e){throw new IllegalStateException("인쇄용 PDF 생성에 실패했습니다.",e);}
@@ -148,10 +149,10 @@ enum PosterVariant { GAME, EVENT, REVISIT }
     }
 
     /**
-     * 세 안내물은 같은 뼈대(상호 → 제목 두 줄 → 보조문 → QR 판 → 참여 3단계 → 하단 띠)이고 가운데 축 하나로 정렬한다.
-     * 색·장식·문구만 다르다. QR 판의 크기와 위치가 셋 다 같아서 어느 것을 붙여도 스캔 거리가 같다.
+     * 네 안내물은 같은 뼈대(상호 → 제목 두 줄 → 보조문 → QR 판 → 참여 3단계 → 하단 띠)이고 가운데 축 하나로 정렬한다.
+     * 색·장식·문구만 다르다. QR 판의 크기와 위치가 모두 같아서 어느 것을 붙여도 스캔 거리가 같다.
      * tagline은 매장이 직접 쓴 한 줄이며 PRO에서만 채워진다. 없으면 종류별 기본 보조문을 쓴다.
-     * 리뷰·별점은 참여 조건이 아니므로 어느 안내물에도 적지 않는다.
+     * REVIEW만 "네이버 리뷰 → 윷 → 상품" 순서를 적는다(사용자 결정 2026-10-01). 별점·내용은 조건이 아님을 하단에 밝힌다.
      */
     private static BufferedImage poster(PosterVariant variant,String storeName,String url,String tagline,Palette p,int bleed){
         BufferedImage image=new BufferedImage(WIDTH+2*bleed,HEIGHT+2*bleed,BufferedImage.TYPE_INT_RGB);Graphics2D g=start(image);
@@ -183,7 +184,7 @@ enum PosterVariant { GAME, EVENT, REVISIT }
         drawQr(g,url,342,810,555);
 
         // 3단계는 96~1144 폭에 같은 간격으로 나눈다. 글자 폭이 달라도 좌우 여백이 같다.
-        String[] steps={"QR 비추기","윷 던지기","쿠폰 받기"};Font stepFont=BOLD.deriveFont(44f);FontMetrics sm=g.getFontMetrics(stepFont);
+        String[] steps=c.steps;Font stepFont=BOLD.deriveFont(44f);FontMetrics sm=g.getFontMetrics(stepFont);
         int[] widths=new int[3];int total=0;for(int i=0;i<3;i++){widths[i]=64+16+sm.stringWidth(steps[i]);total+=widths[i];}
         int gap=(1048-total)/2,x=96;
         for(int i=0;i<3;i++){
@@ -223,11 +224,13 @@ enum PosterVariant { GAME, EVENT, REVISIT }
     }
 
     /** 안내물 종류별 문구. 매장이 바꿀 수 있는 것은 PRO의 한 줄 소개뿐이다. */
-    private record Copy(String line1,String line2,String sub,String footnote){
+    private record Copy(String line1,String line2,String sub,String footnote,String[] steps){
+        private static final String[] PLAY={"QR 비추기","윷 던지기","쿠폰 받기"};
         static Copy of(PosterVariant v){return switch(v){
-            case GAME->new Copy("윷 한 판 던지고","쿠폰 받아 가세요","도·개·걸·윷·모, 무엇이 나와도 쿠폰을 드려요","쿠폰 쓰는 방법은 결과 화면에서 알려 드려요");
-            case EVENT->new Copy("만나서 반가워요","깜짝 선물 받아 가세요","윷 한 번 던지면 오늘의 선물이 정해져요","쿠폰 쓰는 방법은 결과 화면에서 알려 드려요");
-            case REVISIT->new Copy("오늘 즐거우셨나요?","감사 선물 받아 가세요","오늘 던지셨다면 모레 또 던질 수 있어요","쓰지 않은 쿠폰이 있으면 그 쿠폰부터 보여 드려요");
+            case GAME->new Copy("윷 한 판 던지고","쿠폰 받아 가세요","도·개·걸·윷·모, 무엇이 나와도 쿠폰을 드려요","쿠폰 쓰는 방법은 결과 화면에서 알려 드려요",PLAY);
+            case EVENT->new Copy("만나서 반가워요","깜짝 선물 받아 가세요","윷 한 번 던지면 오늘의 선물이 정해져요","쿠폰 쓰는 방법은 결과 화면에서 알려 드려요",PLAY);
+            case REVISIT->new Copy("오늘 즐거우셨나요?","감사 선물 받아 가세요","오늘 던지셨다면 모레 또 던질 수 있어요","쓰지 않은 쿠폰이 있으면 그 쿠폰부터 보여 드려요",PLAY);
+            case REVIEW->new Copy("네이버 리뷰 남기고","윷 던져 상품 받기","리뷰를 쓰신 뒤 QR을 비추면 바로 윷을 던져요","별점·내용과 관계없이 누구나 참여할 수 있어요",new String[]{"네이버 리뷰","윷 던지기","상품 당첨"});
         };}
     }
 
@@ -248,6 +251,9 @@ enum PosterVariant { GAME, EVENT, REVISIT }
                     PAPER,ORANGE_DEEP,NAVY,PAPER,CREAM,null,YELLOW,PAPER,WOOD_LIGHT,new Color[]{PAPER,YELLOW,NAVY,CREAM});
                 case REVISIT->new Palette(new Color(0x22364F),NAVY,PAPER,ORANGE,CREAM,CREAM,NAVY,ORANGE,ORANGE,
                     ORANGE,NAVY,ORANGE_DEEP,PAPER,PAPER,new Color(0x2A405C),WOOD_LIGHT,ORANGE,WOOD,null);
+                // 네이버 그린 계열. 원색(#03C75A)은 밝은 바탕에서 3:1이 안 나와 장식·테두리에만 쓰고 글자는 짙은 초록.
+                case REVIEW->new Palette(new Color(0xF1FBF4),new Color(0xD3F2DE),FOREST_INK,new Color(0x00813A),new Color(0x3E5A4B),FOREST_INK,PAPER,NAVER_GREEN,NAVER_GREEN,
+                    new Color(0x00813A),PAPER,FOREST_INK,PAPER,new Color(0xBFEBCF),new Color(0xDDF5E6),WOOD_LIGHT,NAVER_GREEN,WOOD,null);
             };
         }
         private static Palette brand(Color dark,Color strong,Color soft,Color deeper){
@@ -266,9 +272,19 @@ enum PosterVariant { GAME, EVENT, REVISIT }
             for(int[] b:bits){AffineTransform old=g.getTransform();g.translate(b[0],b[1]);g.rotate(Math.toRadians(b[0]*7%90-45));g.setColor(p.confetti[b[2]]);
                 if(b[2]%2==0)g.fillRoundRect(-24,-10,48,20,10,10);else g.fillOval(-15,-15,30,30);g.setTransform(old);}
         }
-        if(v==PosterVariant.GAME){stick(g,120,165,-24,p.stickA,true);stick(g,212,150,8,p.stickB,false);stick(g,1028,150,-8,p.stickC,true);stick(g,1120,165,24,p.stickA,false);}
+        if(v==PosterVariant.REVIEW){bubble(g,170,170,p);stick(g,1030,165,-12,p.stickA,true);stick(g,1120,175,18,p.stickB,false);}
+        else if(v==PosterVariant.GAME){stick(g,120,165,-24,p.stickA,true);stick(g,212,150,8,p.stickB,false);stick(g,1028,150,-8,p.stickC,true);stick(g,1120,165,24,p.stickA,false);}
         else{stick(g,150,170,-20,p.stickA,true);stick(g,1090,170,20,p.stickB,false);}
     }
+
+    // 리뷰 말풍선: 흰 풍선 + 초록 테두리 + 점 세 개. 별 모양은 별점 요구로 읽힐 수 있어 쓰지 않는다.
+    private static void bubble(Graphics2D g,int cx,int cy,Palette p){
+        Stroke old=g.getStroke();Polygon tail=new Polygon(new int[]{cx-46,cx-4,cx-66},new int[]{cy+56,cy+56,cy+96},3);
+        g.setColor(new Color(22,36,54,30));g.fillRoundRect(cx-104,cy-64,220,132,64,64);
+        g.setColor(PAPER);g.fillRoundRect(cx-110,cy-70,220,132,64,64);g.fillPolygon(tail);
+        g.setColor(p.ring);g.setStroke(new BasicStroke(8,BasicStroke.CAP_ROUND,BasicStroke.JOIN_ROUND));g.drawRoundRect(cx-110,cy-70,220,132,64,64);
+        g.setColor(PAPER);g.fillRect(cx-44,cy+56,38,10);g.setColor(p.ring);g.drawPolyline(new int[]{cx-46,cx-66,cx-4},new int[]{cy+62,cy+96,cy+62},3);
+        for(int i=-1;i<=1;i++)g.fillOval(cx+i*52-15,cy-19,30,30);g.setStroke(old);}
 
     // 윷가락: 둥근 막대 + 옅은 그림자. 표시가 있는 면(배)에는 전통 윷처럼 X 무늬를 새긴다.
     private static void stick(Graphics2D g,int x,int y,double angle,Color color,boolean marked){

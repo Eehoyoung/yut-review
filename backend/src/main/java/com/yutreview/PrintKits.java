@@ -16,7 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 /**
- * 입점 키트(A6 안내물 3종 + 테이블 스티커 10장) 실물 발송 관리.
+ * 입점 키트(A6 안내물 4종 + 테이블 스티커 10장) 실물 발송 관리.
  *
  * 운영자가 매장을 찾아 인쇄소용 PDF를 받고, 인쇄·발송 진행 상태를 표시한다.
  * 행이 없으면 WAITING(인쇄 대기)이다. `store_event_settings`와 같은 전략이라 기존 매장 백필이 필요 없다.
@@ -149,7 +149,7 @@ interface StorePrintKitRepository extends JpaRepository<StorePrintKit,Long> {
         return pdfResponse(store.name,body);
     }
     static ResponseEntity<byte[]> pdfResponse(String storeName,byte[] body){
-        String filename=storeName.replaceAll("[\\r\\n\\\\/:*?\"<>|]","_")+"_입점키트_A6안내물3종_스티커90x50_"+StorePosterService.STICKER_COUNT+"매.pdf";
+        String filename=storeName.replaceAll("[\\r\\n\\\\/:*?\"<>|]","_")+"_입점키트_A6안내물4종_스티커90x50_"+StorePosterService.STICKER_COUNT+"매.pdf";
         return ResponseEntity.ok().contentType(MediaType.APPLICATION_PDF).cacheControl(CacheControl.noStore())
             .header(HttpHeaders.CONTENT_DISPOSITION,ContentDisposition.attachment().filename(filename,StandardCharsets.UTF_8).build().toString()).body(body);
     }

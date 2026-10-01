@@ -732,15 +732,15 @@ POST /api/operator/stores/{storeId}/qr/regenerate         # 운영자 전용
 
 ## 매장 QR 안내물
 ```http
-GET  /api/admin/stores/{storeId}/poster?variant=GAME|EVENT|REVISIT
+GET  /api/admin/stores/{storeId}/poster?variant=GAME|EVENT|REVISIT|REVIEW
 GET  /api/admin/stores/{storeId}/sticker-sheet      # 테이블 스티커 90×50mm 10칸, A4 PNG
-GET  /api/admin/stores/{storeId}/print-kit          # 인쇄용 PDF (A6 3종 각 1쪽 + A4 스티커 판 1쪽에 10장, 도련 3mm·재단 표시)
+GET  /api/admin/stores/{storeId}/print-kit          # 인쇄용 PDF (A6 4종 각 1쪽 + A4 스티커 판 1쪽에 10장, 도련 3mm·재단 표시)
 POST /api/admin/stores/{storeId}/poster/regenerate
 ```
 
 `GET /poster`는 PNG와 함께 `X-Poster-Public-Origin` 응답 헤더를 반환한다. 관리 화면은 이 값으로 안내물의 QR 주소를 표시하고 현재 접속 origin과 다르면 안내한다.
 
-`variant`는 생략하면 `GAME`(기본 안내물)이다. 2026-10-01부터 **세 종류 모두 요청 때 새로 그린다**(스티커·인쇄 PDF도 같다). 저장본에서 쓰는 것은 origin뿐이고, 현재 활성 QR 토큰과 합쳐 모든 안내물이 늘 같은 주소를 가리킨다. 그래서 디자인을 바꾸면 기존 매장도 다음 다운로드부터 새 디자인을 받는다. 알 수 없는 값은 400 `VALIDATION_ERROR`다. 어느 안내물에도 리뷰·별점을 참여 조건으로 적지 않는다.
+`variant`는 생략하면 `GAME`(기본 안내물)이다. 2026-10-01부터 **네 종류 모두 요청 때 새로 그린다**(스티커·인쇄 PDF도 같다). 저장본에서 쓰는 것은 origin뿐이고, 현재 활성 QR 토큰과 합쳐 모든 안내물이 늘 같은 주소를 가리킨다. 그래서 디자인을 바꾸면 기존 매장도 다음 다운로드부터 새 디자인을 받는다. 알 수 없는 값은 400 `VALIDATION_ERROR`다. 리뷰·별점을 참여 조건으로 적지 않는다. 예외는 `REVIEW`(네이버 리뷰 → 윷 → 상품)이며 별점·내용과 무관하다고 함께 적는다.
 
 - `GET`은 인증된 매장 관리자에게 `image/png` 첨부 파일을 반환한다.
 - `POST`는 현재 공개 origin, 현재 매장명, 활성 QR 토큰으로 서버 저장본을 다시 만든다.
