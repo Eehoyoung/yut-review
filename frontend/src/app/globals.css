@@ -2543,6 +2543,17 @@ body:has(.admin-login-screen)::before { display: none; }
   background: var(--danger);
 }
 
+/* 레일 없이 .admin-shell을 쓰는 화면(/admin 매장 선택, /admin/account, /admin/marketing-consents)은 위의 2열 그리드에서
+   헤더·패널이 236px 칸과 본문 칸에 번갈아 끼어 들어간다. 레일이 없으면 예전처럼 한 줄 세로 흐름으로 둔다. */
+.admin-shell:not(:has(> .admin-rail)) {
+  width: min(1080px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  padding: var(--s5) var(--s4) calc(var(--s7) + var(--safe-b));
+}
+.admin-shell:not(:has(> .admin-rail)) .admin-head .btn { white-space: nowrap; }
+
 /* ---------- 소담랩스 운영자 콘솔 (노트북 우선) ----------
   운영자는 거의 노트북 브라우저(1280~1536px, Windows 배율 125~150%)로 들어온다.
   손님·사장 화면의 54px 엄지 버튼과 30px 숫자를 그대로 쓰면 한 화면에 카드 하나 반이 들어가서

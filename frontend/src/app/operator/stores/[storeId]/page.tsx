@@ -10,7 +10,7 @@ import {
   STORE_STATUS_LABEL,
   STORE_STATUS_TONE,
 } from "@/features/admin/labels";
-import { formatBusinessNumber, formatPhone } from "@/features/normalize";
+import { formatBusinessNumber, formatPhone, formatTel } from "@/features/normalize";
 import { OperatorFrame } from "@/features/operator/OperatorFrame";
 import { CARE_ACTION_LABEL, PAYMENT_STATUS_LABEL, PAYMENT_STATUS_TONE, won } from "@/features/operator/labels";
 import { Dialog } from "@/features/ui/Dialog";
@@ -159,7 +159,7 @@ export default function OperatorStoreCarePage() {
               </div>
               <div className="list">
                 <Row label="매장명">{c.store.name}</Row>
-                <Row label="매장 전화">{c.store.phone ? formatPhone(c.store.phone) : "-"}</Row>
+                <Row label="매장 전화">{c.store.phone ? formatTel(c.store.phone) : "-"}</Row>
                 <Row label="주소">{c.store.address || <span className="error">주소 미입력</span>}</Row>
                 <Row label="지도 링크">
                   {c.store.naverPlaceUrl ? (
