@@ -104,27 +104,48 @@ enum PosterVariant { GAME, EVENT, REVISIT }
     }
 
     /**
-     * 인쇄소용 입점 키트 PDF. A6 3쪽(기본·이벤트·재방문) + 스티커 1쪽(수량 10매는 파일명과 문서 제목에 적는다).
-     * 쪽마다 MediaBox=BleedBox(재단+3mm), TrimBox(재단선)를 넣어 인쇄소가 재단 위치를 따로 묻지 않게 한다.
+     * 인쇄소용 입점 키트 PDF. A6 3쪽(기본·이벤트·재방문, 각 도련 3mm, TrimBox=재단선) + A4 스티커 판 1쪽(10장, 재단 표시).
+     * 스티커를 단품 1쪽으로 두면 수량을 파일명으로만 전해야 해서 1장만 인쇄되는 일이 생긴다. 판 그대로 10장이 찍힌다.
      * 색은 RGB다. CMYK 변환은 인쇄소 RIP에 맡긴다(오렌지가 약간 가라앉는다).
      */
     static byte[] printKitPdf(String storeName,String url,String tagline,PosterBrandTheme brand){
         try(PDDocument doc=new PDDocument();ByteArrayOutputStream out=new ByteArrayOutputStream()){
-            for(PosterVariant v:PosterVariant.values())addPage(doc,poster(v,storeName,url,tagline,Palette.of(v,brand),BLEED));
-            addPage(doc,sticker(storeName,url,Palette.of(PosterVariant.GAME,brand),BLEED));
+            for(PosterVariant v:PosterVariant.values())addPage(doc,poster(v,storeName,url,tagline,Palette.of(v,brand),BLEED),BLEED);
+            addPage(doc,stickerPrintSheet(storeName,url,Palette.of(PosterVariant.GAME,brand)),0);
             doc.getDocumentInformation().setTitle(storeName+" 입점 키트 — A6 안내물 3종 각 1매, 테이블 스티커 90×50mm "+STICKER_COUNT+"매");
             doc.getDocumentInformation().setCreator("소담한판");
             doc.save(out);return out.toByteArray();
         }catch(IOException e){throw new IllegalStateException("인쇄용 PDF 생성에 실패했습니다.",e);}
     }
-    private static void addPage(PDDocument doc,BufferedImage image) throws IOException{
-        float w=pt(image.getWidth()),h=pt(image.getHeight()),b=pt(BLEED);
+    /** bleed: 이미지 가장자리에서 재단선까지의 거리(px). A4 스티커 판은 각 스티커가 자기 도련을 가지므로 0(쪽 전체가 재단 기준). */
+    private static void addPage(PDDocument doc,BufferedImage image,int bleed) throws IOException{
+        float w=pt(image.getWidth()),h=pt(image.getHeight()),b=pt(bleed);
         PDPage page=new PDPage(new PDRectangle(w,h));page.setBleedBox(new PDRectangle(w,h));page.setTrimBox(new PDRectangle(b,b,w-2*b,h-2*b));
         var xobject=LosslessFactory.createFromImage(doc,image);
         try(var cs=new PDPageContentStream(doc,page)){cs.drawImage(xobject,0,0,w,h);}
         doc.addPage(page);
     }
     private static float pt(int px){return (float)(px*72/DPI);}
+
+    /**
+     * 인쇄소용 A4 한 판: 90×50mm 스티커 10장(2열×5행). 스티커마다 사방 3mm 도련을 붙여 서로 맞닿게 놓고
+     * (재단선 사이 6mm), 바깥 여백에 재단 표시를 그린다. 재단이 조금 어긋나도 흰 테두리가 생기지 않는다.
+     * 사장이 가위로 자르는 판(`stickerSheet`)은 도련 대신 회색 재단선을 그린 별도 그림이다.
+     */
+    private static BufferedImage stickerPrintSheet(String storeName,String url,Palette p){
+        BufferedImage one=sticker(storeName,url,p,BLEED);
+        int cellW=one.getWidth(),cellH=one.getHeight(),left=(SHEET_W-2*cellW)/2,top=(SHEET_H-5*cellH)/2;
+        BufferedImage sheet=new BufferedImage(SHEET_W,SHEET_H,BufferedImage.TYPE_INT_RGB);Graphics2D g=start(sheet);
+        g.setColor(PAPER);g.fillRect(0,0,SHEET_W,SHEET_H);
+        for(int i=0;i<STICKER_COUNT;i++)g.drawImage(one,left+(i%2)*cellW,top+(i/2)*cellH,null);
+        // 재단 표시: 도련 바깥 1mm 떨어져 5mm 길이. 재단선 위치마다 위·아래(세로선), 왼·오른쪽(가로선) 여백에 그린다.
+        g.setColor(Color.BLACK);g.setStroke(new BasicStroke(2));int gap=12,len=59,right=left+2*cellW,bottom=top+5*cellH;
+        for(int c=0;c<2;c++)for(int x:new int[]{left+c*cellW+BLEED,left+c*cellW+BLEED+STICKER_W}){
+            g.drawLine(x,top-gap-len,x,top-gap);g.drawLine(x,bottom+gap,x,bottom+gap+len);}
+        for(int r=0;r<5;r++)for(int y:new int[]{top+r*cellH+BLEED,top+r*cellH+BLEED+STICKER_H}){
+            g.drawLine(left-gap-len,y,left-gap,y);g.drawLine(right+gap,y,right+gap+len,y);}
+        g.dispose();return sheet;
+    }
 
     /**
      * 세 안내물은 같은 뼈대(상호 → 제목 두 줄 → 보조문 → QR 판 → 참여 3단계 → 하단 띠)이고 가운데 축 하나로 정렬한다.

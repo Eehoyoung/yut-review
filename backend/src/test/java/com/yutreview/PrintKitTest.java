@@ -34,11 +34,20 @@ class PrintKitTest {
         assertEquals(url,new MultiFormatReader().decode(new BinaryBitmap(new HybridBinarizer(new BufferedImageLuminanceSource(sheet)))).getText());
 
         try(var pdf=Loader.loadPDF(StorePosterService.printKitPdf("스티커상회",url,null,PosterBrandTheme.FOREST))){
-            assertEquals(4,pdf.getNumberOfPages(),"A6 3종 + 스티커 1쪽");
+            assertEquals(4,pdf.getNumberOfPages(),"A6 3종 + A4 스티커 판 1쪽");
             assertEquals(105,mm(pdf.getPage(0).getTrimBox().getWidth()),1);assertEquals(148,mm(pdf.getPage(0).getTrimBox().getHeight()),1);
             assertEquals(111,mm(pdf.getPage(0).getMediaBox().getWidth()),1);
-            assertEquals(90,mm(pdf.getPage(3).getTrimBox().getWidth()),1);assertEquals(50,mm(pdf.getPage(3).getTrimBox().getHeight()),1);
-            assertEquals(96,mm(pdf.getPage(3).getBleedBox().getWidth()),1);
+            // 스티커는 단품이 아니라 A4 한 판에 10장이다. 단품 1쪽이면 인쇄소가 1장만 뽑는다(실제로 그렇게 나왔다).
+            assertEquals(210,mm(pdf.getPage(3).getTrimBox().getWidth()),1);assertEquals(297,mm(pdf.getPage(3).getTrimBox().getHeight()),1);
+            assertEquals(210,mm(pdf.getPage(3).getMediaBox().getWidth()),1);
+            // 판을 300dpi로 다시 그려 2열×5행 칸을 하나씩 잘라 QR을 읽는다(칸 위치까지 맞아야 통과).
+            var page=new org.apache.pdfbox.rendering.PDFRenderer(pdf).renderImageWithDPI(3,300);
+            int cellW=StorePosterService.STICKER_W+2*StorePosterService.BLEED,cellH=StorePosterService.STICKER_H+2*StorePosterService.BLEED;
+            int left=(page.getWidth()-2*cellW)/2,top=(page.getHeight()-5*cellH)/2;
+            for(int i=0;i<StorePosterService.STICKER_COUNT;i++){
+                var cell=page.getSubimage(left+(i%2)*cellW,top+(i/2)*cellH,cellW,cellH);
+                assertEquals(url,new MultiFormatReader().decode(new BinaryBitmap(new HybridBinarizer(new BufferedImageLuminanceSource(cell)))).getText(),"스티커 "+(i+1));
+            }
         }
     }
 
