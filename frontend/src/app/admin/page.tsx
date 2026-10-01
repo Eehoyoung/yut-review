@@ -49,7 +49,7 @@ export default function Stores() {
         <h1>내 매장</h1>
         <div className="sheet-actions">{me.data?.role === "OPERATOR" && (
           <Link className="btn ghost btn-inline" href="/operator">운영자 콘솔</Link>
-        )}<Link className="btn ghost btn-inline" href="/admin/marketing-consents">문자 수신 설정</Link>{!adding && (
+        )}<Link className="btn ghost btn-inline" href="/admin/account">내 정보</Link><Link className="btn ghost btn-inline" href="/admin/marketing-consents">문자 수신 설정</Link>{!adding && (
           <button className="btn secondary btn-inline" onClick={() => setAdding(true)}>
             매장 추가
           </button>

@@ -73,6 +73,15 @@ final class Inputs {
         if(!p.matches("010\\d{8}"))throw new AppException("INVALID_PHONE","휴대폰 번호는 010으로 시작하는 숫자 11자리로 입력해 주세요.");
         return p;
     }
+    /**
+     * 매장 전화. 유선(02-123-4567, 031-123-4567), 휴대전화, 1588 같은 대표번호를 받는다. 숫자만 저장한다.
+     * 대표 연락처(`phone`, 휴대전화만)와 규칙이 다르다 — 가게 전화는 유선인 경우가 흔하다.
+     */
+    static String storePhone(String v){
+        String p=digits(v);
+        if(!p.matches("0\\d{8,10}|1[5-9]\\d{6}"))throw new AppException("INVALID_STORE_PHONE","매장 전화번호를 확인해 주세요. 예: 02-123-4567, 010-1234-5678, 1588-1234");
+        return p;
+    }
     static String businessNumber(String v){
         String b=digits(v);
         if(!b.matches("\\d{10}"))throw new AppException("INVALID_BUSINESS_NUMBER","사업자등록번호는 숫자 10자리로 입력해 주세요.");

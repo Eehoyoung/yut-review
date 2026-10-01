@@ -482,6 +482,23 @@ sh scripts/create-operator.sh admin@example.com    # 이메일 지정
 `.env.field-test`의 `PHONE_HMAC_SECRET`/`PHONE_ENCRYPTION_KEY`는 유지했으므로 파일은 그대로 쓰면 된다.
 운영 데이터가 생긴 뒤에는 이 방법을 쓸 수 없으니 그때는 마이그레이션 절차를 먼저 정해야 한다.
 
+## 매장 관리자가 스스로 고치는 정보 (2026-10-01)
+
+화면: `/admin/stores/{id}/settings`(매장 정보, 메뉴 "계정 > 매장 정보"), `/admin/account`(내 정보, 헤더 "내 정보").
+대시보드의 매장 설정 폼은 매장 정보 화면으로 옮겼고, 대시보드는 주소가 비었을 때 안내만 띄운다.
+
+| | 바꿀 수 없음(보기만) | 바꿀 수 있음 |
+|---|---|---|
+| 매장 | 매장명, 사업자등록번호, 대표자, 개업일자 | 주소(입점 키트 배송지), 매장 전화, 네이버 링크, (PRO) 안내물 문구·테마 |
+| 계정 | 이름, 이메일 | 대표 연락처, 비밀번호 — 둘 다 현재 비밀번호 확인 |
+
+- 매장명을 사장 API로 다시 열지 말 것. 인쇄해 보낸 안내물·스티커와 어긋난다(`STORE_NAME_LOCKED`). 상호 변경은 운영자 문의로 처리한다.
+- 대표 연락처는 계정 찾기(`AdminAccountRecovery`)의 본인 확인 값이다. 현재 비밀번호 확인을 빼지 말 것 —
+  열린 세션 하나로 복구 수단을 가로챌 수 있게 된다. 틀린 비밀번호는 `LoginAttemptLimiter`로 로그인과 같이 센다.
+- 매장 전화는 `Inputs.storePhone`(유선·대표번호 허용), 대표 연락처는 `Inputs.phone`(휴대전화만). 화면은 `normalize.ts`의 `isStorePhone`/`formatTel`.
+- 비밀번호를 바꿔도 이미 발급된 JWT는 만료까지 유효하다(토큰 폐기 목록이 없다).
+- 테스트: `OwnerProfileTest.java`, `features/normalize.test.ts`.
+
 ## 관리자 계정
 
 직원 PIN은 **쿠폰 사용 처리에만** 쓴다. 게임 시작에는 직원 확인이 없다(2일 쿨타임과 미사용 쿠폰

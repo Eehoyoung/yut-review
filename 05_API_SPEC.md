@@ -320,6 +320,33 @@ PUT /api/admin/stores/{storeId}
 ```
 
 `status`는 `PENDING_APPROVAL` / `ACTIVE` / `INACTIVE` / `REJECTED` 네 가지다.
+
+### 매장 정보 수정 (`PUT /api/admin/stores/{storeId}`, 2026-10-01)
+
+```json
+{ "phone": "02-123-4567", "address": "서울시 강남구 테헤란로 1, 2층", "naverPlaceUrl": "https://map.naver.com/...",
+  "posterTagline": "", "posterBrandTheme": "SODAM" }
+```
+
+- 보내지 않은 칸은 바꾸지 않는다. `address`를 빈 문자열로 보내면 지운다.
+- `phone`은 매장 전화다. 유선·휴대전화·대표번호(`0` + 8~10자리 또는 `15xx~19xx` + 4자리)를 받아 숫자만 저장한다. 아니면 400 `INVALID_STORE_PHONE`.
+- **매장명은 바꿀 수 없다.** `name`을 현재 값과 다르게 보내면 400 `STORE_NAME_LOCKED`(인쇄해 보낸 안내물·스티커와 같아야 한다).
+  같은 값이거나 빠져 있으면 통과한다. 사업자등록번호·대표자·개업일자는 이 API에 칸이 없다.
+- `GET /stores/{id}`는 보여 주기용으로 `businessNumber`, `representativeName`, `openingDate`(YYYYMMDD)를 함께 준다.
+
+### 내 정보 (매장 관리자 계정)
+
+```http
+GET /api/admin/me                 # email, name, phone(대표 연락처) 포함
+PUT /api/admin/me/phone           { "currentPassword": "...", "phone": "010-1234-5678" }
+PUT /api/admin/me/password        { "currentPassword": "...", "newPassword": "...", "newPasswordConfirm": "..." }
+```
+
+- 이름·이메일은 바꿀 수 없다. 대표 연락처는 계정 찾기·비밀번호 재설정의 본인 확인 값이라 **현재 비밀번호를 다시 확인**한다.
+- 틀리면 400 `CURRENT_PASSWORD_INVALID`. 로그인과 같은 한도(계정·IP별 분당 5회)로 세고 넘으면 429 `AUTH_RATE_LIMITED`.
+- 연락처는 휴대전화 규칙(`010` + 8자리, 아니면 400 `INVALID_PHONE`). 비밀번호는 가입과 같은 규칙(`PASSWORD_MISMATCH`/`WEAK_PASSWORD` 등),
+  지금과 같으면 400 `PASSWORD_SAME`. 이미 발급된 로그인 토큰은 만료(8시간)까지 유효하다.
+- 운영자(`OPERATOR`)는 403 `STORE_ADMIN_ONLY`(비밀번호 없이 OTP로만 로그인하는 계정이다).
 `approvalNote`는 상태가 `REJECTED`일 때 마지막 거부 사유가 채워지고, 그 밖에는 `""`다.
 값은 `stores`가 아니라 `store_approval_events`의 마지막 `REJECT` 행에서 읽는다.
 
