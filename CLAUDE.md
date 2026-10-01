@@ -214,6 +214,8 @@ CI와 로컬 테스트에서 네트워크 호출을 확실히 막을 때는 `AI_
   **서버에서 `--build`를 붙이지 말 것.** 2GB VM에서 Gradle 빌드가 운영 컨테이너와 메모리를 다툰다.
   `docker-compose.prod.yml`이 `build: !reset null`로 지워 둬서 붙여도 소스 빌드로 새지는 않는다.
   워크플로의 `platforms: linux/amd64`와 Lightsail 인스턴스 아키텍처는 항상 같이 움직여야 한다.
+- 자동 배포(2026-10-02): CI 테스트 통과 → sha 이미지 게시 → 서버 cron의 `scripts/deploy.sh`가 백업·교체·health·롤백.
+  sha 이미지 존재가 곧 "테스트 통과"의 신호이므로 `publish`의 `needs: test`를 빼지 말 것. 절차는 `10_DEPLOYMENT.md` "자동 배포".
 - nginx 설정은 파일 단위 bind mount다. 서버에서 `git pull`로 `nginx/production.conf`가 바뀌면 컨테이너는 옛 inode를 계속 본다.
   `nginx -s reload`로는 반영되지 않으므로 `up -d --no-deps --force-recreate nginx`로 재생성한다(2026-09-26 SEO 배포에서 확인).
 - 운영 스크립트: `scripts/generate-production-secrets.sh`(서버에서 키 생성, 화면에 찍지 않음),

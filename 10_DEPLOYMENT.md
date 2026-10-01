@@ -57,6 +57,30 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file .env.
 docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file .env.production up -d
 ```
 
+### 자동 배포 (2026-10-02)
+
+`main`에 머지되면 사람 손 없이 나간다. 흐름은 한 방향이다.
+
+1. GitHub Actions `publish-images`: 백엔드 `gradlew test`, 프런트 `lint`·`test` → 통과해야만 이미지 게시
+   (`latest` + `sha-<커밋 40자>`).
+2. 서버 cron이 2분마다 `scripts/deploy.sh` 실행: `origin/main`의 sha 이미지가 받아지면 DB 백업(`backups/`, 최근 14개)
+   → 그 커밋으로 checkout → `up -d` → nginx 설정이 바뀌었으면 nginx 재생성 → 관리 포트 health UP 대기(최대 3분).
+3. health가 안 뜨면 직전 커밋·이미지로 되돌리고 그 sha를 `.failed-sha`에 남겨 cron이 다시 잡지 않는다.
+
+서버가 끌어오는 방식이라 GitHub에 SSH 키를 두지 않고 22번도 관리자 IP 제한 그대로다. 서버 1회 설정:
+
+```bash
+# ubuntu 사용자가 docker 그룹이고 /opt/yutreview에서 git fetch가 되는 상태여야 한다.
+echo '*/2 * * * * ubuntu cd /opt/yutreview && sh scripts/deploy.sh >> /opt/yutreview/deploy.log 2>&1' \
+  | sudo tee /etc/cron.d/yutreview-deploy
+```
+
+- 수동 배포·롤백: `sh scripts/deploy.sh <sha>`. 실패 표시된 커밋도 인자로 주면 다시 시도한다.
+- 자동 배포 중지: `/etc/cron.d/yutreview-deploy` 삭제.
+- 서버 작업 트리는 detached HEAD로 배포된 커밋에 머문다. 서버에서 파일을 직접 고치면 checkout이 멈춘다(덮어쓰지 않는다).
+- 스키마는 되돌려지지 않는다. 롤백은 코드·이미지만이며, 데이터가 필요하면 `backups/`의 덤프를 쓴다.
+- 실패 알림은 없다. `deploy.log`를 본다.
+
 `git pull`이 여전히 필요한 것은 nginx 설정과 compose 파일이 이미지가 아니라 bind mount이기 때문이다.
 애플리케이션 코드는 이미지에서 온다.
 
