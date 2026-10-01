@@ -7,7 +7,7 @@ app:
   # 개발/field-test의 편의 기본값은 application.yml에 그대로 유지한다.
   business-verification:
     enabled: ${BUSINESS_VERIFICATION_ENABLED:true}
-  store-approval-required: ${STORE_APPROVAL_REQUIRED:true}
+  store-approval-required: ${STORE_APPROVAL_REQUIRED:false}
 
 management:
   # actuator는 관리 포트 8081에서만 열린다(8080 API 포트에는 없음). metrics는 운영 콘솔 collector용이며

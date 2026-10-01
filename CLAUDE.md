@@ -214,8 +214,7 @@ CI와 로컬 테스트에서 네트워크 호출을 확실히 막을 때는 `AI_
   **서버에서 `--build`를 붙이지 말 것.** 2GB VM에서 Gradle 빌드가 운영 컨테이너와 메모리를 다툰다.
   `docker-compose.prod.yml`이 `build: !reset null`로 지워 둬서 붙여도 소스 빌드로 새지는 않는다.
   워크플로의 `platforms: linux/amd64`와 Lightsail 인스턴스 아키텍처는 항상 같이 움직여야 한다.
-- 자동 배포(2026-10-02): CI 테스트 통과 → sha 이미지 게시 → 서버 cron의 `scripts/deploy.sh`가 백업·교체·health·롤백.
-  sha 이미지 존재가 곧 "테스트 통과"의 신호이므로 `publish`의 `needs: test`를 빼지 말 것. 절차는 `10_DEPLOYMENT.md` "자동 배포".
+- 자동 배포는 아래 "배포 자동화" 절.
 - nginx 설정은 파일 단위 bind mount다. 서버에서 `git pull`로 `nginx/production.conf`가 바뀌면 컨테이너는 옛 inode를 계속 본다.
   `nginx -s reload`로는 반영되지 않으므로 `up -d --no-deps --force-recreate nginx`로 재생성한다(2026-09-26 SEO 배포에서 확인).
 - 운영 스크립트: `scripts/generate-production-secrets.sh`(서버에서 키 생성, 화면에 찍지 않음),
@@ -318,13 +317,13 @@ DB를 버려도 되는 로컬이라면 `docker compose down -v` 후 새 키로 �
   띄운다. 할당량을 태우지 않고, 네트워크가 끊겨도 우리 코드와 무관하게 빨개지지 않으며, 무엇보다
   실제 사업자등록번호를 fixture에 넣지 않는다.
 
-## 매장 승인제 (2026-09-22 중단 → 2026-09-24 운영만 재가동)
+## 매장 승인제 (2026-09-22 중단 → 2026-09-24 운영만 재가동 → 2026-10-02 운영도 중단)
 
-`application.yml` 기본값은 **false**라 개발/field-test에서는 셀프 가입이 바로 `ACTIVE`로 열린다.
-**운영은 켜져 있다.** 2026-09-24 보안점검(H-01, `981244a`)이 `application-prod.yml` 기본값과
-`docker-compose.prod.yml`을 `STORE_APPROVAL_REQUIRED=true`로 고정했고 `ProductionSecurityConfigurationTest`가
-잠근다. 운영의 새 가입은 `PENDING_APPROVAL`로 들어와 운영자 콘솔 "매장"에서 승인한다.
-운영에서 끄려면 그 테스트와 compose 값을 함께 바꾸는 명시적 결정이 필요하다. 아래는 꺼 둔 환경의 규칙이다.
+모든 환경에서 **꺼져 있다.** 셀프 가입이 바로 `ACTIVE`로 열린다. 2026-10-02 사용자 결정으로
+`application-prod.yml` 기본값과 `docker-compose.prod.yml`을 `STORE_APPROVAL_REQUIRED=false`로 바꿨고
+`ProductionSecurityConfigurationTest`가 그 값을 잠근다. 운영의 국세청 진위확인(`BUSINESS_VERIFICATION_ENABLED=true`)은
+그대로 켜 둔다 — 승인을 끈 자리를 메우는 것이 그것이다. 끄기 전에 들어온 `PENDING_APPROVAL` 매장은 자동으로 열리지 않으니
+운영자 콘솔 "매장"에서 승인한다.
 
 - **기능을 지운 것이 아니라 꺼 둔 것이다.** 심사 화면·승인 API·감사 로그 전부 그대로 있고
   `STORE_APPROVAL_REQUIRED=true` 한 줄로 되돌아온다. `StoreApproval.java`를 지우지 말 것.
@@ -524,6 +523,30 @@ sh scripts/create-operator.sh admin@example.com    # 이메일 지정
 
 `admin_users.login_id` 컬럼은 `ddl-auto=update`가 못 지워서 nullable인 채로 DB에 남아 있다.
 쓰는 코드는 없다.
+
+## 배포 자동화 (2026-10-02)
+
+`main` 머지 → 사람 손 없이 운영 반영. 절차·서버 설정은 `10_DEPLOYMENT.md` "자동 배포".
+
+- `.github/workflows/publish-images.yml`: `test`(backend `gradlew test`, frontend `lint`·`test`) 통과 후에만 `publish`가
+  `latest` + `sha-<40자>` 이미지를 GHCR에 올린다.
+- 서버 `/etc/cron.d/yutreview-deploy`가 2분마다 `scripts/deploy.sh` 실행: `origin/main`의 sha 이미지를 받을 수 있으면
+  DB 백업(`backups/`, 최근 14개) → `git checkout --detach <sha>` → `up -d` → `nginx/` 변경 시 nginx 재생성 →
+  관리 포트(`127.0.0.1:18080/actuator/health`) UP 대기 최대 3분 → 실패 시 직전 커밋·이미지로 되돌리고 `.failed-sha` 기록.
+- 서버 상태 파일: `.deployed-sha`, `.failed-sha`, `backups/`, `deploy.log`(모두 gitignore).
+- 수동 배포·롤백: 서버에서 `sh scripts/deploy.sh <sha>`. 실패 표시된 커밋도 인자로 주면 다시 시도한다. 중지는 cron 파일 삭제.
+
+되돌리면 안 되는 지점:
+
+- `publish`의 `needs: test`를 빼지 말 것. sha 이미지가 있다는 것이 곧 "테스트 통과"의 신호라, 빼면 깨진 커밋이 운영에 나간다.
+- 끌어오는(pull) 방식을 GitHub → SSH 푸시로 바꾸지 말 것. GitHub Secrets에 서버 키를 두고 22번을 GitHub 대역에 열어야 한다.
+- 백업 확인은 덤프 **끝 20줄**에서 `dump complete`를 찾는다. PostgreSQL 17.6+는 그 뒤에 `\unrestrict <키>` 줄을 붙여서
+  `tail -n 3`일 때 백업이 항상 실패했다(2026-10-02 첫 서버 실행). sh에는 pipefail이 없어 이 확인이 pg_dump 실패를 잡는 유일한 장치다.
+- `.failed-sha` 확인을 빼지 말 것. 빼면 cron이 2분마다 같은 실패 커밋을 백업·배포·롤백하며 서비스를 흔든다.
+- `git reset --hard`로 바꾸지 말 것. 서버에서 직접 고친 파일이 있으면 checkout이 실패하고 멈추는 것이 의도다.
+- 본문을 `main()`으로 감싼 구조를 풀지 말 것. 실행 중에 checkout이 스크립트 파일 자체를 바꾼다.
+- 롤백은 코드·이미지만이다. 스키마(`ddl-auto=update`)는 되돌아가지 않으며 데이터는 `backups/` 덤프로 복구한다.
+- 실패 알림은 없다. `deploy.log`를 본다.
 
 ## 운영 콘솔(Sodam Ops Console) 연동 기록
 
