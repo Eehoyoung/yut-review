@@ -73,7 +73,7 @@ export default function Home() {
 
       <section className="landing-hero" aria-labelledby="hero-title">
         <div className="hero-message">
-          <h1 id="hero-title"><span className="hero-brand">소담한판</span>손님은 즐기고,<br />사장님은 <em>사용만</em><br />확인하세요</h1>
+          <h1 id="hero-title"><span className="hero-brand">소담한판</span>손님은 즐기고,<br />사장님은<br /><em>사용만</em> 확인하세요</h1>
           <p>매장에 비치한 QR로 손님이 참여하면 윷 결과에 따라 쿠폰이 발급됩니다. 직원은 쿠폰을 사용할 때 PIN으로 확인하면 됩니다.</p>
           <div className="hero-actions">
             <Link className="landing-choice landing-primary" href="/admin/signup">30일 무료로 매장등록</Link>
@@ -108,7 +108,7 @@ export default function Home() {
       </section>
 
       <section className="landing-section how-section" id="how" aria-labelledby="how-title">
-        <div className="how-copy"><h2 id="how-title">가입한 날,<br />첫 이벤트를 열 수 있습니다</h2><p>기본 상품과 확률이 준비되어 있습니다. 매장에 맞게 고치고 QR 안내물을 저장하면 시작입니다.</p><Link className="landing-text-link light" href="/admin/signup">내 매장 이벤트 만들기 <span aria-hidden="true">→</span></Link></div>
+        <div className="how-copy"><h2 id="how-title">가입한 날,<br />첫 이벤트를<br />열 수 있습니다</h2><p>기본 상품과 확률이 준비되어 있습니다. 매장에 맞게 고치고 QR 안내물을 저장하면 시작입니다.</p><Link className="landing-text-link" href="/admin/signup">내 매장 이벤트 만들기 <span aria-hidden="true">→</span></Link></div>
         <ol className="launch-steps">
           <li><b>1</b><div><strong>매장 등록</strong><span>계정과 첫 매장을 함께 만듭니다.</span></div></li>
           <li><b>2</b><div><strong>상품·확률 확인</strong><span>기본 설정을 그대로 쓰거나 매장에 맞게 바꿉니다.</span></div></li>
@@ -125,7 +125,7 @@ export default function Home() {
       </section>
 
       <section className="landing-section pricing-section" id="pricing" aria-labelledby="pricing-title">
-        <div className="section-heading compact"><h2 id="pricing-title">게임은 어떤 요금제에서도 같습니다</h2><p>QR 이벤트, 상품·확률 설정, 쿠폰, 직원 PIN과 참여 제한은 모든 요금제에 포함됩니다. 차이는 기록 보관 기간과 브랜딩·AI 운영 기능입니다.</p></div>
+        <div className="section-heading compact"><h2 id="pricing-title">게임은<br />어떤 요금제에서도<br />같습니다</h2><p>QR 이벤트, 상품·확률 설정, 쿠폰, 직원 PIN과 참여 제한은 모든 요금제에 포함됩니다. 차이는 기록 보관 기간과 브랜딩·AI 운영 기능입니다.</p></div>
         <div className="price-line" aria-label="월 요금제">
           <div><span>BASIC</span><strong>9,900원<small>/월</small></strong><em>기본 집계·AI 매장 분석</em></div>
           <div><span>STANDARD</span><strong>14,900원<small>/월</small></strong><em>365일 기록·CSV</em></div>
