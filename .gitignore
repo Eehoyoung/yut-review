@@ -26,3 +26,8 @@ designs/
 output/admin-console-report.html
 output/visualizations/
 output/pdf/*3단접지*
+
+# scripts/deploy.sh 서버 상태·백업
+.deployed-sha
+.failed-sha
+backups/
