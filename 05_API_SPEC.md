@@ -734,7 +734,7 @@ POST /api/operator/stores/{storeId}/qr/regenerate         # 운영자 전용
 ```http
 GET  /api/admin/stores/{storeId}/poster?variant=GAME|EVENT|REVISIT
 GET  /api/admin/stores/{storeId}/sticker-sheet      # 테이블 스티커 90×50mm 10칸, A4 PNG
-GET  /api/admin/stores/{storeId}/print-kit          # 인쇄용 PDF (A6 3종 + 스티커, 도련 3mm)
+GET  /api/admin/stores/{storeId}/print-kit          # 인쇄용 PDF (A6 3종 각 1쪽 + A4 스티커 판 1쪽에 10장, 도련 3mm·재단 표시)
 POST /api/admin/stores/{storeId}/poster/regenerate
 ```
 
