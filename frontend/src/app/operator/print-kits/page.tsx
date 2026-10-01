@@ -67,7 +67,7 @@ export default function PrintKitsPage() {
   return (
     <OperatorFrame title="입점 키트">
       <p className="lead">
-        A6 안내물 4종(기본·이벤트·재방문·네이버 리뷰) 각 1매와 테이블 스티커(90×50mm) 10매를 인쇄해 보내는 곳이에요. PDF를
+        A6 안내물 4종(기본·이벤트·재방문·리뷰 부탁) 각 1매와 테이블 스티커(90×50mm) 10매를 인쇄해 보내는 곳이에요. PDF를
         인쇄소에 그대로 보내면 됩니다.
       </p>
 

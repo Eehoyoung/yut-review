@@ -16,7 +16,7 @@ const variants: { value: Variant; label: string; hint: string }[] = [
   { value: "GAME", label: "기본", hint: "윷 한 판 던지고 쿠폰 받아 가세요. 언제 붙여도 좋은 기본 안내물이에요." },
   { value: "EVENT", label: "이벤트", hint: "만나서 반가워요. 깜짝 선물 받아 가세요. 이벤트 기간에 눈에 띄게 붙이기 좋아요." },
   { value: "REVISIT", label: "재방문", hint: "오늘 즐거우셨나요? 계산대나 출입문처럼 다시 오실 분이 보는 자리에 어울려요." },
-  { value: "REVIEW", label: "네이버 리뷰", hint: "네이버 리뷰 쓰고 윷 던져 상품 받기. 별점·내용과 관계없이 참여할 수 있다고 함께 적혀 있어요." },
+  { value: "REVIEW", label: "리뷰 부탁", hint: "누구나 바로 윷을 던지고, 하단에 네이버 리뷰를 따로 부탁해요. 리뷰는 참여 조건이 아니에요." },
   { value: "STICKER", label: "테이블 스티커", hint: "90×50mm 스티커 10장이 A4 한 장에 들어 있어요. 라벨지에 뽑거나 회색 선을 따라 잘라 테이블에 붙이세요." },
 ];
 
