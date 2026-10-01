@@ -59,7 +59,14 @@ class AnalyticsService {
     Map<String, Object> detailed(Long storeId, LocalDate from, LocalDate to) {
         Plan plan = subscriptions.planOf(storeId);
         entitlements.require(plan, Entitlement.ADVANCED_ANALYTICS);
-        AiContextService.Window w = context.window(plan, from, to);
+        return report(storeId, plan, context.window(plan, from, to));
+    }
+
+    /**
+     * 상세 분석 본문. 요금제 확인은 부르는 쪽 몫이다. 운영자가 사장 대신 통계를 뽑을 때는
+     * 요금제와 무관하게 PRO 구간 규칙으로 부른다({@link OperatorStoreCareService}).
+     */
+    Map<String, Object> report(Long storeId, Plan plan, AiContextService.Window w) {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("window", Map.of("from", w.from().toString(), "to", w.to().toString(),
                 "clampedByPlanRetention", w.clampedByPlan()));
@@ -83,8 +90,11 @@ class AnalyticsService {
     String dailyCsv(Long storeId, LocalDate from, LocalDate to) {
         Plan plan = subscriptions.planOf(storeId);
         entitlements.require(plan, Entitlement.CSV_EXPORT);
-        AiContextService.Window w = context.window(plan, from, to);
+        return dailyCsv(storeId, context.window(plan, from, to));
+    }
 
+    /** 요금제 확인 없이 구간만 받는다. 매장 관리자 경로는 위의 메서드만 쓴다. */
+    String dailyCsv(Long storeId, AiContextService.Window w) {
         StringWriter out = new StringWriter();
         // 엑셀이 UTF-8을 알아보게 BOM을 붙인다. 없으면 한글 머리글이 깨진 채로 열린다.
         out.write('﻿');
@@ -103,8 +113,11 @@ class AnalyticsService {
     String prizeCsv(Long storeId, LocalDate from, LocalDate to) {
         Plan plan = subscriptions.planOf(storeId);
         entitlements.require(plan, Entitlement.CSV_EXPORT);
-        AiContextService.Window w = context.window(plan, from, to);
+        return prizeCsv(storeId, context.window(plan, from, to));
+    }
 
+    /** 요금제 확인 없이 구간만 받는다. 매장 관리자 경로는 위의 메서드만 쓴다. */
+    String prizeCsv(Long storeId, AiContextService.Window w) {
         StringWriter out = new StringWriter();
         out.write('﻿');
         out.write("등급,상품명,쿠폰발급,쿠폰사용,사용률(%)\n");

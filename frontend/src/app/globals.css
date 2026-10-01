@@ -2542,3 +2542,164 @@ body:has(.admin-login-screen)::before { display: none; }
 .weekday-fill[data-tone="bad"] {
   background: var(--danger);
 }
+
+/* 레일 없이 .admin-shell을 쓰는 화면(/admin 매장 선택, /admin/account, /admin/marketing-consents)은 위의 2열 그리드에서
+   헤더·패널이 236px 칸과 본문 칸에 번갈아 끼어 들어간다. 레일이 없으면 예전처럼 한 줄 세로 흐름으로 둔다. */
+.admin-shell:not(:has(> .admin-rail)) {
+  width: min(1080px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  padding: var(--s5) var(--s4) calc(var(--s7) + var(--safe-b));
+}
+.admin-shell:not(:has(> .admin-rail)) .admin-head .btn { white-space: nowrap; }
+
+/* ---------- 소담랩스 운영자 콘솔 (노트북 우선) ----------
+  운영자는 거의 노트북 브라우저(1280~1536px, Windows 배율 125~150%)로 들어온다.
+  손님·사장 화면의 54px 엄지 버튼과 30px 숫자를 그대로 쓰면 한 화면에 카드 하나 반이 들어가서
+  스크롤만 길어진다. 여기서는 컨트롤을 36~38px, 본문을 14px로 줄이고 카드를 옆으로 늘어놓는다.
+  `.admin-shell`의 레일·색 토큰은 그대로 쓰고 밀도만 바꾼다. */
+
+.op-console {
+  width: 100%;
+  grid-template-columns: 200px minmax(0, 1fr);
+  font-size: 14px;
+}
+
+.op-console .admin-rail { padding: 20px 12px; }
+.op-brand { display: grid; gap: 2px; padding: 4px 10px; color: #fff; text-decoration: none; }
+.op-brand b { font-size: 16px; font-weight: 800; letter-spacing: -.02em; }
+.op-brand small { color: #b9c4d1; font-size: 12px; font-weight: 600; }
+.op-console .admin-nav { margin-top: 24px; gap: 18px; }
+.op-console .admin-nav a { min-height: 36px; padding: 7px 10px; font-size: 14px; }
+
+.op-console .admin-workspace { padding: 18px clamp(16px, 2.4vw, 32px) 40px; }
+.op-console .admin-head { min-height: 0; padding-bottom: 12px; align-items: center; }
+.op-console .admin-head h1 { font-size: 22px; }
+.op-head-actions { display: flex; align-items: center; gap: 10px; }
+.op-head-actions .pill { font-variant-numeric: tabular-nums; }
+
+.op-content {
+  width: min(100%, 1400px);
+  padding-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.op-content h2 { font-size: 16px; color: var(--admin-navy); font-weight: 800; letter-spacing: -.02em; }
+.op-content .lead { font-size: 14px; line-height: 1.55; max-width: 72em; color: var(--admin-muted); }
+.op-content .hint { font-size: 12.5px; color: var(--admin-muted); }
+
+.op-content .panel {
+  padding: 16px 18px;
+  border-color: var(--admin-line);
+  border-radius: 12px;
+  box-shadow: none;
+}
+
+.op-console .btn { min-height: 36px; padding: 6px 14px; font-size: 14px; font-weight: 750; border-radius: 9px; }
+.op-console .btn:not(.secondary):not(.ghost) { background: var(--admin-orange); }
+.op-console .btn:active { transform: none; }
+.op-console .btn-inline { width: auto; }
+.op-console .actions .btn { min-height: 36px; }
+.op-console .sheet-actions { gap: 8px; flex-wrap: wrap; align-items: center; }
+.op-console .btn { white-space: nowrap; }
+/* 넓은 화면에서 버튼 하나가 카드 폭 전체로 늘어나면 경고 띠처럼 보인다. 대화상자 안에서만 반씩 나눈다. */
+.op-content .sheet-actions .btn { flex: 0 0 auto; }
+.op-console .dialog .sheet-actions .btn { flex: 1; }
+
+.op-console .field { gap: 4px; }
+.op-console .field label { font-size: 12.5px; }
+.op-console .field input,
+.op-console .field select,
+.op-console .field textarea,
+.op-console .sheet-actions > select {
+  min-height: 36px;
+  padding: 6px 10px;
+  font-size: 14px;
+  border: 1px solid var(--line-control);
+  border-radius: 9px;
+  background: var(--admin-paper);
+  color: inherit;
+}
+.op-console .field textarea { min-height: 80px; }
+
+/* 필터·검색 폼은 한 줄로 선다. 라벨 위, 입력 아래 구조는 그대로 둔다. */
+/* 화면 폭 전체로 늘어난 select는 어디까지가 컨트롤인지 흐려진다. */
+.op-content > .field { max-width: 420px; }
+
+.op-toolbar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
+.op-toolbar .field { min-width: 180px; }
+.op-toolbar .field:has(input) { flex: 1 1 280px; max-width: 420px; }
+.op-toolbar .sheet-actions { flex-wrap: nowrap; }
+
+.op-content .list-item { min-height: 34px; padding: 6px 0; gap: 16px; font-size: 14px; }
+.op-content .list-item > .lead:first-child { flex: none; font-size: 13px; }
+.op-content .list-item > .name { text-align: right; overflow-wrap: anywhere; }
+
+.op-content .stats { border-color: var(--admin-line); background: var(--admin-line); border-radius: 12px; }
+.op-content .stats > div { padding: 10px 14px; }
+.op-content .stats dt { font-size: 12.5px; color: var(--admin-muted); font-weight: 650; }
+.op-content .stats dd { margin-top: 2px; font-size: 22px; color: var(--admin-navy); }
+.op-content .stats dd small { margin-left: 6px; font-size: 12px; font-weight: 600; letter-spacing: 0; }
+.op-card .stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.op-card .stats > div { padding: 8px 12px; }
+.op-card .stats dd { font-size: 18px; }
+@media (max-width: 560px) { .op-card .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+.op-content .table-wrap { padding: 0; border: 1px solid var(--admin-line); border-radius: 10px; background: var(--admin-paper); }
+.op-content .table { font-size: 13.5px; }
+.op-content .table th { padding: 8px 12px; background: #f1efec; color: var(--admin-muted); font-size: 12.5px; font-weight: 700; }
+.op-content .table td { padding: 8px 12px; vertical-align: middle; }
+
+.op-content .weekday-row { min-height: 22px; font-size: 13px; }
+.op-content .weekday-fill { background: #6c7f93; }
+.op-content .pill { padding: 3px 9px; font-size: 12px; }
+.op-content details > summary { cursor: pointer; font-size: 13px; font-weight: 700; color: var(--admin-navy-soft); }
+
+/* 화면을 두 칸으로 나눠 쓰는 구역. 좁아지면 저절로 한 칸이 된다. */
+.op-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
+  gap: 14px;
+  align-items: start;
+}
+.op-grid > .op-span { grid-column: 1 / -1; }
+
+/* 매장·입점 키트 카드 목록 */
+.op-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr));
+  gap: 14px;
+  align-items: start;
+}
+.op-card { gap: 10px; }
+.op-card h2 { overflow-wrap: anywhere; }
+
+/* 노트북에서 바텀시트는 화면 아래 끝까지 눈을 끌고 간다. 가운데 모달로 띄운다. */
+@media (min-width: 901px) {
+  .op-console .dialog {
+    inset: 0;
+    margin: auto;
+    height: fit-content;
+    width: min(480px, calc(100% - 32px));
+    border: 1px solid var(--admin-line);
+    border-radius: 14px;
+    padding: 20px;
+  }
+  .op-console .dialog::before { display: none; }
+}
+
+@media (max-width: 900px) {
+  .op-console .admin-head { flex-wrap: wrap; }
+  .op-console .admin-mobile-menu .admin-nav-group p { color: var(--admin-orange); }
+}
+
+/* 운영자 사업 지표의 일별 막대. 단일 계열이라 범례 없이 제목이 이름이고, 값은 막대 title과 표에서 본다. */
+.op-chart { margin: 0; display: grid; gap: 6px; }
+.op-chart figcaption { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 13px; }
+.op-chart svg { width: 100%; height: 96px; display: block; border-bottom: 1px solid var(--admin-line); }
+.op-chart rect { fill: #6c7f93; }
+.op-chart rect:hover { fill: var(--admin-navy); }
+.op-chart-axis { display: flex; justify-content: space-between; font-size: 11.5px; font-variant-numeric: tabular-nums; }

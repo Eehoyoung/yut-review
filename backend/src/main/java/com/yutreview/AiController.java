@@ -196,6 +196,12 @@ class SubscriptionController {
             if(trialStartedAt!=null)out.put("trialStartedAt",trialStartedAt);
             if(trialEndedAt!=null)out.put("trialEndedAt",trialEndedAt);
             out.put("note", s.note == null ? "" : s.note);
+            // 운영자 보상 등급. 청구 등급과 다를 수 있어서 따로 알려 준다(청구는 여전히 기본 등급).
+            if (s.complimentaryPlan != null && s.complimentaryUntil != null && clock.instant().isBefore(s.complimentaryUntil)) {
+                out.put("complimentaryPlan", s.complimentaryPlan.name());
+                out.put("complimentaryUntil", s.complimentaryUntil);
+                out.put("billingPlan", s.plan.name());
+            }
         });
         return out;
     }

@@ -34,6 +34,9 @@ interface StoreRepository extends JpaRepository<Store,Long> {
     boolean existsByBusinessNumber(String businessNumber);
     long countByStatus(StoreStatus status);
     Page<Store> findByStatus(StoreStatus status,Pageable pageable);
+    /** 운영자 매장 찾기. 전화를 받으며 상호나 사업자등록번호 일부로 찾는다. digits가 3자리 미만이면 부르는 쪽이 매칭되지 않는 값을 넘긴다. */
+    @Query("select s from Store s where (lower(s.name) like :name or s.businessNumber like :digits) and (:status is null or s.status = :status)")
+    Page<Store> search(@Param("name") String name,@Param("digits") String digits,@Param("status") StoreStatus status,Pageable pageable);
     @Lock(LockModeType.PESSIMISTIC_WRITE) @Query("select s from Store s where s.id=:id") Optional<Store> findForUpdate(@Param("id") Long id);
 }
 interface MembershipRepository extends JpaRepository<AdminStoreMembership,Long> {
@@ -67,6 +70,7 @@ interface StoreSubscriptionRepository extends JpaRepository<StoreSubscription,Lo
 interface SubscriptionPaymentRepository extends JpaRepository<SubscriptionPayment,Long> {
     List<SubscriptionPayment> findTop12ByStoreIdOrderByCreatedAtDesc(Long storeId);
     Optional<SubscriptionPayment> findByPaymentId(String paymentId);
+    Page<SubscriptionPayment> findByStoreIdOrderByCreatedAtDesc(Long storeId,Pageable pageable);
 }
 interface AiMonthlyQuotaRepository extends JpaRepository<AiMonthlyQuota,Long> {
     Optional<AiMonthlyQuota> findByStoreIdAndFeatureAndQuotaMonth(Long storeId,AiFeature feature,String quotaMonth);

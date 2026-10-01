@@ -80,12 +80,13 @@ interface OperatorAuditEventRepository extends JpaRepository<OperatorAuditEvent,
 @Service class OperatorAccountService {
     private final AdminUserRepository admins;private final MembershipRepository memberships;
     private final OperatorAuditEventRepository audits;private final StoreApprovalEventRepository approvalEvents;
+    private final StoreCareEventRepository careEvents;
     private final PasswordEncoder encoder;private final Clock clock;
     OperatorAccountService(AdminUserRepository admins,MembershipRepository memberships,
         OperatorAuditEventRepository audits,StoreApprovalEventRepository approvalEvents,
-        PasswordEncoder encoder,Clock clock){
+        StoreCareEventRepository careEvents,PasswordEncoder encoder,Clock clock){
         this.admins=admins;this.memberships=memberships;this.audits=audits;
-        this.approvalEvents=approvalEvents;this.encoder=encoder;this.clock=clock;
+        this.approvalEvents=approvalEvents;this.careEvents=careEvents;this.encoder=encoder;this.clock=clock;
     }
 
     @Transactional(readOnly=true) AdminController.PageView<Map<String,Object>> list(String query,int page,int size){
@@ -149,7 +150,7 @@ interface OperatorAuditEventRepository extends JpaRepository<OperatorAuditEvent,
     }
 
     /**
-     * 매장 심사와 계정 변경을 한 줄로 합친 활동 피드.
+     * 매장 심사·계정 변경·매장 지원(정보 수정, 결제일 연기, 보상 등급, 통계 추출)을 한 줄로 합친 활동 피드.
      *
      * 두 테이블을 합치는 것은 메모리에서 한다. 각각 상한이 걸린 최근 목록이고 운영자 동작은
      * 하루 수십 건 규모다. 여기에 UNION 뷰나 공통 상위 테이블을 만들면 스키마만 복잡해진다.
@@ -175,6 +176,17 @@ interface OperatorAuditEventRepository extends JpaRepository<OperatorAuditEvent,
             item.put("target",e.store==null?null:e.store.name);
             item.put("storeId",e.store==null?null:e.store.id);
             item.put("note",e.note);
+            item.put("createdAt",e.createdAt);
+            out.add(item);
+        }
+        for(StoreCareEvent e:careEvents.findTop200ByOrderByCreatedAtDescIdDesc()){
+            Map<String,Object> item=new LinkedHashMap<>();
+            item.put("kind","SUPPORT");
+            item.put("action",e.action.name());
+            item.put("actor",e.actorEmail);
+            item.put("target",e.storeName);
+            item.put("storeId",e.store==null?null:e.store.id);
+            item.put("note",e.detail==null||e.detail.isBlank()?e.reason:e.reason+" — "+e.detail);
             item.put("createdAt",e.createdAt);
             out.add(item);
         }

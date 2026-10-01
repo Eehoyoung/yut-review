@@ -178,53 +178,55 @@ export default function OperatorAccountsPage() {
         </section>
       )}
 
-      {admins.data?.content.map((a) => {
-        const isOperator = a.role === "OPERATOR";
-        const isMe = me.data?.email === a.email;
-        return (
-          <section className="panel stack" key={a.id}>
-            <div className="row">
-              <h2>{a.name}</h2>
-              <span className="pill" data-tone={isOperator ? "brand" : "muted"}>
-                {isOperator ? "운영자" : "매장 관리자"}
-              </span>
-            </div>
-            <div className="list">
-              <div className="list-item">
-                <span className="lead">이메일</span>
-                <span className="name wrap-anywhere">{a.email}</span>
+      <div className="op-cards">
+        {admins.data?.content.map((a) => {
+          const isOperator = a.role === "OPERATOR";
+          const isMe = me.data?.email === a.email;
+          return (
+            <section className="panel stack op-card" key={a.id}>
+              <div className="row">
+                <h2>{a.name}</h2>
+                <span className="pill" data-tone={isOperator ? "brand" : "muted"}>
+                  {isOperator ? "운영자" : "매장 관리자"}
+                </span>
               </div>
-              <div className="list-item">
-                <span className="lead">매장</span>
-                <span className="name">{a.storeCount}곳</span>
+              <div className="list">
+                <div className="list-item">
+                  <span className="lead">이메일</span>
+                  <span className="name wrap-anywhere">{a.email}</span>
+                </div>
+                <div className="list-item">
+                  <span className="lead">매장</span>
+                  <span className="name">{a.storeCount}곳</span>
+                </div>
+                <div className="list-item">
+                  <span className="lead">가입</span>
+                  <span className="name">{new Date(a.createdAt).toLocaleString("ko-KR")}</span>
+                </div>
               </div>
-              <div className="list-item">
-                <span className="lead">가입</span>
-                <span className="name">{new Date(a.createdAt).toLocaleString("ko-KR")}</span>
-              </div>
-            </div>
 
-            {isMe && <p className="notice">내 계정입니다. 자신의 운영자 권한은 회수할 수 없습니다.</p>}
+              {isMe && <p className="notice">내 계정입니다. 자신의 운영자 권한은 회수할 수 없습니다.</p>}
 
-            <div className="sheet-actions">
-              {isOperator ? (
-                <button
-                  type="button"
-                  className="btn secondary btn-inline"
-                  disabled={isMe}
-                  onClick={() => setSheet({ kind: "revoke", admin: a })}
-                >
-                  운영자 권한 회수
-                </button>
-              ) : (
-                <button type="button" className="btn btn-inline" onClick={() => setSheet({ kind: "grant", admin: a })}>
-                  운영자 권한 부여
-                </button>
-              )}
-            </div>
-          </section>
-        );
-      })}
+              <div className="sheet-actions">
+                {isOperator ? (
+                  <button
+                    type="button"
+                    className="btn secondary btn-inline"
+                    disabled={isMe}
+                    onClick={() => setSheet({ kind: "revoke", admin: a })}
+                  >
+                    운영자 권한 회수
+                  </button>
+                ) : (
+                  <button type="button" className="btn btn-inline" onClick={() => setSheet({ kind: "grant", admin: a })}>
+                    운영자 권한 부여
+                  </button>
+                )}
+              </div>
+            </section>
+          );
+        })}
+      </div>
 
       <ActivityPager page={page} totalPages={admins.data?.totalPages ?? 0} onChange={setPage} />
 

@@ -80,7 +80,7 @@ export default function PrintKitsPage() {
         ))}
       </dl>
 
-      <form className="stack" onSubmit={search} role="search">
+      <form className="op-toolbar" onSubmit={search} role="search">
         <div className="field">
           <label htmlFor="print-kit-query">매장명 또는 사업자등록번호</label>
           <input
@@ -113,7 +113,7 @@ export default function PrintKitsPage() {
           {query && (
             <button
               type="button"
-              className="btn ghost"
+              className="btn ghost btn-inline"
               onClick={() => {
                 setDraft("");
                 setQuery("");
@@ -123,7 +123,7 @@ export default function PrintKitsPage() {
               검색 지우기
             </button>
           )}
-          <button type="submit" className="btn">
+          <button type="submit" className="btn btn-inline">
             검색
           </button>
         </div>
@@ -157,70 +157,72 @@ export default function PrintKitsPage() {
         </section>
       )}
 
-      {kits.data?.content.map((k) => (
-        <section className="panel stack" key={k.storeId}>
-          <div className="row">
-            <h2>{k.name}</h2>
-            <span className="pill" data-tone={PRINT_KIT_STATUS_TONE[k.status]}>
-              {PRINT_KIT_STATUS_LABEL[k.status]}
-            </span>
-          </div>
-          <div className="list">
-            <div className="list-item">
-              <span className="lead">사업자등록번호</span>
-              <span className="name">{formatBusinessNumber(k.businessNumber)}</span>
-            </div>
-            <div className="list-item">
-              <span className="lead">받는 분</span>
-              <span className="name">
-                {k.representativeName || k.ownerName} · {formatPhone(k.ownerPhone || k.storePhone)}
+      <div className="op-cards">
+        {kits.data?.content.map((k) => (
+          <section className="panel stack op-card" key={k.storeId}>
+            <div className="row">
+              <h2>{k.name}</h2>
+              <span className="pill" data-tone={PRINT_KIT_STATUS_TONE[k.status]}>
+                {PRINT_KIT_STATUS_LABEL[k.status]}
               </span>
             </div>
-            <div className="list-item">
-              <span className="lead">매장 주소</span>
-              {/* 가입 때 주소를 받지 않는다. 비어 있으면 발송 전에 사장에게 받아야 한다. */}
-              <span className={k.address ? "name" : "error"}>{k.address || "주소 미입력 — 발송 전 확인 필요"}</span>
-            </div>
-            <div className="list-item">
-              <span className="lead">매장 전화</span>
-              <span className="name">{formatPhone(k.storePhone)}</span>
-            </div>
-            {k.statusUpdatedAt && (
+            <div className="list">
               <div className="list-item">
-                <span className="lead">마지막 변경</span>
+                <span className="lead">사업자등록번호</span>
+                <span className="name">{formatBusinessNumber(k.businessNumber)}</span>
+              </div>
+              <div className="list-item">
+                <span className="lead">받는 분</span>
                 <span className="name">
-                  {new Date(k.statusUpdatedAt).toLocaleString("ko-KR")} · {k.statusUpdatedBy}
+                  {k.representativeName || k.ownerName} · {formatPhone(k.ownerPhone || k.storePhone)}
                 </span>
               </div>
-            )}
-          </div>
-          <div className="sheet-actions">
-            <label className="visually-hidden" htmlFor={`kit-status-${k.storeId}`}>
-              {k.name} 진행 단계
-            </label>
-            <select
-              id={`kit-status-${k.storeId}`}
-              value={k.status}
-              disabled={change.isPending}
-              onChange={(e) => change.mutate({ storeId: k.storeId, next: e.target.value as PrintKitStatus, name: k.name })}
-            >
-              {STATUSES.map((s) => (
-                <option key={s} value={s}>
-                  {PRINT_KIT_STATUS_LABEL[s]}
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              className="btn"
-              disabled={downloading === k.storeId}
-              onClick={() => pdf(k.storeId, k.name)}
-            >
-              {downloading === k.storeId ? "PDF 만드는 중" : "PDF 저장"}
-            </button>
-          </div>
-        </section>
-      ))}
+              <div className="list-item">
+                <span className="lead">매장 주소</span>
+                {/* 가입 때 주소를 받지 않는다. 비어 있으면 발송 전에 사장에게 받아야 한다. */}
+                <span className={k.address ? "name" : "error"}>{k.address || "주소 미입력 — 발송 전 확인 필요"}</span>
+              </div>
+              <div className="list-item">
+                <span className="lead">매장 전화</span>
+                <span className="name">{formatPhone(k.storePhone)}</span>
+              </div>
+              {k.statusUpdatedAt && (
+                <div className="list-item">
+                  <span className="lead">마지막 변경</span>
+                  <span className="name">
+                    {new Date(k.statusUpdatedAt).toLocaleString("ko-KR")} · {k.statusUpdatedBy}
+                  </span>
+                </div>
+              )}
+            </div>
+            <div className="sheet-actions">
+              <label className="visually-hidden" htmlFor={`kit-status-${k.storeId}`}>
+                {k.name} 진행 단계
+              </label>
+              <select
+                id={`kit-status-${k.storeId}`}
+                value={k.status}
+                disabled={change.isPending}
+                onChange={(e) => change.mutate({ storeId: k.storeId, next: e.target.value as PrintKitStatus, name: k.name })}
+              >
+                {STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {PRINT_KIT_STATUS_LABEL[s]}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                className="btn btn-inline"
+                disabled={downloading === k.storeId}
+                onClick={() => pdf(k.storeId, k.name)}
+              >
+                {downloading === k.storeId ? "PDF 만드는 중" : "PDF 저장"}
+              </button>
+            </div>
+          </section>
+        ))}
+      </div>
 
       {kits.data && <ActivityPager page={kits.data.page} totalPages={kits.data.totalPages} onChange={setPage} />}
     </OperatorFrame>

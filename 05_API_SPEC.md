@@ -1012,3 +1012,26 @@ GET /api/operator/print-kits/{storeId}/pdf
 - 목록 응답은 페이지 필드에 `counts`(상태별 매장 수)가 더해진다. 행이 없는 매장은 `WAITING`이다.
 - `PUT`은 멱등이며 `statusUpdatedBy`에 바꾼 운영자 이메일을 동결한다.
 - ACTIVE가 아닌 매장은 409 `STORE_NOT_ACTIVE`, 활성 QR이 없으면 400 `QR_TOKEN_INVALID`.
+
+## 매장 지원·결제 원장·사업 지표 (운영자, 2026-10-01)
+
+모두 `/api/operator/**`(운영자 OTP 세션 + `OPERATOR` 역할). 매장 운영 설정(상품·확률·쿠폰·직원 PIN·쿠폰 기한)은
+읽지도 쓰지도 않는다. 쓰기는 전부 `reason`(1~200자)이 필수이고 `operator_store_actions`에 남으며 활동 기록 피드에
+`kind: "SUPPORT"`로 합쳐진다.
+
+| 메서드 · 경로 | 내용 |
+|---|---|
+| `GET /stores?q=` | 기존 목록에 검색 추가. 상호 일부 또는 사업자등록번호 숫자 3자리 이상 |
+| `GET /stores/{id}/care` | 상담 화면: `store`, `members`, `subscription`, `payments`(최근 50), `usage`(+`last30Days`), `careLog`(최근 100) |
+| `PUT /stores/{id}/profile` | `{name?, phone?, address?, naverPlaceUrl?, reason}`. 바뀐 값이 없으면 400 `NO_CHANGE`. 사업자등록번호·대표자·개업일은 받지 않는다 |
+| `POST /stores/{id}/billing/postpone` | `{days(1~90), reason}`. 결제예정일(+체험 중이면 체험 종료)을 민다. 결제예정일 없음 → `NOT_BILLING_TARGET`, 결제 잠금 중 → 409 `BILLING_BUSY` |
+| `POST /stores/{id}/complimentary` | `{plan, days(1~365), reason}`. 보상 등급. 기능만 열고 청구 등급(`plan`)은 그대로. 같거나 낮은 등급 → `COMPLIMENTARY_NOT_HIGHER` |
+| `POST /stores/{id}/complimentary/end` | `{reason}`. 제공 중이 아니면 `NO_COMPLIMENTARY` |
+| `GET /stores/{id}/report?from&to` | 상세 분석(사장 `analytics/detailed`와 같은 모양). 요금제와 무관하게 PRO 구간 규칙 |
+| `GET /stores/{id}/report/export/{daily\|prize}?from&to&reason` | 집계 CSV. 요금제 무관, 추출 기록을 남긴다 |
+| `GET /payments?status&q&page&size` | 결제 원장(전 매장). `q`는 매장명 또는 결제 번호 |
+| `GET /metrics` | `customers`(DAU/WAU/MAU), `stores`, `revenue`(MRR·ARR·ARPU·이번/지난달 결제·실패·대조 필요), `plans`, `serviceStates`, `health`, `engagementThisMonth`, `monthly`(12개월), `daily`(스냅숏 90일) |
+| `GET /metrics/monthly.csv` | 월별 지표 CSV |
+
+사장 `GET /api/admin/stores/{id}/subscription`은 보상 등급이 살아 있으면 `complimentaryPlan`, `complimentaryUntil`,
+`billingPlan`을 함께 준다. `plan`은 기능 등급(보상 반영)이다.

@@ -226,6 +226,12 @@ enum AccountRecoveryPurpose { FIND_EMAIL, RESET_PASSWORD }
     @Column(name="renewal_failures") Integer renewalFailures;
     /** 같은 매장의 결제가 동시에 두 번 나가지 않게 잡는 짧은 잠금(조건부 UPDATE). */
     @Column(name="billing_lock_until") Instant billingLockUntil;
+    /**
+     * 운영자 보상 등급. `complimentaryUntil` 전까지 `plan`보다 높으면 이 등급으로 기능이 열린다.
+     * 청구는 여전히 `plan`으로 한다 — 보상을 `plan`에 덮어쓰면 다음 자동결제가 높은 등급 요금으로 나간다.
+     */
+    @Enumerated(EnumType.STRING) @Column(name="complimentary_plan",length=20) Plan complimentaryPlan;
+    @Column(name="complimentary_until") Instant complimentaryUntil;
 }
 enum SubscriptionPaymentStatus { PENDING, PAID, FAILED }
 /**

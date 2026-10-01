@@ -2,13 +2,15 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { OperatorFrame } from "@/features/operator/OperatorFrame";
+import { CARE_ACTION_LABEL } from "@/features/operator/labels";
 import { api, errorMessage } from "@/lib/api";
 import type { OperatorAuditEntry } from "@/types/api";
 
 /**
  * 운영자가 한 일을 한 줄씩 시간순으로 본다.
  *
- * 매장 심사(`store_approval_events`)와 계정 변경(`operator_audit_events`)을 서버가 합쳐서 준다.
+ * 매장 심사(`store_approval_events`), 계정 변경(`operator_audit_events`), 매장 지원(`operator_store_actions`)을
+ * 서버가 합쳐서 준다.
  * 둘을 따로 보면 "누가 이 매장을 승인했지"는 알 수 있어도 "그 사람이 언제 운영자가 됐지"는
  * 알 수 없다. 분쟁이 났을 때 필요한 것은 두 번째 질문이다.
  *
@@ -24,6 +26,7 @@ const ACTION_LABEL: Record<OperatorAuditEntry["action"], string> = {
   OPERATOR_CREATED: "운영자 계정 신설",
   OPERATOR_GRANTED: "운영자 권한 부여",
   OPERATOR_REVOKED: "운영자 권한 회수",
+  ...CARE_ACTION_LABEL,
 };
 
 /** 되돌리기 어려운 동작은 눈에 띄어야 한다. 나머지는 조용히 흐른다. */
@@ -35,12 +38,18 @@ const ACTION_TONE: Record<OperatorAuditEntry["action"], string> = {
   OPERATOR_CREATED: "warn",
   OPERATOR_GRANTED: "warn",
   OPERATOR_REVOKED: "warn",
+  PROFILE_UPDATED: "muted",
+  BILLING_POSTPONED: "warn",
+  COMPLIMENTARY_PLAN_GRANTED: "warn",
+  COMPLIMENTARY_PLAN_ENDED: "muted",
+  STATS_EXPORTED: "muted",
 };
 
 const FILTERS: [string, string][] = [
   ["", "전체"],
   ["STORE", "매장 심사"],
   ["ACCOUNT", "계정 변경"],
+  ["SUPPORT", "매장 지원"],
 ];
 
 export default function OperatorAuditPage() {
@@ -58,7 +67,7 @@ export default function OperatorAuditPage() {
       <section className="panel stack">
         <h2>운영자가 한 일</h2>
         <p className="lead">
-          매장 심사와 계정 변경을 시간순으로 합쳐 최근 200건까지 보여 줍니다. 기록은 지워지지 않습니다.
+          매장 심사·계정 변경·매장 지원을 시간순으로 합쳐 각각 최근 200건까지 보여 줍니다. 기록은 지워지지 않습니다.
         </p>
       </section>
 
