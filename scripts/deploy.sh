@@ -43,7 +43,8 @@ main() {
   DUMP="backups/$(date +%F-%H%M)-$(git rev-parse --short "$TARGET").sql.gz"
   $COMPOSE exec -T postgres sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' | gzip > "$DUMP"
   # sh에는 pipefail이 없어 pg_dump 실패가 묻힌다. 덤프 끝 표시로 완주했는지 본다.
-  if ! gzip -dc "$DUMP" | tail -n 3 | grep -q 'PostgreSQL database dump complete'; then
+  # 17.6부터 그 뒤에 `\unrestrict <키>` 줄이 붙으므로 끝 몇 줄을 넉넉히 본다.
+  if ! gzip -dc "$DUMP" | tail -n 20 | grep -q 'PostgreSQL database dump complete'; then
     rm -f "$DUMP"; echo "$(date -Is) 백업 실패 — 배포하지 않는다" >&2; exit 1
   fi
   # ponytail: 최근 14개만 남긴다. 장기 보관은 Lightsail 스냅샷이 맡는다.
