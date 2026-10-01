@@ -129,14 +129,14 @@ import org.springframework.transaction.annotation.Transactional;
     @PutMapping("/stores/{id}/event-settings") ApiResponse<?> saveEventSettings(@PathVariable Long id,@RequestBody EventSettingsUpdate r,Authentication a){operable(a,id);eventSettings.save(store(id),r.couponValidityDays());return ApiResponse.ok(eventSettingsView(id));}
     @GetMapping("/stores/{id}/qr-codes") ApiResponse<?> qrs(@PathVariable Long id,Authentication a){operable(a,id);return ApiResponse.ok(qrs.findByStoreIdOrderByCreatedAtDesc(id).stream().map(q->Map.of("token",q.publicToken,"status",q.status,"createdAt",q.createdAt)).toList());}
     /**
-     * 세 안내물 모두 요청 때 새로 그린다. 저장본(`store_posters`)에서 쓰는 것은 origin뿐이라 세 장과 스티커·인쇄 PDF가
+     * 네 안내물 모두 요청 때 새로 그린다. 저장본(`store_posters`)에서 쓰는 것은 origin뿐이라 네 장과 스티커·인쇄 PDF가
      * 늘 같은 QR 주소를 가리킨다. 저장본 PNG를 그대로 주면 디자인을 바꿔도 기존 매장은 옛 그림을 받는다
      * (사장 화면에 다시 만들기 버튼이 없어 매장 정보를 고칠 때만 바뀌었다). 저장본 이미지로 되돌리지 말 것.
      */
     @GetMapping(value="/stores/{id}/poster",produces=MediaType.IMAGE_PNG_VALUE) @Transactional ResponseEntity<byte[]> poster(@PathVariable Long id,@RequestParam(defaultValue="GAME") PosterVariant variant,Authentication a,HttpServletRequest req){operable(a,id);Store s=store(id);StorePoster poster=storedPoster(s,req);byte[] body=StorePosterService.render(variant,s.name,posterUrl(s,poster),s.posterTagline,s.posterBrandTheme);return posterFile(s,poster,"_"+variant+"_A6_QR.png",body);}
     /** 테이블 스티커 10칸 A4 PNG. 사장이 라벨지나 일반 용지에 직접 뽑는다. 저장하지 않고 그때 그린다. */
     @GetMapping(value="/stores/{id}/sticker-sheet",produces=MediaType.IMAGE_PNG_VALUE) @Transactional ResponseEntity<byte[]> stickerSheet(@PathVariable Long id,Authentication a,HttpServletRequest req){operable(a,id);Store s=store(id);StorePoster poster=storedPoster(s,req);return posterFile(s,poster,"_테이블스티커_A4_10장.png",StorePosterService.stickerSheet(s.name,posterUrl(s,poster),s.posterBrandTheme));}
-    /** 인쇄소에 그대로 보내는 입점 키트 PDF(A6 3종 + 스티커, 도련 3mm). 운영자 콘솔이 받는 파일과 같다. */
+    /** 인쇄소에 그대로 보내는 입점 키트 PDF(A6 4종 + 스티커, 도련 3mm). 운영자 콘솔이 받는 파일과 같다. */
     @GetMapping(value="/stores/{id}/print-kit",produces=MediaType.APPLICATION_PDF_VALUE) @Transactional ResponseEntity<byte[]> printKit(@PathVariable Long id,Authentication a,HttpServletRequest req){operable(a,id);Store s=store(id);StorePoster poster=storedPoster(s,req);return PrintKitService.pdfResponse(s.name,StorePosterService.printKitPdf(s.name,posterUrl(s,poster),s.posterTagline,s.posterBrandTheme));}
     private StorePoster storedPoster(Store s,HttpServletRequest req){StoreQrCode q=activeQr(s.id);return posterRepository.findByStoreId(s.id).orElseGet(()->posters.save(s,q.publicToken,origin(req),s.posterTagline));}
     private String posterUrl(Store s,StorePoster poster){return poster.publicOrigin+"/s/"+activeQr(s.id).publicToken;}

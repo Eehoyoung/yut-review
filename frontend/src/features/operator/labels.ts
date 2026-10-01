@@ -18,7 +18,7 @@ export const THROTTLE_LABEL: Record<string, string> = {
   RATE_LIMITED: "고객 상태 조회",
 };
 
-/** 입점 키트(A6 안내물 3종 + 테이블 스티커 10장) 실물 발송 단계. 운영자 콘솔 전용. */
+/** 입점 키트(A6 안내물 4종 + 테이블 스티커 10장) 실물 발송 단계. 운영자 콘솔 전용. */
 export const PRINT_KIT_STATUS_LABEL: Record<PrintKitStatus, string> = {
   WAITING: "인쇄 대기",
   PRINTING: "인쇄 중",
