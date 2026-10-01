@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
+import { LandingNav } from "@/features/intro/LandingNav";
+import { INDUSTRIES, POPULAR_SLUGS } from "@/features/examples/industries";
 
 // 검색 등록 대상 페이지. 문구는 코드로 확인한 기능만 쓴다(리뷰·별점은 참여 조건이 아니다).
 const title = "소담한판 | QR로 참여하는 매장 재방문 이벤트";
@@ -67,11 +69,7 @@ export default function Home() {
     <main className="landing">
       {/* 정적 상수만 직렬화한다. 사용자 입력이 섞이지 않으므로 </script> 주입 위험이 없다. */}
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
-      <nav className="landing-nav" aria-label="주요 메뉴">
-        <Link className="landing-wordmark" href="/" aria-label="소담한판 홈"><Image src="/brand/sodam-wordmark.webp" width={1200} height={760} alt="소담" priority /></Link>
-        <div className="landing-nav-links"><a href="#how">이용 방법</a><a href="#benefits">기능</a><a href="#pricing">요금</a></div>
-        <Link className="landing-nav-cta" href="/admin/signup">30일 무료로 매장등록</Link>
-      </nav>
+      <LandingNav />
 
       <section className="landing-hero" aria-labelledby="hero-title">
         <div className="hero-message">
@@ -116,6 +114,14 @@ export default function Home() {
           <li><b>2</b><div><strong>상품·확률 확인</strong><span>기본 설정을 그대로 쓰거나 매장에 맞게 바꿉니다.</span></div></li>
           <li><b>3</b><div><strong>QR 안내물 비치</strong><span>저장한 안내물을 테이블이나 카운터에 놓습니다.</span></div></li>
         </ol>
+      </section>
+
+      <section className="landing-section examples-teaser" aria-labelledby="examples-title">
+        <div className="section-heading compact"><h2 id="examples-title">우리 업종에서는<br />어떻게 쓸까요?</h2><p>고깃집, 카페, 미용실, 세차장까지. 업종마다 잘 맞는 경품과 3단계 구성을 예시로 정리했어요. 가입 후 대시보드에서 업종을 고르면 그 구성을 상품 설정으로 바로 불러올 수 있어요.</p></div>
+        <ul className="ex-chips">
+          {POPULAR_SLUGS.map((slug) => INDUSTRIES.find((i) => i.slug === slug)!).map((industry) => <li key={industry.slug}><Link href={`/examples/${industry.slug}`}>{industry.name}</Link></li>)}
+        </ul>
+        <Link className="landing-text-link" href="/examples">업종별 예시 전체 보기 <span aria-hidden="true">→</span></Link>
       </section>
 
       <section className="landing-section pricing-section" id="pricing" aria-labelledby="pricing-title">

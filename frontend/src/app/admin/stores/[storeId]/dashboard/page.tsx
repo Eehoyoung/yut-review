@@ -7,6 +7,7 @@ import { AdminFrame } from "@/features/admin/AdminFrame";
 import { Dialog } from "@/features/ui/Dialog";
 import { ApiClientError, api, errorMessage } from "@/lib/api";
 import { AiInsightCard } from "@/features/admin/AiCards";
+import { ExampleSearch } from "@/features/examples/ExampleSearch";
 import { STORE_STATUS_HINT, STORE_STATUS_LABEL, STORE_STATUS_TONE } from "@/features/admin/labels";
 import type { AiStatus, StoreStatus, Summary } from "@/types/api";
 
@@ -87,6 +88,15 @@ export default function Dashboard() {
           <Link className="btn" href={`/admin/stores/${id}/qr`}>QR 안내물 열기</Link>
           <Link className="btn secondary" href={`/admin/stores/${id}/prizes`}>상품 확인</Link>
         </div>
+      </section>
+
+      <section className="panel stack" aria-labelledby="example-title">
+        <div>
+          <h2 id="example-title">우리 업종은 이렇게 해요</h2>
+          <p className="lead">업종을 고르면 잘 맞는 경품 3단계 구성을 상품 설정에 불러와요. 저장하기 전까지는 바뀌지 않아요.</p>
+        </div>
+        <ExampleSearch storeId={id} />
+        <Link className="hint" href="/examples" target="_blank">업종별 예시 전체 보기</Link>
       </section>
 
       {(summary.isError || store.isError) && (
