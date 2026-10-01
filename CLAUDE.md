@@ -512,7 +512,9 @@ sh scripts/create-operator.sh admin@example.com    # 이메일 지정
 
 매장 대표는 `/admin/signup`에서 직접 가입한다(대표 이름·연락처·아이디·비밀번호·이메일·상호명·사업자등록번호).
 가입 한 트랜잭션에서 계정·매장·OWNER 멤버십·QR 토큰·기본 3등급 상품·기본 가중치 설정이 생성되고
-직원 PIN은 응답에서 한 번만 노출된다.
+직원 PIN은 `/admin/stores/{id}/staff-pin`에서 계속 볼 수 있다(2026-10-02 사용자 요청: 한 번만 보여 주니 너무 불편했다).
+검증은 여전히 BCrypt `staff_pin_hash`로만 하고, 표시용으로 `staff_pin_encrypted`(PhoneService AES-GCM)를 같이 둔다.
+이 기능 이전 매장은 암호문이 없어 화면이 재발급을 한 번 안내한다. 평문 저장·로그 금지는 그대로다.
 관리자 로그인은 **이메일 + 비밀번호**뿐이다. 아이디(`loginId`) 개념은 2026-09-03에 제거했다.
 같은 계정으로 `/admin`에서 매장을 더 추가할 수 있고(사업자등록번호는 매장마다 달라야 한다),
 한 계정당 상한은 `AdminController.MAX_STORES_PER_ADMIN`이다.

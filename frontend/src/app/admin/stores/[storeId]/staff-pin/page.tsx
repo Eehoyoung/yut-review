@@ -1,20 +1,22 @@
 "use client";
 import { useState } from "react";
 import { useParams } from "next/navigation";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AdminFrame } from "@/features/admin/AdminFrame";
 import { api, errorMessage } from "@/lib/api";
 import { Dialog } from "@/features/ui/Dialog";
 
 export default function StaffPin() {
   const id = String(useParams().storeId);
-  const [pin, setPin] = useState("");
+  const qc = useQueryClient();
+  const current = useQuery({ queryKey: ["staff-pin", id], queryFn: () => api<{ pin: string | null }>(`/admin/stores/${id}/staff-pin`) });
+  const pin = current.data?.pin;
   // 쿠폰 사용 처리와 같은 바텀시트를 쓴다. 같은 무게의 확인을 화면마다 다른 모양으로 물으면 안 된다.
   const [asking, setAsking] = useState(false);
   const m = useMutation({
     mutationFn: () => api<{ pin: string }>(`/admin/stores/${id}/staff-pin/regenerate`, { method: "POST" }),
     onSuccess: (d) => {
-      setPin(d.pin);
+      qc.setQueryData(["staff-pin", id], d);
       setAsking(false);
     },
   });
@@ -24,17 +26,22 @@ export default function StaffPin() {
       <section className="panel stack staff-pin-panel" aria-labelledby="staff-pin-heading">
         <div className="owner-section-heading">
           <h2 id="staff-pin-heading">쿠폰 사용용 직원 PIN</h2>
-          <p className="lead">손님의 쿠폰을 사용할 때만 입력합니다. 새 PIN은 발급 직후 한 번만 표시됩니다.</p>
+          <p className="lead">손님의 쿠폰을 사용할 때만 입력합니다.</p>
         </div>
         {pin && (
-          <>
-            <p className="pin-readout" aria-label="새 직원 PIN">
-              {pin}
-            </p>
-            <p className="notice" role="status">
-              지금 기록하세요. 새로고침하면 다시 볼 수 없습니다.
-            </p>
-          </>
+          <p className="pin-readout" aria-label="현재 직원 PIN">
+            {pin}
+          </p>
+        )}
+        {current.isSuccess && !pin && (
+          <p className="notice" role="status">
+            이전에 발급한 PIN은 화면에 표시할 수 없어요. 한 번 재발급하면 이후로는 여기서 계속 볼 수 있어요.
+          </p>
+        )}
+        {current.isError && (
+          <p className="error" role="alert">
+            {errorMessage(current.error)}
+          </p>
         )}
         {m.isError && (
           <p className="error" role="alert">

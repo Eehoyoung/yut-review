@@ -117,7 +117,7 @@ final class Inputs {
 }
 @Service class StoreProvisioningService {
     record Provisioned(Store store,String staffPin,String storeToken){}
-    private final StoreRepository stores;private final MembershipRepository memberships;private final QrRepository qrs;private final GameConfigService config;private final SubscriptionService subscriptions;private final PasswordEncoder encoder;private final SecureRandom random;private final Clock clock;
+    private final StoreRepository stores;private final MembershipRepository memberships;private final QrRepository qrs;private final GameConfigService config;private final SubscriptionService subscriptions;private final PasswordEncoder encoder;private final SecureRandom random;private final Clock clock;private final PhoneService crypto;
     /**
      * 셀프 신청 매장을 운영자가 승인해야 열리게 할지.
      *
@@ -126,7 +126,7 @@ final class Inputs {
      * `STORE_APPROVAL_REQUIRED=true` 한 줄로 되돌아온다. 코드를 지우지 말 것.
      */
     private final boolean approvalRequired;
-    StoreProvisioningService(StoreRepository stores,MembershipRepository memberships,QrRepository qrs,GameConfigService config,SubscriptionService subscriptions,PasswordEncoder encoder,SecureRandom random,Clock clock,@org.springframework.beans.factory.annotation.Value("${app.store-approval-required:false}") boolean approvalRequired){this.stores=stores;this.memberships=memberships;this.qrs=qrs;this.config=config;this.subscriptions=subscriptions;this.encoder=encoder;this.random=random;this.clock=clock;this.approvalRequired=approvalRequired;}
+    StoreProvisioningService(StoreRepository stores,MembershipRepository memberships,QrRepository qrs,GameConfigService config,SubscriptionService subscriptions,PasswordEncoder encoder,SecureRandom random,Clock clock,PhoneService crypto,@org.springframework.beans.factory.annotation.Value("${app.store-approval-required:false}") boolean approvalRequired){this.crypto=crypto;this.stores=stores;this.memberships=memberships;this.qrs=qrs;this.config=config;this.subscriptions=subscriptions;this.encoder=encoder;this.random=random;this.clock=clock;this.approvalRequired=approvalRequired;}
     /** 운영자가 직접 만드는 매장(부트스트랩/시드)은 이미 확인된 것이므로 바로 ACTIVE다. */
     @Transactional Provisioned provision(AdminUser owner,String name,String phone,String address,String businessNumber,String naverPlaceUrl,String staffPin){
         return provision(owner,name,phone,address,businessNumber,naverPlaceUrl,staffPin,"http://localhost:8088",StoreStatus.ACTIVE);
@@ -143,7 +143,7 @@ final class Inputs {
     }
     @Transactional Provisioned provision(AdminUser owner,String name,String phone,String address,String businessNumber,String naverPlaceUrl,String staffPin,String publicOrigin,StoreStatus status){
         Instant now=clock.instant();String pin=staffPin==null||staffPin.isBlank()?Integer.toString(100000+random.nextInt(900000)):staffPin;
-        Store s=new Store();s.name=name.trim();s.phone=phone==null?"":phone.trim();s.address=address;s.businessNumber=businessNumber;s.naverPlaceUrl=naverPlaceUrl;s.staffPinHash=encoder.encode(pin);s.status=status;s.createdAt=now;s.updatedAt=now;stores.save(s);
+        Store s=new Store();s.name=name.trim();s.phone=phone==null?"":phone.trim();s.address=address;s.businessNumber=businessNumber;s.naverPlaceUrl=naverPlaceUrl;s.staffPinHash=encoder.encode(pin);s.staffPinEncrypted=crypto.encrypt(pin);s.status=status;s.createdAt=now;s.updatedAt=now;stores.save(s);
         AdminStoreMembership m=new AdminStoreMembership();m.admin=owner;m.store=s;m.role=MembershipRole.OWNER;m.createdAt=now;memberships.save(m);
         StoreQrCode q=new StoreQrCode();q.store=s;q.publicToken=Tokens.random();q.status=QrStatus.ACTIVE;q.createdAt=now;qrs.save(q);
         config.save(s,GameConfigService.defaults());
