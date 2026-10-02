@@ -39,7 +39,12 @@ import org.springframework.web.bind.annotation.*;
     /** 회수 티켓 1회 사용. 만료·재사용·타 매장은 구분 없이 같은 오류로 막힌다. */
     @PostMapping("/stores/{token}/coupons/recover") ApiResponse<?> recover(@PathVariable String token,@Valid @RequestBody RecoverRequest r){Store s=access.activeQr(token).store;return ApiResponse.ok(couponView(recovery.redeem(s.id,r.ticket()),false));}
     @PostMapping("/games") ApiResponse<?> create(@Valid @RequestBody GameRequest r,HttpServletRequest req){LegalConsentPolicy.requireAge(r.ageConfirmed);GamePlay g=games.create(r.storeToken,r.name,r.phone,r.idempotencyKey,r.privacyAgreed,r.privacyConsentVersion,clientIps.resolve(req));return ApiResponse.ok(Map.of("playId",g.publicId,"animationSeed",g.animationSeed,"animationProfile","STANDARD"));}
-    @PostMapping("/games/{playId}/reveal") ApiResponse<?> reveal(@PathVariable String playId){return ApiResponse.ok(couponView(games.reveal(playId),true));}
+    @PostMapping("/games/{playId}/reveal") ApiResponse<?> reveal(@PathVariable String playId){return ApiResponse.ok(revealView(games.reveal(playId)));}
+    /** 한판 더. 서버가 다시 뽑고 새 연출 seed를 준다. 결과는 다시 reveal로 받는다(첫 판과 같은 길). */
+    @PostMapping("/games/{playId}/retry") ApiResponse<?> retry(@PathVariable String playId){GamePlay g=games.retry(playId);return ApiResponse.ok(Map.of("playId",g.publicId,"animationSeed",g.animationSeed,"animationProfile","STANDARD"));}
+    /** 이대로 만족해요. */
+    @PostMapping("/games/{playId}/keep") ApiResponse<?> keep(@PathVariable String playId){return ApiResponse.ok(revealView(games.keep(playId)));}
+    private Map<String,Object> revealView(Coupon c){Map<String,Object> m=couponView(c,true);m.put("retryAvailable",games.retryAvailable(c.gamePlay,c));m.put("retried",c.gamePlay.retryFromResult!=null);return m;}
     @GetMapping("/coupons/{token}") ApiResponse<?> coupon(@PathVariable String token){return ApiResponse.ok(couponView(coupons.get(token),false));}
     @PostMapping("/coupons/{token}/redeem") ApiResponse<?> redeem(@PathVariable String token,@Valid @RequestBody PinRequest r,HttpServletRequest req){return ApiResponse.ok(couponView(coupons.redeem(token,r.pin,clientIps.resolve(req)),false));}
     private Map<String,Object> couponView(Coupon c,boolean reveal){ZoneId z=ZoneId.of("Asia/Seoul");Map<String,Object> m=new java.util.LinkedHashMap<>();if(reveal){m.put("playId",c.gamePlay.publicId);m.put("yutResult",c.gamePlay.yutResult);}m.put("prizeRank",c.prizeRankSnapshot);m.put("couponToken",c.couponToken);m.put("status",c.status);m.put("prize",Map.of("name",c.prizeNameSnapshot,"description",c.prizeDescriptionSnapshot==null?"":c.prizeDescriptionSnapshot));m.put("redeemPolicy",c.redeemPolicySnapshot);m.put("validFrom",c.validFrom.atZone(z));m.put("expiresAt",c.expiresAt.atZone(z));return m;}

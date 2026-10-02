@@ -284,6 +284,12 @@ These rules are non-negotiable unless explicitly changed by the user.
 6. Game creation and coupon issuance should commit atomically.
 7. The persisted backend result is the source of truth.
 
+Exception, "한판 더" (one more throw, user decision 2026-10-03): a store may opt in (default off) to offer a
+second throw. The server decides at game creation whether the game gets the offer (every N-th store game, or
+1/N random) and freezes it on the game row. After reveal the customer may, once and within 10 minutes, either
+keep the result or give it up for a fresh server-side draw. The same coupon row is re-issued with a new token
+(never a second coupon); the first result is kept in `retry_from_*`. Refreshing still never rerolls.
+
 Expected flow:
 
 `request -> eligibility -> server result -> persist -> animation -> reveal`

@@ -759,6 +759,25 @@ GET /api/admin/stores/{storeId}/staff-pin
 POST /api/admin/stores/{storeId}/staff-pin/regenerate
 ```
 
+## 한판 더 설정 (2026-10-03)
+```http
+GET /api/admin/stores/{storeId}/retry-settings
+PUT /api/admin/stores/{storeId}/retry-settings
+{"enabled":true,"mode":"EVERY_N","interval":10}
+```
+
+`mode`: `EVERY_N`(N번째 참여마다) | `RANDOM`(평균 N판에 한 번). `interval` 2~100, 벗어나면 `INVALID_RETRY_SETTINGS`(400).
+기본은 `enabled:false`. 저장 이후 생성되는 게임부터 적용된다. 고객 API는 아래.
+
+```http
+POST /api/public/games/{playId}/reveal   -> 기존 응답 + {"retryAvailable":bool,"retried":bool}
+POST /api/public/games/{playId}/retry    -> {"playId","animationSeed","animationProfile"}
+POST /api/public/games/{playId}/keep     -> reveal과 같은 형태(retryAvailable=false)
+```
+
+`retry`는 `retryAvailable`일 때만 성공하고 아니면 `RETRY_NOT_AVAILABLE`(409). 이미 다시 던진 게임은 같은 seed를 돌려준다.
+성공하면 쿠폰 토큰이 바뀐다. 새 결과는 다시 `reveal`로 받는다.
+
 ## 참여 내역
 ```http
 GET /api/admin/stores/{storeId}/game-plays?page=0&size=50

@@ -136,6 +136,21 @@ docker compose --env-file .env.field-test --profile field-test up -d   # Cloudfl
 `script-src`에 `'unsafe-inline'`(Next.js 하이드레이션 인라인 스크립트)과 `'wasm-unsafe-eval'`(Rapier WASM)이
 반드시 있어야 한다. 빼면 화면이 흰 채로 뜨고 콘솔 에러도 남지 않는다.
 
+## 한판 더 (2026-10-03)
+
+결과 공개 뒤 "한판 더?" 팝업 → [한번 더 할래요!] [이대로 만족해요!]. 매장 대시보드에서 켜고 끈다(**기본 꺼짐**).
+
+- 설정: `store_event_settings.retry_enabled/retry_mode/retry_interval`(nullable, null=꺼짐·EVERY_N·10).
+  `EVERY_N`은 매장 누적 게임 수가 N의 배수인 게임, `RANDOM`은 게임마다 1/N. N은 2~100. 요금제와 무관(`Entitlement`에 넣지 말 것).
+- 기회는 **게임 생성 때 서버가 정해** `game_plays.retry_offered`에 동결한다. 클라이언트가 요청할 수 없다.
+- `POST /api/public/games/{playId}/retry`: 공개(REVEALED) 뒤 10분 안, 쿠폰 미사용, 미결정일 때 한 번. 서버가 다시 뽑고
+  첫 결과를 `retry_from_result/rank`에 남기며, **같은 쿠폰 행을 새 토큰으로 재발급**한다(옛 토큰 즉시 무효, 쿠폰 수 불변).
+  이미 다시 던진 게임에 또 오면 그대로 돌려준다(재추첨 없음). `/keep`은 결정만 남긴다. 둘 다 게임 행을 잠근다.
+- 다시 던진 판도 같은 3D 경로다: 새 `animationSeed`로 `/game`에 가고 `reveal`로 결과를 받는다. 프런트는 `features/game/played.ts`의
+  "이미 던짐" 표시를 지워야 던지기 화면이 결과로 튕기지 않는다.
+- 쿠폰을 한 게임에 둘 만들지 말 것(`coupons.game_play_id`가 1:1이다). 결정 뒤 다시 고르게 하지 말 것.
+- 테스트: `RetryTest.java`.
+
 ## 매장별 등급 수와 확률 (2026-09-03)
 
 확률은 **등급이 아니라 윷 결과에 붙는다.** 화면에 실제로 떨어지는 것이 도개걸윷모 다섯 가지라,

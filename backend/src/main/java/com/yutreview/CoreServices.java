@@ -429,6 +429,24 @@ final class Tokens {
 
     Optional<StoreEventSettings> find(Long storeId){return settings.findByStoreId(storeId);}
 
+    static final int DEFAULT_RETRY_INTERVAL=10,MIN_RETRY_INTERVAL=2,MAX_RETRY_INTERVAL=100;
+    /** 한판 더 설정. 행이 없거나 칸이 null이면 꺼짐/N판마다/10이다(사용자 결정: 기본 꺼짐). */
+    record Retry(boolean enabled,RetryMode mode,int interval){}
+    Retry retry(Long storeId){
+        return settings.findByStoreId(storeId).map(s->new Retry(Boolean.TRUE.equals(s.retryEnabled),
+            s.retryMode==null?RetryMode.EVERY_N:s.retryMode,s.retryInterval==null?DEFAULT_RETRY_INTERVAL:s.retryInterval))
+            .orElse(new Retry(false,RetryMode.EVERY_N,DEFAULT_RETRY_INTERVAL));
+    }
+    @Transactional Retry saveRetry(Store store,Boolean enabled,RetryMode mode,Integer interval){
+        if(enabled==null||mode==null||interval==null||interval<MIN_RETRY_INTERVAL||interval>MAX_RETRY_INTERVAL)
+            throw new AppException("INVALID_RETRY_SETTINGS","한판 더 간격은 "+MIN_RETRY_INTERVAL+"판에서 "+MAX_RETRY_INTERVAL+"판 사이로 설정해 주세요.");
+        Instant now=clock.instant();
+        StoreEventSettings s=settings.findByStoreId(store.id).orElseGet(StoreEventSettings::new);
+        if(s.id==null){s.store=store;s.createdAt=now;s.couponValidityDays=StoreEventSettings.DEFAULT_COUPON_VALIDITY_DAYS;}
+        s.retryEnabled=enabled;s.retryMode=mode;s.retryInterval=interval;s.updatedAt=now;settings.save(s);
+        return retry(store.id);
+    }
+
     @Transactional StoreEventSettings save(Store store,Integer couponValidityDays){
         if(couponValidityDays==null||couponValidityDays<StoreEventSettings.MIN_COUPON_VALIDITY_DAYS||couponValidityDays>StoreEventSettings.MAX_COUPON_VALIDITY_DAYS)
             throw new AppException("INVALID_COUPON_VALIDITY_DAYS","쿠폰 사용 기한은 "+StoreEventSettings.MIN_COUPON_VALIDITY_DAYS+"일에서 "+StoreEventSettings.MAX_COUPON_VALIDITY_DAYS+"일 사이로 설정해 주세요.");
@@ -467,13 +485,13 @@ interface NotificationService { void couponIssued(Coupon coupon); }
      * 닿으려면 같은 가게에서 1분에 30번 새 참여가 일어나야 한다.
      */
     static final int MAX_PLAYS_PER_STORE_PER_MINUTE=30,MAX_PLAYS_PER_IP_PER_MINUTE=10,MAX_PLAYS_PER_STORE_PER_DAY=2000;
-    private final StoreAccessService access;private final PhoneService phones;private final ParticipationService participation;private final GameResultGenerator generator;private final GameConfigService config;private final StoreEventSettingsService eventSettings;private final GameRepository games;private final PrizeRepository prizes;private final CouponRepository coupons;private final Clock clock;private final NotificationService notifications;private final RateLimitService rateLimits;
+    private final StoreAccessService access;private final PhoneService phones;private final ParticipationService participation;private final GameResultGenerator generator;private final GameConfigService config;private final StoreEventSettingsService eventSettings;private final GameRepository games;private final PrizeRepository prizes;private final CouponRepository coupons;private final Clock clock;private final NotificationService notifications;private final RateLimitService rateLimits;private final SecureRandom random;
     /** 위 기본값이 정책이고, 설정은 눈에 띄게 붐비는 매장을 위한 조정 나사다. 기본값으로 두는 것이 정상이다. */
     private final int perStorePerMinute,perIpPerMinute,perStorePerDay;
-    GameService(StoreAccessService access,PhoneService phones,ParticipationService participation,GameResultGenerator generator,GameConfigService config,StoreEventSettingsService eventSettings,GameRepository games,PrizeRepository prizes,CouponRepository coupons,Clock clock,NotificationService notifications,RateLimitService rateLimits,
+    GameService(StoreAccessService access,PhoneService phones,ParticipationService participation,GameResultGenerator generator,GameConfigService config,StoreEventSettingsService eventSettings,GameRepository games,PrizeRepository prizes,CouponRepository coupons,Clock clock,NotificationService notifications,RateLimitService rateLimits,SecureRandom random,
         @Value("${app.limits.game-per-store-per-minute:"+MAX_PLAYS_PER_STORE_PER_MINUTE+"}") int perStorePerMinute,
         @Value("${app.limits.game-per-ip-per-minute:"+MAX_PLAYS_PER_IP_PER_MINUTE+"}") int perIpPerMinute,
-        @Value("${app.limits.game-per-store-per-day:"+MAX_PLAYS_PER_STORE_PER_DAY+"}") int perStorePerDay){this.access=access;this.phones=phones;this.participation=participation;this.generator=generator;this.config=config;this.eventSettings=eventSettings;this.games=games;this.prizes=prizes;this.coupons=coupons;this.clock=clock;this.notifications=notifications;this.rateLimits=rateLimits;this.perStorePerMinute=perStorePerMinute;this.perIpPerMinute=perIpPerMinute;this.perStorePerDay=perStorePerDay;}
+        @Value("${app.limits.game-per-store-per-day:"+MAX_PLAYS_PER_STORE_PER_DAY+"}") int perStorePerDay){this.access=access;this.phones=phones;this.participation=participation;this.generator=generator;this.config=config;this.eventSettings=eventSettings;this.games=games;this.prizes=prizes;this.coupons=coupons;this.clock=clock;this.notifications=notifications;this.rateLimits=rateLimits;this.random=random;this.perStorePerMinute=perStorePerMinute;this.perIpPerMinute=perIpPerMinute;this.perStorePerDay=perStorePerDay;}
     /** 실제로 적용 중인 한도. 모니터링 화면이 상수를 따로 들고 있지 않게 한 곳에서만 읽는다. */
     Map<String,Integer> limits(){return Map.of("gamePerStorePerMinute",perStorePerMinute,"gamePerIpPerMinute",perIpPerMinute,"gamePerStorePerDay",perStorePerDay);}
     @Transactional GamePlay create(String token,String name,String phone,String idem){return create(token,name,phone,idem,true,LegalConsentPolicy.CUSTOMER_PRIVACY_VERSION,null);}
@@ -489,10 +507,68 @@ interface NotificationService { void couponIssued(Coupon coupon); }
         Optional<GamePlay> existing=games.findByIdempotencyKey(idem);if(existing.isPresent()){GamePlay g=existing.get();if(!g.store.id.equals(qr.store.id)||!phones.lookupHashes(normalized).contains(g.phoneHash))throw new AppException("GAME_ALREADY_CREATED","이미 다른 게임에 사용된 요청 키입니다.");return g;}
         // 행 수 상한. 쿨타임을 지나 정상 발급되는 쿠폰까지 합쳐도 한 매장이 하루에 이만큼 쌓을 일은 없다.
         if(games.countByStoreIdAndPlayedDate(qr.store.id,LocalDate.now(clock))>=perStorePerDay)throw new AppException("STORE_DAILY_LIMIT","오늘 참여가 마감되었습니다. 내일 다시 참여해 주세요.",org.springframework.http.HttpStatus.TOO_MANY_REQUESTS);
-        ParticipationService.State state=participation.state(qr.store.id,phone);if(state.state().equals("HAS_ACTIVE_COUPON"))throw new AppException("ACTIVE_COUPON_EXISTS","사용 가능한 쿠폰이 있습니다.");if(state.state().equals("COOLDOWN"))throw new AppException("PARTICIPATION_COOLDOWN",state.nextPlayableDate()+"부터 다시 참여하실 수 있습니다.");List<StoreOutcome> outcomes=config.load(qr.store.id);YutResult result=generator.generate(outcomes);int rank=outcomes.stream().filter(o->o.yutResult==result).mapToInt(o->o.prizeRank).findFirst().orElseThrow();Prize prize=prizes.findByStoreIdAndRank(qr.store.id,rank).filter(p->p.active).orElseThrow(()->new AppException("PRIZE_NOT_CONFIGURED","활성 상품이 설정되지 않았습니다."));Instant now=clock.instant();GamePlay g=new GamePlay();g.publicId=UUID.randomUUID().toString();g.store=qr.store;g.qrCode=qr;g.customerNameEncrypted=phones.encrypt(name.trim());g.phoneHash=phones.hash(normalized);g.phoneEncrypted=phones.encrypt(normalized);g.phoneLast4=normalized.substring(7);g.yutResult=result;g.prizeRank=rank;g.status=GameStatus.CREATED;g.animationSeed="seed_"+Tokens.random();g.idempotencyKey=idem;g.privacyConsentVersion=privacyVersion;g.privacyConsentedAt=now;g.playedDate=LocalDate.now(clock);g.playedAt=now;games.save(g);Coupon c=new Coupon();c.store=qr.store;c.gamePlay=g;c.prize=prize;c.couponToken="cp_"+Tokens.random();c.phoneHash=g.phoneHash;c.prizeNameSnapshot=prize.name;c.prizeDescriptionSnapshot=prize.description;c.prizeRankSnapshot=rank;c.redeemPolicySnapshot=prize.redeemPolicy;c.status=CouponStatus.ISSUED;c.issuedAt=now;ZoneId zone=clock.getZone();LocalDate issued=g.playedDate;c.validFrom=prize.redeemPolicy==RedeemPolicy.NEXT_DAY?issued.plusDays(1).atStartOfDay(zone).toInstant():now;
+        ParticipationService.State state=participation.state(qr.store.id,phone);if(state.state().equals("HAS_ACTIVE_COUPON"))throw new AppException("ACTIVE_COUPON_EXISTS","사용 가능한 쿠폰이 있습니다.");if(state.state().equals("COOLDOWN"))throw new AppException("PARTICIPATION_COOLDOWN",state.nextPlayableDate()+"부터 다시 참여하실 수 있습니다.");List<StoreOutcome> outcomes=config.load(qr.store.id);YutResult result=generator.generate(outcomes);int rank=outcomes.stream().filter(o->o.yutResult==result).mapToInt(o->o.prizeRank).findFirst().orElseThrow();Prize prize=prizes.findByStoreIdAndRank(qr.store.id,rank).filter(p->p.active).orElseThrow(()->new AppException("PRIZE_NOT_CONFIGURED","활성 상품이 설정되지 않았습니다."));Instant now=clock.instant();GamePlay g=new GamePlay();g.publicId=UUID.randomUUID().toString();g.store=qr.store;g.qrCode=qr;g.customerNameEncrypted=phones.encrypt(name.trim());g.phoneHash=phones.hash(normalized);g.phoneEncrypted=phones.encrypt(normalized);g.phoneLast4=normalized.substring(7);g.yutResult=result;g.prizeRank=rank;g.status=GameStatus.CREATED;g.animationSeed="seed_"+Tokens.random();g.idempotencyKey=idem;g.privacyConsentVersion=privacyVersion;g.privacyConsentedAt=now;g.playedDate=LocalDate.now(clock);g.playedAt=now;games.save(g);
+        g.retryOffered=offerRetry(qr.store.id);
+        Coupon c=new Coupon();c.store=qr.store;c.gamePlay=g;c.phoneHash=g.phoneHash;c.status=CouponStatus.ISSUED;issue(c,prize,now);coupons.save(c);notifications.couponIssued(c);return g;}
+
+    /** 공개 후 이 시간 안에만 한판 더를 고를 수 있다. 쿠폰을 받아 두고 며칠 뒤에 다시 굴리는 길을 막는다. */
+    static final Duration RETRY_WINDOW=Duration.ofMinutes(10);
+
+    /**
+     * 이 게임에 한판 더 기회를 줄지. 방금 저장한 게임까지 센 매장 누적 게임 수로 본다.
+     * ponytail: 동시에 생성된 두 게임이 같은 수를 볼 수 있다(둘 다 받거나 둘 다 못 받음). 정확해야 하면 매장 카운터 행을 둔다.
+     */
+    private boolean offerRetry(Long storeId){
+        StoreEventSettingsService.Retry r=eventSettings.retry(storeId);
+        if(!r.enabled())return false;
+        return r.mode()==RetryMode.RANDOM?random.nextInt(r.interval())==0:games.countByStoreId(storeId)%r.interval()==0;
+    }
+
+    /** 쿠폰에 상품 스냅숏/사용 시작/만료를 채운다. 새 발급과 한판 더 재발급이 같은 규칙을 쓴다. */
+    private void issue(Coupon c,Prize prize,Instant now){
+        c.prize=prize;c.couponToken="cp_"+Tokens.random();c.prizeNameSnapshot=prize.name;c.prizeDescriptionSnapshot=prize.description;
+        c.prizeRankSnapshot=prize.rank;c.redeemPolicySnapshot=prize.redeemPolicy;c.issuedAt=now;
+        ZoneId zone=clock.getZone();
+        c.validFrom=prize.redeemPolicy==RedeemPolicy.NEXT_DAY?LocalDate.now(clock).plusDays(1).atStartOfDay(zone).toInstant():now;
         // 발급 시점의 매장 설정으로 한 번 계산하고 끝낸다. 나중에 사장이 기한을 바꿔도 이 쿠폰은 그대로다.
-        c.expiresAt=StoreEventSettingsService.expiresAt(c.validFrom,eventSettings.couponValidityDays(qr.store.id),zone);coupons.save(c);notifications.couponIssued(c);return g;}
-    @Transactional Coupon reveal(String playId){GamePlay g=games.findByPublicId(playId).orElseThrow(()->new AppException("GAME_NOT_FOUND","게임을 찾을 수 없습니다.",org.springframework.http.HttpStatus.NOT_FOUND));if(g.status==GameStatus.CREATED){g.status=GameStatus.REVEALED;g.revealedAt=clock.instant();}return coupons.findByGamePlayId(g.id).orElseThrow();}
+        c.expiresAt=StoreEventSettingsService.expiresAt(c.validFrom,eventSettings.couponValidityDays(c.store.id),zone);
+    }
+
+    @Transactional Coupon reveal(String playId){GamePlay g=games.findByPublicId(playId).orElseThrow(GameService::notFound);if(g.status==GameStatus.CREATED){g.status=GameStatus.REVEALED;g.revealedAt=clock.instant();}return coupons.findByGamePlayId(g.id).orElseThrow();}
+
+    /** 지금 이 게임에서 한판 더를 고를 수 있는가. 결과 화면 팝업이 이 값 하나만 본다. */
+    boolean retryAvailable(GamePlay g,Coupon c){
+        return Boolean.TRUE.equals(g.retryOffered)&&g.retryDecidedAt==null&&g.status==GameStatus.REVEALED&&c.status==CouponStatus.ISSUED
+            &&g.revealedAt!=null&&clock.instant().isBefore(g.revealedAt.plus(RETRY_WINDOW));
+    }
+
+    /**
+     * 한판 더: 첫 결과를 버리고 서버가 다시 뽑는다. 쿠폰은 새로 만들지 않고 같은 행을 새 토큰/새 상품으로 다시 발급한다.
+     * 옛 쿠폰 토큰(캡처 화면)은 그 순간 죽고, 한 게임에 쿠폰이 둘이 되는 일이 없다.
+     * 이미 다시 던진 게임에 또 오면(두 번 클릭, 재전송) 그대로 돌려준다. 다시 뽑지 않는다.
+     */
+    @Transactional GamePlay retry(String playId){
+        GamePlay g=games.findForUpdateByPublicId(playId).orElseThrow(GameService::notFound);
+        if(g.retryFromResult!=null)return g;
+        Coupon c=coupons.findByGamePlayId(g.id).orElseThrow();
+        if(!retryAvailable(g,c))throw new AppException("RETRY_NOT_AVAILABLE","한판 더를 할 수 없는 게임이에요.",org.springframework.http.HttpStatus.CONFLICT);
+        List<StoreOutcome> outcomes=config.load(g.store.id);YutResult result=generator.generate(outcomes);
+        int rank=outcomes.stream().filter(o->o.yutResult==result).mapToInt(o->o.prizeRank).findFirst().orElseThrow();
+        Prize prize=prizes.findByStoreIdAndRank(g.store.id,rank).filter(p->p.active).orElseThrow(()->new AppException("PRIZE_NOT_CONFIGURED","활성 상품이 설정되지 않았습니다."));
+        Instant now=clock.instant();
+        g.retryFromResult=g.yutResult;g.retryFromRank=g.prizeRank;g.retryDecidedAt=now;
+        g.yutResult=result;g.prizeRank=rank;g.animationSeed="seed_"+Tokens.random();g.status=GameStatus.CREATED;g.revealedAt=null;
+        issue(c,prize,now);notifications.couponIssued(c);
+        return g;
+    }
+
+    /** 이대로 만족해요. 결정을 남겨 이후 한판 더를 막는다. 여러 번 와도 같다. */
+    @Transactional Coupon keep(String playId){
+        GamePlay g=games.findForUpdateByPublicId(playId).orElseThrow(GameService::notFound);
+        if(Boolean.TRUE.equals(g.retryOffered)&&g.retryDecidedAt==null)g.retryDecidedAt=clock.instant();
+        return coupons.findByGamePlayId(g.id).orElseThrow();
+    }
+    private static AppException notFound(){return new AppException("GAME_NOT_FOUND","게임을 찾을 수 없습니다.",org.springframework.http.HttpStatus.NOT_FOUND);}
 }
 @Service class CouponService {
     private final CouponRepository coupons;private final PasswordEncoder encoder;private final Clock clock;private final PinAttemptLimiter limiter;private final ServiceAccessPolicy servicePolicy;

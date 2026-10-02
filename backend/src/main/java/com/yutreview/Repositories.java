@@ -105,6 +105,7 @@ interface AiReportRepository extends JpaRepository<AiReport,Long> {
 }
 interface GameRepository extends JpaRepository<GamePlay,Long> {
     Optional<GamePlay> findByPublicId(String id); Optional<GamePlay> findByIdempotencyKey(String key);
+    @Lock(LockModeType.PESSIMISTIC_WRITE) @Query("select g from GamePlay g where g.publicId=:id") Optional<GamePlay> findForUpdateByPublicId(@Param("id") String id);
     /** 회전 중에는 현재/이전 키 해시를 함께 본다. 쓰기는 언제나 현재 키 하나뿐이다. */
     Optional<GamePlay> findFirstByStoreIdAndPhoneHashInOrderByPlayedDateDesc(Long storeId,Collection<String> phoneHashes);
     Page<GamePlay> findByStoreIdOrderByPlayedAtDesc(Long storeId,Pageable pageable); long countByStoreId(Long storeId); long countByStoreIdAndPlayedDate(Long storeId,LocalDate date); long countByStoreIdAndYutResult(Long storeId,YutResult result);

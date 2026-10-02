@@ -21,6 +21,8 @@ enum RedeemPolicy { SAME_DAY, NEXT_DAY, ANYTIME }
 /** The five physical throws. Which prize rank each one awards is store configuration, not a property of the throw. */
 enum YutResult { DO, GAE, GEOL, YUT, MO }
 enum GameStatus { CREATED, REVEALED, CANCELLED }
+/** 한판 더 기회를 주는 방식. EVERY_N: 매장의 N번째 게임마다. RANDOM: 게임마다 1/N 확률(평균 N판에 한 번). */
+enum RetryMode { EVERY_N, RANDOM }
 enum CouponStatus { ISSUED, REDEEMED, EXPIRED, CANCELLED }
 /**
  * 요금제. 윷놀이 게임과 핵심 고객 경험(QR·상품·쿠폰·직원 PIN·쿨타임)은 등급과 무관하게 모두 동일하다.
@@ -195,6 +197,13 @@ enum AccountRecoveryPurpose { FIND_EMAIL, RESET_PASSWORD }
     @OneToOne(optional=false) @JoinColumn(name="store_id",nullable=false,unique=true) Store store;
     /** 신규 발급 쿠폰에만 적용된다. 이미 발급된 쿠폰의 expiresAt은 이 값을 바꿔도 움직이지 않는다. */
     @Column(name="coupon_validity_days",nullable=false) int couponValidityDays;
+    /*
+     * 한판 더(2026-10-03). 기존 행이 있는 테이블에 붙인 칸이라 nullable이다 - ddl-auto=update는 NOT NULL 칸을
+     * 기본값 없이 추가하지 못한다. null은 기본값(꺼짐, EVERY_N, 10)으로 읽는다. 읽는 자리는 StoreEventSettingsService.retry뿐이다.
+     */
+    @Column(name="retry_enabled") Boolean retryEnabled;
+    @Enumerated(EnumType.STRING) @Column(name="retry_mode",length=20) RetryMode retryMode;
+    @Column(name="retry_interval") Integer retryInterval;
     @Column(nullable=false) Instant createdAt; @Column(nullable=false) Instant updatedAt;
 }
 @Entity @Table(name="store_subscriptions") class StoreSubscription {
@@ -312,6 +321,15 @@ enum SubscriptionPaymentStatus { PENDING, PAID, FAILED }
     @Column(nullable=false) String animationSeed; @Column(nullable=false,unique=true) String idempotencyKey;
     String privacyConsentVersion; Instant privacyConsentedAt;
     @Column(nullable=false) LocalDate playedDate; @Column(nullable=false) Instant playedAt; Instant revealedAt;
+    /*
+     * 한판 더. 기회는 생성 시점에 서버가 정해 동결한다(손님도, 사장의 이후 설정 변경도 못 바꾼다).
+     * 다시 던지면 첫 결과를 retryFrom*에 남기고 yutResult/prizeRank를 새 결과로 바꾼다. 결정(다시 던짐/만족)은
+     * retryDecidedAt 하나로 표시하고, 그 뒤로는 어느 쪽도 다시 할 수 없다.
+     */
+    @Column(name="retry_offered") Boolean retryOffered;
+    @Column(name="retry_decided_at") Instant retryDecidedAt;
+    @Enumerated(EnumType.STRING) @Column(name="retry_from_result",length=10) YutResult retryFromResult;
+    @Column(name="retry_from_rank") Integer retryFromRank;
 }
 @Entity @Table(name="coupons", indexes={@Index(columnList="store_id,phone_hash,status"),@Index(columnList="store_id,status"),@Index(columnList="store_id,issued_at")}) class Coupon {
     @Id @GeneratedValue(strategy=GenerationType.IDENTITY) Long id;
