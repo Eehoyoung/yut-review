@@ -1,7 +1,7 @@
 "use client";
 import { FormEvent, useRef, useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { ApiClientError, api, errorMessage } from "@/lib/api";
 import { useSession } from "@/lib/session";
@@ -24,6 +24,8 @@ function problem(name: string, phone: string, adult: boolean, agreed: boolean): 
 export default function Identify() {
   const token = String(useParams().storeToken);
   const router = useRouter();
+  // "이미 쿠폰이 있어요"로 들어온 손님. 같은 확인 절차를 쓰되 쿠폰이 없으면 게임을 만들지 않는다.
+  const couponOnly = useSearchParams().get("coupon") === "1";
   const save = useSession((s) => s.setCustomer);
   const setGame = useSession((s) => s.setGame);
   const [name, setName] = useState("");
@@ -59,7 +61,7 @@ export default function Identify() {
         });
         return { state, couponToken: coupon.couponToken };
       }
-      if (state.state !== "CAN_PLAY") return { state };
+      if (couponOnly || state.state !== "CAN_PLAY") return { state };
       const game = await api<GameCreated>("/public/games", {
         method: "POST",
         body: JSON.stringify({ storeToken: token, name, phone, idempotencyKey: idempotencyKey.current, privacyAgreed: agreed, privacyConsentVersion: CUSTOMER_PRIVACY_VERSION, ageConfirmed: adult }),
@@ -78,23 +80,28 @@ export default function Identify() {
   });
 
   const cooldown = mutation.data?.state.state === "COOLDOWN" ? mutation.data.state : undefined;
+  const noCoupon = couponOnly && mutation.isSuccess && !mutation.data.couponToken;
   // 티켓이 만료·재사용되면 막다른 길이 된다. 다시 확인하면 새 티켓이 나온다.
   const ticketExpired = mutation.error instanceof ApiClientError && mutation.error.code === "RECOVERY_TICKET_INVALID";
   const blocked = problem(name, phone, adult, agreed);
 
   return (
     <main className="screen has-bar">
-      <nav className="steps" aria-label="참여 단계">
-        <b>1 정보 입력</b>
-        <i data-on="1" />
-        <span>2 윷 던지기</span>
-        <i />
-        <span>3 쿠폰</span>
-      </nav>
+      {!couponOnly && (
+        <nav className="steps" aria-label="참여 단계">
+          <b>1 정보 입력</b>
+          <i data-on="1" />
+          <span>2 윷 던지기</span>
+          <i />
+          <span>3 쿠폰</span>
+        </nav>
+      )}
 
       <header className="stack">
-        <h1>참여 정보 입력</h1>
-        <p className="lead">쿠폰 확인에 필요한 정보예요. 인증 문자는 보내지 않아요.</p>
+        <h1>{couponOnly ? "내 쿠폰 찾기" : "참여 정보 입력"}</h1>
+        <p className="lead">
+          {couponOnly ? "참여할 때 입력한 이름과 번호를 넣어 주세요." : "쿠폰 확인에 필요한 정보예요."} 인증 문자는 보내지 않아요.
+        </p>
       </header>
 
       {/*
@@ -160,7 +167,12 @@ export default function Identify() {
           </details>
         </div>
 
-        {cooldown && (
+        {noCoupon && (
+          <p className="notice" role="status">
+            사용하지 않은 쿠폰이 없어요. <Link href={`/s/${token}/identify`}>이벤트 참여하기</Link>
+          </p>
+        )}
+        {cooldown && !couponOnly && (
           <p className="notice" role="status">
             <b>{cooldown.nextPlayableDate}</b>부터 다시 참여할 수 있어요.
           </p>
@@ -190,7 +202,7 @@ export default function Identify() {
           <div className="inner">
             {/* 조건이 안 맞아도 비활성화하지 않는다. disabled 버튼은 탭 순서에서 빠져
                 화면낭독기가 발견조차 못 하고, 무엇이 막고 있는지 알 길도 사라진다. */}
-            <button className="btn" disabled={mutation.isPending}>{mutation.isPending ? "준비 중" : "윷 던지기"}</button>
+            <button className="btn" disabled={mutation.isPending}>{mutation.isPending ? "준비 중" : couponOnly ? "쿠폰 찾기" : "윷 던지기"}</button>
           </div>
         </div>
       </form>

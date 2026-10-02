@@ -120,6 +120,9 @@ export default function StoreIntro({ initialData }: { initialData?: StoreSummary
           <Link className="btn wood" href={`/s/${token}/identify`}>
             이벤트 참여하기
           </Link>
+          <Link className="btn secondary" href={`/s/${token}/identify?coupon=1`}>
+            이미 쿠폰이 있어요
+          </Link>
         </div>
       </div>
     </main>
