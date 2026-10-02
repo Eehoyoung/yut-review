@@ -22,6 +22,8 @@ import org.springframework.stereotype.Component;
  *    Hibernate가 enum 값 목록으로 만든 CHECK 제약이 옛 값만 허용하므로 제약을 지우고 새 목록으로 다시 건다.
  * 2. 기본 상품 설명 "관리자에서 상품을 설정하세요."를 비운다. 손님 화면 상품 목록에 그대로 보이던 문구다.
  *    현재 상품 설정만 고친다. 이미 발급된 쿠폰의 스냅샷은 건드리지 않는다.
+ * 3. `operator_store_actions.action`의 CHECK 제약을 지금 {@link StoreCareAction} 목록으로 다시 건다.
+ *    `ddl-auto=update`는 제약을 고치지 못해서, enum에 값을 더하면(2026-10-03 STAFF_PIN_RESET) 새 값 INSERT가 실패한다.
  *
  * 전부 멱등이다. 매 기동마다 돌아도 두 번째부터는 바꿀 행이 없다. 한 트랜잭션이라 중간에 실패하면
  * 아무것도 바뀌지 않고 기동이 멈춘다(반쯤 바뀐 역할 값으로 뜨는 것보다 낫다).
@@ -51,6 +53,14 @@ class AdminRoleMigration {
                 for(String name:checks)st.execute("alter table admin_users drop constraint \""+name.replace("\"","\"\"")+"\"");
                 roles=st.executeUpdate("update admin_users set role='OPERATOR' where role='SYSTEM_ADMIN'");
                 st.execute("alter table admin_users add constraint admin_users_role_check check (role in ('OPERATOR','STORE_ADMIN'))");
+            }
+            if(exists(st,"operator_store_actions")){
+                List<String> checks=new ArrayList<>();
+                try(ResultSet rs=st.executeQuery("select conname from pg_constraint where conrelid='operator_store_actions'::regclass "
+                        +"and contype='c' and pg_get_constraintdef(oid) ilike '%action%'")){while(rs.next())checks.add(rs.getString(1));}
+                for(String name:checks)st.execute("alter table operator_store_actions drop constraint \""+name.replace("\"","\"\"")+"\"");
+                String values=java.util.Arrays.stream(StoreCareAction.values()).map(a->"'"+a.name()+"'").collect(java.util.stream.Collectors.joining(","));
+                st.execute("alter table operator_store_actions add constraint operator_store_actions_action_check check (action in ("+values+"))");
             }
             if(exists(st,"prizes"))prizes=st.executeUpdate("update prizes set description=null where description='"+LEGACY_PRIZE_DESCRIPTION+"'");
             c.commit();

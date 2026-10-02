@@ -754,10 +754,15 @@ GET /api/admin/stores/{storeId}/staff-pin
 
 `{"pin":"123456"}`. 2026-10-02 이전 매장은 재발급 전까지 `pin`이 `null`이다.
 
-## 직원 PIN 재발급
+## 직원 PIN 재발급 (운영자 전용, 2026-10-03)
 ```http
-POST /api/admin/stores/{storeId}/staff-pin/regenerate
+POST /api/operator/stores/{storeId}/staff-pin/reset
+{"confirmName":"매장명 그대로","reason":"직원 퇴사"}
 ```
+
+매장 관리자 API(`/api/admin/.../staff-pin/regenerate`)는 없앴다. 매장명 불일치 `STAFF_PIN_RESET_CONFIRM_MISMATCH`(400),
+10분 안 재요청 `STAFF_PIN_RECENTLY_RESET`(409). 응답에 새 PIN은 없다(`{storeId, resetAt}`) — 사장이 위 조회 API로 본다.
+`operator_store_actions`에 `STAFF_PIN_RESET`으로 남는다.
 
 ## 참여 내역
 ```http

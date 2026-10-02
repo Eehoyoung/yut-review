@@ -43,6 +43,7 @@ const ACTION_TONE: Record<OperatorAuditEntry["action"], string> = {
   COMPLIMENTARY_PLAN_GRANTED: "warn",
   COMPLIMENTARY_PLAN_ENDED: "muted",
   STATS_EXPORTED: "muted",
+  STAFF_PIN_RESET: "warn",
 };
 
 const FILTERS: [string, string][] = [

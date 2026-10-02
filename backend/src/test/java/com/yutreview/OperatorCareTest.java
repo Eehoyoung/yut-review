@@ -137,6 +137,36 @@ class OperatorCareTest {
         assertEquals(StoreCareAction.STATS_EXPORTED,log.get(0).action);assertEquals("사장님 세무 자료 요청",log.get(0).reason);
     }
 
+    @Test void onlyTheOperatorResetsTheStaffPinAndOnlyDeliberately() throws Exception {
+        Fixture f=fixture("pin","5552220006");
+        String before=stores.findById(f.storeId()).orElseThrow().staffPinHash;
+        // 사장 경로는 없다.
+        mvc.perform(post("/api/admin/stores/{id}/staff-pin/regenerate",f.storeId()).header("Authorization",f.owner()))
+            .andExpect(result->assertTrue(result.getResponse().getStatus()>=400));
+        String url="/api/operator/stores/{id}/staff-pin/reset";
+        // 사유 없음, 매장명 불일치는 거부하고 PIN도 그대로다.
+        mvc.perform(post(url,f.storeId()).header("Authorization",f.op()).contentType(MediaType.APPLICATION_JSON)
+            .content("{\"confirmName\":\"pin상회\"}")).andExpect(status().isBadRequest());
+        mvc.perform(post(url,f.storeId()).header("Authorization",f.op()).contentType(MediaType.APPLICATION_JSON)
+            .content("{\"confirmName\":\"다른상회\",\"reason\":\"직원 퇴사\"}")).andExpect(jsonPath("$.error.code").value("STAFF_PIN_RESET_CONFIRM_MISMATCH"));
+        assertEquals(before,stores.findById(f.storeId()).orElseThrow().staffPinHash);
+        // 사장 토큰은 운영자 경로에 닿지 못한다.
+        mvc.perform(post(url,f.storeId()).header("Authorization",f.owner()).contentType(MediaType.APPLICATION_JSON)
+            .content("{\"confirmName\":\"pin상회\",\"reason\":\"직원 퇴사\"}")).andExpect(status().isUnauthorized());
+
+        mvc.perform(post(url,f.storeId()).header("Authorization",f.op()).contentType(MediaType.APPLICATION_JSON)
+            .content("{\"confirmName\":\"pin상회\",\"reason\":\"직원 퇴사\"}")).andExpect(status().isOk()).andExpect(jsonPath("$.data.pin").doesNotExist());
+        assertNotEquals(before,stores.findById(f.storeId()).orElseThrow().staffPinHash);
+        assertEquals(StoreCareAction.STAFF_PIN_RESET,careEvents.findTop100ByStoreIdOrderByCreatedAtDescIdDesc(f.storeId()).get(0).action);
+        // 사장은 새 PIN을 자기 화면에서 본다.
+        mvc.perform(get("/api/admin/stores/{id}/staff-pin",f.storeId()).header("Authorization",f.owner()))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.data.pin").value(org.hamcrest.Matchers.matchesPattern("\\d{6}")));
+        // 10분 안의 재요청(두 번 클릭)은 막는다.
+        mvc.perform(post(url,f.storeId()).header("Authorization",f.op()).contentType(MediaType.APPLICATION_JSON)
+            .content("{\"confirmName\":\"pin상회\",\"reason\":\"재전송\"}")).andExpect(status().isConflict())
+            .andExpect(jsonPath("$.error.code").value("STAFF_PIN_RECENTLY_RESET"));
+    }
+
     @Test void ledgerAndPlatformMetricsCountPaymentsAndFillSnapshots() throws Exception {
         Fixture f=fixture("metrics","5552220005");
         Store store=stores.findById(f.storeId()).orElseThrow();

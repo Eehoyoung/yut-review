@@ -40,6 +40,7 @@ export const CARE_ACTION_LABEL: Record<StoreCareAction, string> = {
   COMPLIMENTARY_PLAN_GRANTED: "보상 등급 제공",
   COMPLIMENTARY_PLAN_ENDED: "보상 등급 종료",
   STATS_EXPORTED: "통계 추출",
+  STAFF_PIN_RESET: "직원 PIN 재발급",
 };
 
 export const PAYMENT_STATUS_LABEL: Record<SubscriptionPaymentStatus, string> = {
