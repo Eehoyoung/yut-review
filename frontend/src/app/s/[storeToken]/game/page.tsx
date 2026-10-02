@@ -3,26 +3,9 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import YutGame from "@/components/yut/YutGame";
+import { markPlayed, wasPlayed } from "@/features/game/played";
 import { api } from "@/lib/api";
 import type { RevealResponse } from "@/types/api";
-
-const playedKey = (playId: string) => `yut:played:${playId}`;
-
-function markPlayed(playId: string) {
-  try {
-    sessionStorage.setItem(playedKey(playId), "1");
-  } catch {
-    // Private mode without storage still works; the server result is unchanged either way.
-  }
-}
-
-function wasPlayed(playId: string) {
-  try {
-    return sessionStorage.getItem(playedKey(playId)) === "1";
-  } catch {
-    return false;
-  }
-}
 
 export default function Game() {
   const token = String(useParams().storeToken);

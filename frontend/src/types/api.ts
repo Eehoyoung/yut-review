@@ -404,7 +404,17 @@ export interface GameResult {
   validFrom: string;
   expiresAt: string;
 }
-export type RevealResponse = GameResult;
+/** 공개 응답. 한판 더는 서버가 정한 게임에서, 공개 뒤 10분 안에 한 번만 열린다. */
+export type RevealResponse = GameResult & { retryAvailable?: boolean; retried?: boolean };
+export type RetryResponse = { playId: string; animationSeed: string };
+export type RetryMode = "EVERY_N" | "RANDOM";
+export interface RetrySettings {
+  enabled: boolean;
+  mode: RetryMode;
+  interval: number;
+  minInterval: number;
+  maxInterval: number;
+}
 
 /** 입점 키트 실물 발송 상태. 서버 `PrintKitStatus`. 행이 없는 매장은 WAITING으로 온다. */
 export type PrintKitStatus = "WAITING" | "PRINTING" | "PRINTED" | "SHIPPED";

@@ -12,6 +12,7 @@ erDiagram
     STORES ||--|| STORE_POSTERS : has
     STORES ||--o{ PRIZES : has
     STORES ||--o{ STORE_OUTCOMES : has
+    STORES ||--o| STORE_EVENT_SETTINGS : configures
     STORES ||--o{ GAME_PLAYS : has
     STORES ||--o{ COUPONS : has
     STORES ||--o{ STORE_APPROVAL_EVENTS : reviewed_by
@@ -117,6 +118,21 @@ UNIQUE(admin_user_id, store_id)
 
 `trial_started_at`, `trial_ended_at`은 체험 종료 후에도 화면과 감사 이력을 위해 지우지 않는다.
 
+## `store_event_settings`
+
+| Column | Type | Note |
+|---|---|---|
+| id | BIGINT | PK |
+| store_id | BIGINT | FK, UNIQUE |
+| coupon_validity_days | INT | 신규 쿠폰 사용 기한, 기본 90일 |
+| retry_enabled | BOOLEAN | 한판 더 사용 여부, nullable은 false로 읽음 |
+| retry_mode | VARCHAR(20) | EVERY_N / RANDOM, nullable은 EVERY_N으로 읽음 |
+| retry_interval | INT | 2~100, nullable은 10으로 읽음 |
+| created_at | DATETIME | |
+| updated_at | DATETIME | |
+
+설정 변경은 이후 생성되는 게임에만 적용된다. 한판 더 기회는 게임 생성 시 `game_plays.retry_offered`에 동결한다.
+
 ## `store_qr_codes`
 | Column | Type | Note |
 |---|---|---|
@@ -210,6 +226,10 @@ UNIQUE(store_id, yut_result)
 | played_date | DATE | Asia/Seoul |
 | played_at | DATETIME | |
 | revealed_at | DATETIME | nullable |
+| retry_offered | BOOLEAN | 생성 시 동결된 한판 더 기회, 기존 행은 nullable |
+| retry_decided_at | DATETIME | 다시 던짐 또는 현재 결과 유지 결정 시각 |
+| retry_from_result | VARCHAR(10) | 재던지기 전 결과 |
+| retry_from_rank | INT | 재던지기 전 상품 등급 |
 
 인덱스:
 ```text
