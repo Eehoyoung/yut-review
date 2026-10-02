@@ -68,7 +68,7 @@ export default function Dashboard() {
         <div className="payment-notice-symbol" aria-hidden="true"><span>!</span></div>
         <div className="stack payment-notice-copy">
           <p className="eyebrow">구독 상태 확인</p>
-          <h2 id="payment-notice-title">이용이 중단되었어요<br />결제 방식을 확인해주세요</h2>
+          <h2 id="payment-notice-title">이용이 중단되었어요. 결제 방식을 확인해주세요</h2>
           <p className="lead">결제수단을 확인하거나 구독을 다시 시작하면 매장 QR 서비스를 계속 이용할 수 있어요.</p>
         </div>
         <Link className="btn" href={`/admin/stores/${id}/plan`}>구독 및 결제 확인</Link>
