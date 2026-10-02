@@ -514,14 +514,13 @@ interface NotificationService { void couponIssued(Coupon coupon); }
     /** 공개 후 이 시간 안에만 한판 더를 고를 수 있다. 쿠폰을 받아 두고 며칠 뒤에 다시 굴리는 길을 막는다. */
     static final Duration RETRY_WINDOW=Duration.ofMinutes(10);
 
-    /**
-     * 이 게임에 한판 더 기회를 줄지. 방금 저장한 게임까지 센 매장 누적 게임 수로 본다.
-     * ponytail: 동시에 생성된 두 게임이 같은 수를 볼 수 있다(둘 다 받거나 둘 다 못 받음). 정확해야 하면 매장 카운터 행을 둔다.
-     */
+    /** 이 게임에 한판 더 기회를 줄지. 방금 저장한 게임까지 센 매장 누적 게임 수로 본다. */
     private boolean offerRetry(Long storeId){
         StoreEventSettingsService.Retry r=eventSettings.retry(storeId);
         if(!r.enabled())return false;
-        return r.mode()==RetryMode.RANDOM?random.nextInt(r.interval())==0:games.countByStoreId(storeId)%r.interval()==0;
+        if(r.mode()==RetryMode.RANDOM)return random.nextInt(r.interval())==0;
+        rateLimits.lock("retry-sequence:"+storeId);
+        return games.countByStoreId(storeId)%r.interval()==0;
     }
 
     /** 쿠폰에 상품 스냅숏/사용 시작/만료를 채운다. 새 발급과 한판 더 재발급이 같은 규칙을 쓴다. */
@@ -550,7 +549,7 @@ interface NotificationService { void couponIssued(Coupon coupon); }
     @Transactional GamePlay retry(String playId){
         GamePlay g=games.findForUpdateByPublicId(playId).orElseThrow(GameService::notFound);
         if(g.retryFromResult!=null)return g;
-        Coupon c=coupons.findByGamePlayId(g.id).orElseThrow();
+        Coupon c=coupons.findForUpdateByGamePlayId(g.id).orElseThrow();
         if(!retryAvailable(g,c))throw new AppException("RETRY_NOT_AVAILABLE","한판 더를 할 수 없는 게임이에요.",org.springframework.http.HttpStatus.CONFLICT);
         List<StoreOutcome> outcomes=config.load(g.store.id);YutResult result=generator.generate(outcomes);
         int rank=outcomes.stream().filter(o->o.yutResult==result).mapToInt(o->o.prizeRank).findFirst().orElseThrow();
@@ -565,8 +564,11 @@ interface NotificationService { void couponIssued(Coupon coupon); }
     /** 이대로 만족해요. 결정을 남겨 이후 한판 더를 막는다. 여러 번 와도 같다. */
     @Transactional Coupon keep(String playId){
         GamePlay g=games.findForUpdateByPublicId(playId).orElseThrow(GameService::notFound);
-        if(Boolean.TRUE.equals(g.retryOffered)&&g.retryDecidedAt==null)g.retryDecidedAt=clock.instant();
-        return coupons.findByGamePlayId(g.id).orElseThrow();
+        Coupon c=coupons.findByGamePlayId(g.id).orElseThrow();
+        if(g.retryDecidedAt!=null&&g.retryFromResult==null)return c;
+        if(!retryAvailable(g,c))throw new AppException("RETRY_NOT_AVAILABLE","한판 더를 결정할 수 없는 게임이에요.",org.springframework.http.HttpStatus.CONFLICT);
+        g.retryDecidedAt=clock.instant();
+        return c;
     }
     private static AppException notFound(){return new AppException("GAME_NOT_FOUND","게임을 찾을 수 없습니다.",org.springframework.http.HttpStatus.NOT_FOUND);}
 }

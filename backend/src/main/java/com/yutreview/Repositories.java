@@ -178,4 +178,6 @@ interface CouponRepository extends JpaRepository<Coupon,Long> {
     Page<Coupon> findByStoreIdOrderByIssuedAtDesc(Long storeId,Pageable pageable); long countByStoreIdAndStatus(Long storeId,CouponStatus status);
     @Lock(LockModeType.PESSIMISTIC_WRITE) @Query("select c from Coupon c join fetch c.store where c.couponToken=:token")
     Optional<Coupon> findForUpdate(@Param("token") String token);
+    @Lock(LockModeType.PESSIMISTIC_WRITE) @Query("select c from Coupon c where c.gamePlay.id=:gamePlayId")
+    Optional<Coupon> findForUpdateByGamePlayId(@Param("gamePlayId") Long gamePlayId);
 }

@@ -4,17 +4,26 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /** 한판 더: 서버가 정한 게임에서만, 공개 뒤 한 번, 쿠폰을 늘리지 않고, 결정 후엔 되돌릴 수 없다. */
-@SpringBootTest @Transactional class RetryTest {
+@SpringBootTest class RetryTest {
     @Autowired StoreRepository stores; @Autowired QrRepository qrs; @Autowired GameConfigService config; @Autowired PasswordEncoder encoder;
     @Autowired GameService games; @Autowired GameRepository gameRepository; @Autowired CouponRepository coupons; @Autowired StoreEventSettingsService settings;
+    @Autowired TransactionTemplate transactions;
     Store store; String qr; int seq;
 
     @BeforeEach void setup(){
@@ -41,13 +50,29 @@ import org.springframework.transaction.annotation.Transactional;
         assertThrows(AppException.class,()->settings.saveRetry(store,true,RetryMode.RANDOM,1));
     }
 
+    @Test void simultaneousGamesOfferExactlyEveryNth() throws Exception {
+        settings.saveRetry(store,true,RetryMode.EVERY_N,2);
+        CountDownLatch ready=new CountDownLatch(2),start=new CountDownLatch(1);
+        ExecutorService pool=Executors.newFixedThreadPool(2);
+        try {
+            List<Future<Boolean>> results=List.of(1,2).stream().map(i->pool.submit(()->{
+                ready.countDown();start.await();
+                return Boolean.TRUE.equals(games.create(qr,"손님","0109999000"+i,"retry-concurrent-"+i).retryOffered);
+            })).toList();
+            assertTrue(ready.await(5,TimeUnit.SECONDS));start.countDown();
+            assertEquals(1,results.stream().filter(f->{try{return f.get();}catch(Exception e){throw new RuntimeException(e);}}).count());
+        } finally {
+            start.countDown();pool.shutdownNow();
+        }
+    }
+
     @Test void retryRerollsOnceAndReissuesTheSameCoupon(){
         settings.saveRetry(store,true,RetryMode.EVERY_N,2);
         play();GamePlay g=play();assertTrue(g.retryOffered);
         // 결과를 보기 전에는 고를 수 없다.
         assertTrue(conflict(()->games.retry(g.publicId)));
-        Coupon first=games.reveal(g.publicId);String oldToken=first.couponToken;YutResult oldResult=g.yutResult;Long couponId=first.id;
-        assertTrue(games.retryAvailable(g,first));
+        Coupon first=games.reveal(g.publicId);GamePlay revealedGame=gameRepository.findById(g.id).orElseThrow();String oldToken=first.couponToken;YutResult oldResult=g.yutResult;Long couponId=first.id;
+        assertTrue(games.retryAvailable(revealedGame,first));
 
         GamePlay again=games.retry(g.publicId);String seed=again.animationSeed;
         assertEquals(oldResult,again.retryFromResult);assertNotNull(again.retryDecidedAt);assertEquals(GameStatus.CREATED,again.status);
@@ -63,12 +88,42 @@ import org.springframework.transaction.annotation.Transactional;
 
     @Test void keepingOrWaitingTooLongClosesTheOffer(){
         settings.saveRetry(store,true,RetryMode.EVERY_N,2);
-        play();GamePlay kept=play();games.reveal(kept.publicId);
+        play();GamePlay kept=play();
+        assertTrue(conflict(()->games.keep(kept.publicId)));
+        Coupon revealed=games.reveal(kept.publicId);
+        assertTrue(games.retryAvailable(gameRepository.findById(kept.id).orElseThrow(),revealed));
         games.keep(kept.publicId);games.keep(kept.publicId);
         assertTrue(conflict(()->games.retry(kept.publicId)));
 
         play();GamePlay late=play();games.reveal(late.publicId);
         late.revealedAt=Instant.now().minus(GameService.RETRY_WINDOW).minus(Duration.ofSeconds(1));gameRepository.save(late);
+        assertTrue(conflict(()->games.keep(late.publicId)));
         assertTrue(conflict(()->games.retry(late.publicId)));
+    }
+
+
+    @Test void redeemedCouponCannotBeReissuedByConcurrentRetry() throws Exception {
+        settings.saveRetry(store,true,RetryMode.EVERY_N,2);
+        play();GamePlay g=play();Coupon c=games.reveal(g.publicId);
+        CountDownLatch couponLocked=new CountDownLatch(1),releaseRedeem=new CountDownLatch(1);
+        ExecutorService pool=Executors.newFixedThreadPool(2);
+        try {
+            Future<?> redeem=pool.submit(()->transactions.executeWithoutResult(status->{
+                Coupon locked=coupons.findForUpdate(c.couponToken).orElseThrow();
+                locked.status=CouponStatus.REDEEMED;locked.redeemedAt=Instant.now();
+                couponLocked.countDown();
+                try { releaseRedeem.await(); } catch(InterruptedException e){Thread.currentThread().interrupt();throw new RuntimeException(e);}
+            }));
+            assertTrue(couponLocked.await(5,TimeUnit.SECONDS));
+            Future<GamePlay> retry=pool.submit(()->games.retry(g.publicId));
+            assertThrows(TimeoutException.class,()->retry.get(300,TimeUnit.MILLISECONDS));
+            releaseRedeem.countDown();redeem.get();
+            ExecutionException failure=assertThrows(ExecutionException.class,retry::get);
+            assertEquals("RETRY_NOT_AVAILABLE",((AppException)failure.getCause()).code);
+            Coupon finalCoupon=coupons.findById(c.id).orElseThrow();
+            assertEquals(CouponStatus.REDEEMED,finalCoupon.status);assertEquals(c.couponToken,finalCoupon.couponToken);
+        } finally {
+            releaseRedeem.countDown();pool.shutdownNow();
+        }
     }
 }
