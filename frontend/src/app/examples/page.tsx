@@ -21,7 +21,7 @@ export default function ExamplesIndex() {
       <LandingNav />
       <header className="ex-hero">
         <p className="ex-eyebrow">업종별 활용 예시</p>
-        <h1>우리 매장은 어떻게<br />활용할 수 있을까요?</h1>
+        <h1>우리 매장은 어떻게 활용할 수 있을까요?</h1>
         <p>업종을 검색하거나 아래에서 골라 보세요. 업종마다 운영 예시, 추천 경품, 바로 쓸 수 있는 3단계 구성을 담았어요.</p>
         <ExampleSearch />
         <ul className="ex-chips" aria-label="많이 찾는 업종">

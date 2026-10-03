@@ -37,7 +37,7 @@ export default async function ExampleDetail({ params }: Props) {
       <article className="ex-detail">
         <header className="ex-hero">
           <nav className="ex-breadcrumb" aria-label="현재 위치"><Link href="/examples">업종별 예시</Link><span aria-hidden="true">›</span><Link href={`/examples#${group.slug}`}>{group.name}</Link></nav>
-          <h1>{industry.name}에서는<br />이렇게 활용해요</h1>
+          <h1>{industry.name}에서는 이렇게 활용해요</h1>
           <p className="ex-headline">{industry.headline}</p>
           <p>{industry.summary}</p>
           <ul className="ex-tags" aria-label="추천 목적">{industry.tags.map((t) => <li key={t}>{t}</li>)}</ul>
@@ -89,7 +89,7 @@ export default async function ExampleDetail({ params }: Props) {
       </article>
 
       <section className="landing-final no-mascot" aria-labelledby="final-title">
-        <div><h2 id="final-title">우리 매장에서도<br />바로 시작해 보세요</h2><p>가입 후 대시보드에서 업종을 검색하면 이 구성을 상품 설정에 그대로 불러올 수 있어요.</p></div>
+        <div><h2 id="final-title">우리 매장에서도 바로 시작해 보세요</h2><p>가입 후 대시보드에서 업종을 검색하면 이 구성을 상품 설정에 그대로 불러올 수 있어요.</p></div>
         <div className="final-actions"><Link className="landing-choice landing-primary inverse" href="/admin/signup">30일 무료로 매장등록</Link><Link className="landing-choice landing-secondary inverse-secondary" href="/admin/login">이미 계정이 있어요</Link></div>
       </section>
 
