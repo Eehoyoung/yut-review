@@ -441,7 +441,8 @@ export type StoreCareAction =
   | "BILLING_POSTPONED"
   | "COMPLIMENTARY_PLAN_GRANTED"
   | "COMPLIMENTARY_PLAN_ENDED"
-  | "STATS_EXPORTED";
+  | "STATS_EXPORTED"
+  | "STAFF_PIN_RESET";
 export type SubscriptionPaymentStatus = "PENDING" | "PAID" | "FAILED";
 
 export interface OperatorPayment {

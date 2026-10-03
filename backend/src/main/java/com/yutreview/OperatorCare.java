@@ -53,8 +53,9 @@ import org.springframework.web.bind.annotation.*;
 /*
  * 운영자가 매장 사장을 "대신해서" 하는 일과, 소담랩스가 사업 전체를 보는 숫자.
  *
- * 경계: 매장 운영에는 손대지 않는다. 상품·확률·등급 수·쿠폰·직원 PIN·쿠폰 사용기한·게임 기록은 여기서
- * 읽지도 쓰지도 않는다. 운영자가 바꾸는 것은 사장이 전화로 부탁하는 연락처성 정보(매장명·전화·주소·
+ * 경계: 매장 운영에는 손대지 않는다. 상품·확률·등급 수·쿠폰·쿠폰 사용기한·게임 기록은 여기서
+ * 읽지도 쓰지도 않는다. 예외 하나: 직원 PIN 재발급은 사장이 못 하고 여기서만 한다(2026-10-03 사용자 결정).
+ * 그래도 운영자는 PIN을 보지 않는다 — 새 PIN은 사장 화면에만 보인다. 운영자가 바꾸는 것은 사장이 전화로 부탁하는 연락처성 정보(매장명·전화·주소·
  * 지도 링크)와, 소담랩스가 사장에게 지는 계약(결제일·요금제)뿐이다. 사업자등록번호·대표자명·개업일자는
  * 국세청 진위확인 값이라 운영자도 바꾸지 않는다.
  *
@@ -64,10 +65,10 @@ import org.springframework.web.bind.annotation.*;
 
 /**
  * 운영자가 매장에 해 준 일. 새 테이블이라 enum CHECK 제약 문제(기존 테이블에 값 추가)가 없다.
- * 이 enum에 값을 더할 때는 CLAUDE.md "기존 테이블의 enum에 값을 추가하는 변경" 위험이 그대로 적용된다 —
- * 운영 DB의 CHECK 제약을 함께 고쳐야 한다.
+ * 값을 더하면 운영 DB의 CHECK 제약이 옛 목록이라 INSERT가 실패한다. {@link AdminRoleMigration}이 기동 때
+ * 이 enum 전체로 제약을 다시 걸어 준다(2026-10-03 STAFF_PIN_RESET부터).
  */
-enum StoreCareAction { PROFILE_UPDATED, BILLING_POSTPONED, COMPLIMENTARY_PLAN_GRANTED, COMPLIMENTARY_PLAN_ENDED, STATS_EXPORTED }
+enum StoreCareAction { PROFILE_UPDATED, BILLING_POSTPONED, COMPLIMENTARY_PLAN_GRANTED, COMPLIMENTARY_PLAN_ENDED, STATS_EXPORTED, STAFF_PIN_RESET }
 
 @Entity @Table(name="operator_store_actions",indexes={@Index(columnList="store_id,created_at"),@Index(columnList="created_at")})
 class StoreCareEvent {
@@ -87,6 +88,7 @@ class StoreCareEvent {
 interface StoreCareEventRepository extends JpaRepository<StoreCareEvent,Long> {
     List<StoreCareEvent> findTop100ByStoreIdOrderByCreatedAtDescIdDesc(Long storeId);
     List<StoreCareEvent> findTop200ByOrderByCreatedAtDescIdDesc();
+    Optional<StoreCareEvent> findFirstByStoreIdAndActionOrderByCreatedAtDesc(Long storeId,StoreCareAction action);
 }
 
 /**
@@ -122,18 +124,22 @@ interface PlatformDailyMetricRepository extends JpaRepository<PlatformDailyMetri
     static final int MAX_POSTPONE_DAYS=90;
     static final int MAX_COMPLIMENTARY_DAYS=365;
     private static final Duration LOCK=Duration.ofMinutes(2);
+    /** 재발급 직후 같은 요청이 또 와도(두 번 클릭, 재전송) PIN을 또 바꾸지 않는 간격. QR 재발급과 같다. */
+    static final Duration STAFF_PIN_RESET_COOLDOWN=Duration.ofMinutes(10);
 
     private final StoreRepository stores;private final MembershipRepository memberships;
     private final StoreSubscriptionRepository subscriptions;private final SubscriptionPaymentRepository payments;
     private final StoreCareEventRepository events;private final ServiceAccessPolicy policy;
     private final OperatorOverviewService overview;private final AnalyticsService analytics;private final AiContextService context;
     private final PortOneClient portone;private final Clock clock;
+    private final org.springframework.security.crypto.password.PasswordEncoder encoder;private final PhoneService crypto;private final java.security.SecureRandom random;
     OperatorStoreCareService(StoreRepository stores,MembershipRepository memberships,StoreSubscriptionRepository subscriptions,
         SubscriptionPaymentRepository payments,StoreCareEventRepository events,ServiceAccessPolicy policy,
-        OperatorOverviewService overview,AnalyticsService analytics,AiContextService context,PortOneClient portone,Clock clock){
+        OperatorOverviewService overview,AnalyticsService analytics,AiContextService context,PortOneClient portone,Clock clock,
+        org.springframework.security.crypto.password.PasswordEncoder encoder,PhoneService crypto,java.security.SecureRandom random){
         this.stores=stores;this.memberships=memberships;this.subscriptions=subscriptions;this.payments=payments;
         this.events=events;this.policy=policy;this.overview=overview;this.analytics=analytics;this.context=context;
-        this.portone=portone;this.clock=clock;
+        this.portone=portone;this.clock=clock;this.encoder=encoder;this.crypto=crypto;this.random=random;
     }
 
     record Profile(String name,String phone,String address,String naverPlaceUrl){}
@@ -254,6 +260,28 @@ interface PlatformDailyMetricRepository extends JpaRepository<PlatformDailyMetri
         s.complimentaryPlan=null;s.complimentaryUntil=null;s.updatedAt=now;
         record(actor,store,StoreCareAction.COMPLIMENTARY_PLAN_ENDED,why,"보상 등급 종료: "+before);
         return subscription(storeId);
+    }
+
+    /**
+     * 직원 PIN 재발급. 사장 API는 없다 — 바꾸는 순간 매장 직원 전원이 쓰던 PIN이 죽는다.
+     *
+     * 실수 방지 세 겹(QR 재발급과 같다): 매장명을 그대로 다시 입력해야 하고, 사유가 필수이며, 마지막 재발급 후
+     * 10분 안에는 다시 바꾸지 않는다. 매장 행을 잠가 동시 요청 두 개가 둘 다 통과하지 못하게 한다.
+     * 새 PIN은 응답에도 기록에도 남기지 않는다. 사장이 자기 화면(직원 PIN)에서 본다.
+     */
+    @Transactional Map<String,Object> resetStaffPin(AdminUser actor,Long storeId,String confirmName,String reason){
+        String why=reason(reason);
+        Store s=stores.findForUpdate(storeId).orElseThrow(OperatorStoreCareService::notFound);
+        if(confirmName==null||!confirmName.trim().equals(s.name.trim()))
+            throw new AppException("STAFF_PIN_RESET_CONFIRM_MISMATCH","매장명을 정확히 입력해야 재발급됩니다.");
+        Instant now=clock.instant();
+        if(events.findFirstByStoreIdAndActionOrderByCreatedAtDesc(storeId,StoreCareAction.STAFF_PIN_RESET)
+            .filter(e->e.createdAt.isAfter(now.minus(STAFF_PIN_RESET_COOLDOWN))).isPresent())
+            throw new AppException("STAFF_PIN_RECENTLY_RESET","방금 재발급한 PIN입니다. 10분 뒤에 다시 시도해 주세요.",HttpStatus.CONFLICT);
+        String pin=Integer.toString(100000+random.nextInt(900000));
+        s.staffPinHash=encoder.encode(pin);s.staffPinEncrypted=crypto.encrypt(pin);s.updatedAt=now;
+        record(actor,s,StoreCareAction.STAFF_PIN_RESET,why,"직원 PIN 재발급(기존 PIN 즉시 무효, 새 PIN은 매장 관리자 화면에서 확인)");
+        return Map.of("storeId",storeId,"resetAt",now);
     }
 
     /** 사장 대신 뽑는 상세 통계. 요금제와 무관하게 PRO 구간 규칙(보관기간 상한 없음)으로 본다. */
@@ -575,6 +603,7 @@ interface PlatformDailyMetricRepository extends JpaRepository<PlatformDailyMetri
     record PostponeBody(int days,@NotBlank @Size(max=200) String reason){}
     record ComplimentaryBody(@NotNull Plan plan,int days,@NotBlank @Size(max=200) String reason){}
     record ReasonBody(@NotBlank @Size(max=200) String reason){}
+    record ConfirmBody(@NotBlank @Size(max=100) String confirmName,@NotBlank @Size(max=200) String reason){}
 
     @GetMapping("/stores/{id}/care") ApiResponse<?> detail(@PathVariable Long id,Authentication auth){
         approvals.requireOperator(adminId(auth));
@@ -599,6 +628,11 @@ interface PlatformDailyMetricRepository extends JpaRepository<PlatformDailyMetri
     @PostMapping("/stores/{id}/complimentary/end") ApiResponse<?> end(@PathVariable Long id,@Valid @RequestBody ReasonBody b,Authentication auth){
         AdminUser actor=approvals.requireOperator(adminId(auth));
         return ApiResponse.ok(care.endComplimentary(actor,id,b.reason()));
+    }
+
+    @PostMapping("/stores/{id}/staff-pin/reset") ApiResponse<?> resetStaffPin(@PathVariable Long id,@Valid @RequestBody ConfirmBody b,Authentication auth){
+        AdminUser actor=approvals.requireOperator(adminId(auth));
+        return ApiResponse.ok(care.resetStaffPin(actor,id,b.confirmName(),b.reason()));
     }
 
     @GetMapping("/stores/{id}/report") ApiResponse<?> report(@PathVariable Long id,

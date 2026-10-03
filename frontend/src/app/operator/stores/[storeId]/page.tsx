@@ -21,15 +21,17 @@ import type { OperatorStoreCare, Plan } from "@/types/api";
  * 매장 한 곳의 상담 화면. 사장님 전화를 받으며 여는 곳이다.
  *
  * 여기서 바꾸는 것은 연락처성 정보(매장명·전화·주소·지도 링크)와 소담랩스가 지는 계약(결제일·보상 등급)뿐이다.
- * 상품·확률·쿠폰·직원 PIN 같은 매장 운영 설정은 보여 주지도 않는다. 모든 변경은 사유를 받아 기록에 남긴다.
+ * 상품·확률·쿠폰 같은 매장 운영 설정은 보여 주지도 않는다. 모든 변경은 사유를 받아 기록에 남긴다.
+ * 예외: 직원 PIN 재발급은 사장이 못 하고 여기서만 한다. PIN 자체는 운영자에게도 보이지 않는다(사장 화면에만).
  */
 
-type Sheet = "profile" | "postpone" | "comp" | "compEnd";
+type Sheet = "profile" | "postpone" | "comp" | "compEnd" | "pin";
 const SHEET_TITLE: Record<Sheet, string> = {
   profile: "매장 정보 수정",
   postpone: "결제일 연기",
   comp: "보상 등급 제공",
   compEnd: "보상 등급 종료",
+  pin: "직원 PIN 재발급",
 };
 
 const PLANS: Plan[] = ["BASIC", "STANDARD", "PRO"];
@@ -51,7 +53,7 @@ export default function OperatorStoreCarePage() {
   const storeId = String(useParams().storeId);
   const qc = useQueryClient();
   const [sheet, setSheet] = useState<Sheet>();
-  const [form, setForm] = useState({ name: "", phone: "", address: "", naverPlaceUrl: "", days: "7", plan: "PRO", reason: "" });
+  const [form, setForm] = useState({ name: "", phone: "", address: "", naverPlaceUrl: "", days: "7", plan: "PRO", reason: "", confirmName: "" });
   const [flash, setFlash] = useState("");
   const [range, setRange] = useState(() => {
     const to = new Date();
@@ -70,7 +72,7 @@ export default function OperatorStoreCarePage() {
     setFlash("");
     if (c && kind === "profile")
       setForm((f) => ({ ...f, name: c.store.name, phone: c.store.phone, address: c.store.address, naverPlaceUrl: c.store.naverPlaceUrl, reason: "" }));
-    else setForm((f) => ({ ...f, days: kind === "comp" ? "30" : "7", plan: "PRO", reason: "" }));
+    else setForm((f) => ({ ...f, days: kind === "comp" ? "30" : "7", plan: "PRO", reason: "", confirmName: "" }));
     setSheet(kind);
   };
 
@@ -92,6 +94,11 @@ export default function OperatorStoreCarePage() {
           method: "POST",
           body: JSON.stringify({ plan: form.plan, days: Number(form.days), reason }),
         });
+      if (kind === "pin")
+        return api(`/operator/stores/${storeId}/staff-pin/reset`, {
+          method: "POST",
+          body: JSON.stringify({ confirmName: form.confirmName, reason }),
+        });
       return api(`/operator/stores/${storeId}/complimentary/end`, { method: "POST", body: JSON.stringify({ reason }) });
     },
     onSuccess: (_, kind) => {
@@ -104,6 +111,7 @@ export default function OperatorStoreCarePage() {
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
+    if (sheet === "pin" && form.confirmName.trim() !== c?.store.name.trim()) return;
     if (sheet) act.mutate(sheet);
   };
 
@@ -125,8 +133,7 @@ export default function OperatorStoreCarePage() {
   return (
     <OperatorFrame title={c ? c.store.name : "매장 상담"}>
       <p className="hint">
-        <Link href="/operator/stores">← 매장 목록</Link> · 상품·확률·쿠폰·직원 PIN 같은 매장 운영 설정은 이 화면에서 보지도 바꾸지도
-        않습니다.
+        <Link href="/operator/stores">← 매장 목록</Link> · 상품·확률·쿠폰 같은 매장 운영 설정은 이 화면에서 보지도 바꾸지도 않습니다.
       </p>
 
       {q.isError && (
@@ -180,6 +187,9 @@ export default function OperatorStoreCarePage() {
               <div className="sheet-actions">
                 <button type="button" className="btn secondary btn-inline" onClick={() => open("profile")}>
                   정보 수정
+                </button>
+                <button type="button" className="btn ghost btn-inline" onClick={() => open("pin")}>
+                  직원 PIN 재발급
                 </button>
               </div>
               <p className="hint">사업자등록번호·대표자·개업일은 국세청 확인 값이라 운영자도 바꾸지 않습니다.</p>
@@ -467,6 +477,30 @@ export default function OperatorStoreCarePage() {
             </p>
           )}
 
+          {sheet === "pin" && c && (
+            <>
+              <p className="error" role="note">
+                기존 PIN은 즉시 쓸 수 없게 됩니다. 매장 직원 모두 새 PIN을 받아야 쿠폰을 사용 처리할 수 있습니다. 되돌릴 수 없습니다.
+              </p>
+              <p className="hint">새 PIN은 운영자에게 보이지 않습니다. 사장님이 매장 관리자 화면 &quot;직원 PIN&quot;에서 확인합니다.</p>
+              <div className="field">
+                <label htmlFor="care-pin-confirm">
+                  확인을 위해 매장명 <b>{c.store.name}</b>을(를) 그대로 입력해 주세요
+                </label>
+                <input
+                  id="care-pin-confirm"
+                  autoComplete="off"
+                  required
+                  value={form.confirmName}
+                  onChange={(e) => setForm({ ...form, confirmName: e.target.value })}
+                />
+                {form.confirmName && form.confirmName.trim() !== c.store.name.trim() && (
+                  <small className="hint">매장명이 일치하지 않습니다.</small>
+                )}
+              </div>
+            </>
+          )}
+
           <div className="field">
             <label htmlFor="care-reason">사유 (필수)</label>
             <input
@@ -490,7 +524,7 @@ export default function OperatorStoreCarePage() {
             <button type="button" className="btn ghost" onClick={() => setSheet(undefined)}>
               취소
             </button>
-            <button className="btn" disabled={act.isPending}>
+            <button className="btn" disabled={act.isPending || (sheet === "pin" && form.confirmName.trim() !== c?.store.name.trim())}>
               {act.isPending ? "처리 중" : "실행"}
             </button>
           </div>

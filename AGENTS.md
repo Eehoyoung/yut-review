@@ -99,7 +99,7 @@ If an unused coupon exists for the same customer/store, show that coupon before 
   Abuse control for game entry is the 2 calendar-day cooldown and the active-coupon rule.
 - Never log the plaintext PIN.
 - Prefer one-way hashing for persistent PIN storage.
-- PIN must be regeneratable by an authorized store admin.
+- PIN is regenerated only by a system operator (2026-10-03). Store admins can view it but not change it.
 
 ### Prize tiers (store-configurable)
 

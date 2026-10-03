@@ -529,7 +529,11 @@ sh scripts/create-operator.sh admin@example.com    # 이메일 지정
 가입 한 트랜잭션에서 계정·매장·OWNER 멤버십·QR 토큰·기본 3등급 상품·기본 가중치 설정이 생성되고
 직원 PIN은 `/admin/stores/{id}/staff-pin`에서 계속 볼 수 있다(2026-10-02 사용자 요청: 한 번만 보여 주니 너무 불편했다).
 검증은 여전히 BCrypt `staff_pin_hash`로만 하고, 표시용으로 `staff_pin_encrypted`(PhoneService AES-GCM)를 같이 둔다.
-이 기능 이전 매장은 암호문이 없어 화면이 재발급을 한 번 안내한다. 평문 저장·로그 금지는 그대로다.
+이 기능 이전 매장은 암호문이 없어 화면이 운영자 재발급 요청을 안내한다. 평문 저장·로그 금지는 그대로다.
+**재발급은 운영자 전용이다(2026-10-03 사용자 결정).** 사장 화면은 보기만 한다. 운영자 매장 상담 화면의
+"직원 PIN 재발급"(`POST /api/operator/stores/{id}/staff-pin/reset`, `OperatorStoreCareService.resetStaffPin`)만 바꾼다.
+안전장치: 매장명 재입력, 사유 필수, 10분 재발급 간격, 매장 행 잠금, `operator_store_actions` 기록. 운영자에게도 새 PIN은
+보이지 않는다(응답·기록에 없음). 사장 재발급 API를 되살리지 말 것 — 직원 전원의 PIN이 요청 한 번으로 죽는다.
 관리자 로그인은 **이메일 + 비밀번호**뿐이다. 아이디(`loginId`) 개념은 2026-09-03에 제거했다.
 같은 계정으로 `/admin`에서 매장을 더 추가할 수 있고(사업자등록번호는 매장마다 달라야 한다),
 한 계정당 상한은 `AdminController.MAX_STORES_PER_ADMIN`이다.
@@ -638,7 +642,8 @@ collector 중지는 호스트의 `/etc/cron.d/sodam-ops` 삭제로 충분하다.
 계약은 `05_API_SPEC.md` 같은 날짜 절. 테스트는 `OperatorCareTest.java`.
 
 - **매장 운영에는 손대지 않는다.** 운영자가 바꾸는 것은 연락처성 정보(매장명·전화·주소·지도 링크)와 소담랩스가 지는
-  계약(결제일·보상 등급)뿐이다. 상품·확률·쿠폰·직원 PIN·쿠폰 기한을 이 경로에 추가하지 말 것. 사업자등록번호·대표자·
+  계약(결제일·보상 등급), 그리고 예외로 직원 PIN 재발급(값은 보지 않음)뿐이다. 상품·확률·쿠폰·쿠폰 기한을 이 경로에 추가하지 말 것.
+- `StoreCareAction`의 CHECK 제약은 `AdminRoleMigration`이 기동 때 enum 목록으로 다시 건다. 값을 더해도 손으로 고칠 필요가 없다. 사업자등록번호·대표자·
   개업일은 국세청 확인 값이라 운영자도 못 바꾼다. 매장명은 사장이 못 바꾸므로 상호 변경 창구가 여기다.
 - 모든 쓰기는 사유 필수, `operator_store_actions`(append-only, 운영자 이메일·매장명 동결)에 남고 활동 기록에 `SUPPORT`로 합쳐진다.
 - **보상 등급은 `plan`을 바꾸지 않는다.** `store_subscriptions.complimentary_plan/_until`에 두고
