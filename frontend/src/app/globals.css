@@ -1195,6 +1195,11 @@ form > .success {
   margin: -8px auto 4px;
 }
 
+.postcode-frame {
+  width: 100%;
+  height: min(520px, 65dvh);
+}
+
 /* ---------- 구독 중단 안내 ---------- */
 
 .service-unavailable {

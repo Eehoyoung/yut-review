@@ -1,12 +1,13 @@
 "use client";
 import Link from "next/link";
 import Script from "next/script";
-import { FormEvent, useState } from "react";
+import { FormEvent, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { api, errorMessage } from "@/lib/api";
 import { BUSINESS_NUMBER_LENGTH, PHONE_LENGTH, onlyDigits } from "@/features/normalize";
 import { ADMIN_PRIVACY_VERSION, MARKETING_SMS_VERSION, TERMS_VERSION, marketingServices } from "@/lib/legal";
 import type { StoreStatus } from "@/types/api";
+import { Dialog } from "@/features/ui/Dialog";
 
 /** 가입 결과 화면은 서버가 준 approvalRequired를 따른다. 승인제는 서버 설정으로 켜고 끈다. */
 type SignUpResult = { storeId: number; storeName: string; status: StoreStatus; approvalRequired: boolean };
@@ -104,19 +105,34 @@ export default function SignUp() {
   const [marketing, setMarketing] = useState<Record<string, boolean>>({});
   const [postcodeReady, setPostcodeReady] = useState(false);
   const [postcodeError, setPostcodeError] = useState(false);
+  const [postcodeOpen, setPostcodeOpen] = useState(false);
+  const postcodeFrame = useRef<HTMLDivElement>(null);
+
+  const closePostcode = () => {
+    postcodeFrame.current?.replaceChildren();
+    setPostcodeOpen(false);
+  };
 
   const searchAddress = () => {
-    const kakao = (window as typeof window & { kakao?: { Postcode: new (options: { oncomplete: (data: { roadAddress: string; jibunAddress: string; address: string }) => void }) => { open: () => void } } }).kakao;
+    const kakao = (window as typeof window & { kakao?: { Postcode: new (options: { oncomplete: (data: { roadAddress: string; jibunAddress: string; address: string }) => void; onclose: () => void; width: string; height: string }) => { embed: (element: HTMLElement) => void } } }).kakao;
     if (!kakao?.Postcode) {
       setPostcodeError(true);
       return;
     }
-    new kakao.Postcode({
-      oncomplete: (data) => {
-        setForm((current) => ({ ...current, address: data.roadAddress || data.jibunAddress || data.address }));
-        requestAnimationFrame(() => document.getElementById("address")?.focus());
-      },
-    }).open();
+    setPostcodeOpen(true);
+    requestAnimationFrame(() => {
+      if (!postcodeFrame.current) return;
+      new kakao.Postcode({
+        oncomplete: (data) => {
+          setForm((current) => ({ ...current, address: data.roadAddress || data.jibunAddress || data.address }));
+          closePostcode();
+          requestAnimationFrame(() => document.getElementById("address")?.focus());
+        },
+        onclose: closePostcode,
+        width: "100%",
+        height: "100%",
+      }).embed(postcodeFrame.current);
+    });
   };
 
   // 실패해도 가입을 막지 않는다. 그 경우 개업일자를 묻지 않고 보내고, 검증이 켜져 있으면
@@ -202,6 +218,11 @@ export default function SignUp() {
         onLoad={() => { setPostcodeReady(true); setPostcodeError(false); }}
         onError={() => setPostcodeError(true)}
       />
+      <Dialog open={postcodeOpen} onClose={closePostcode} labelledBy="postcode-title">
+        <h2 id="postcode-title">매장 주소 검색</h2>
+        <div ref={postcodeFrame} className="postcode-frame" />
+        <button type="button" className="btn secondary" onClick={closePostcode}>닫기</button>
+      </Dialog>
       <p className="brand">매장 관리자</p>
       <h1>매장 회원가입</h1>
       {/*
