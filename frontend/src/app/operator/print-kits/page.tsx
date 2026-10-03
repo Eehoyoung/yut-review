@@ -179,7 +179,7 @@ export default function PrintKitsPage() {
               </div>
               <div className="list-item">
                 <span className="lead">매장 주소</span>
-                {/* 가입 때 주소를 받지 않는다. 비어 있으면 발송 전에 사장에게 받아야 한다. */}
+                {/* 기존 가입 매장은 주소가 비어 있을 수 있다. 발송 전 확인한다. */}
                 <span className={k.address ? "name" : "error"}>{k.address || "주소 미입력 — 발송 전 확인 필요"}</span>
               </div>
               <div className="list-item">
