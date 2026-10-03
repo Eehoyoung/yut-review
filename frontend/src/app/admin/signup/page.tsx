@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import Script from "next/script";
 import { FormEvent, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { api, errorMessage } from "@/lib/api";
@@ -18,6 +19,7 @@ type Field = {
   autoComplete?: string;
   /** 숫자만 받는 칸. 값이 이 길이를 넘으면 아예 입력되지 않는다. */
   digits?: number;
+  maxLength?: number;
   inputMode?: "numeric" | "email" | "text";
 };
 
@@ -36,6 +38,7 @@ const FIELDS: Field[] = [
   { key: "password", label: "비밀번호", type: "password", hint: "영문과 숫자를 포함해 10자 이상", autoComplete: "new-password" },
   { key: "passwordConfirm", label: "비밀번호 확인", type: "password", autoComplete: "new-password" },
   { key: "storeName", label: "매장 상호명", type: "text", autoComplete: "organization" },
+  { key: "address", label: "매장 주소", type: "text", hint: "층·호수까지 입력해 주세요.", autoComplete: "street-address", maxLength: 255 },
   {
     key: "businessNumber",
     label: "사업자등록번호",
@@ -99,6 +102,22 @@ export default function SignUp() {
   const [termsAgreed, setTermsAgreed] = useState(false);
   const [privacyAgreed, setPrivacyAgreed] = useState(false);
   const [marketing, setMarketing] = useState<Record<string, boolean>>({});
+  const [postcodeReady, setPostcodeReady] = useState(false);
+  const [postcodeError, setPostcodeError] = useState(false);
+
+  const searchAddress = () => {
+    const kakao = (window as typeof window & { kakao?: { Postcode: new (options: { oncomplete: (data: { roadAddress: string; jibunAddress: string; address: string }) => void }) => { open: () => void } } }).kakao;
+    if (!kakao?.Postcode) {
+      setPostcodeError(true);
+      return;
+    }
+    new kakao.Postcode({
+      oncomplete: (data) => {
+        setForm((current) => ({ ...current, address: data.roadAddress || data.jibunAddress || data.address }));
+        requestAnimationFrame(() => document.getElementById("address")?.focus());
+      },
+    }).open();
+  };
 
   // 실패해도 가입을 막지 않는다. 그 경우 개업일자를 묻지 않고 보내고, 검증이 켜져 있으면
   // 서버가 INVALID_OPENING_DATE로 되돌려 준다. 조회 한 번 실패가 가입 화면을 못 쓰게
@@ -177,6 +196,12 @@ export default function SignUp() {
 
   return (
     <main className="screen">
+      <Script
+        src="https://t1.kakaocdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"
+        strategy="afterInteractive"
+        onLoad={() => { setPostcodeReady(true); setPostcodeError(false); }}
+        onError={() => setPostcodeError(true)}
+      />
       <p className="brand">매장 관리자</p>
       <h1>매장 회원가입</h1>
       {/*
@@ -211,14 +236,20 @@ export default function SignUp() {
               type={f.type}
               inputMode={f.inputMode}
               autoComplete={f.autoComplete ?? "off"}
-              maxLength={f.digits}
+              maxLength={f.digits ?? f.maxLength}
               value={form[f.key] ?? ""}
               onChange={(e) =>
                 setForm({ ...form, [f.key]: f.digits ? onlyDigits(e.target.value, f.digits) : e.target.value })
               }
               required
             />
+            {f.key === "address" && (
+              <button type="button" className="btn secondary btn-inline" onClick={searchAddress} disabled={!postcodeReady}>
+                {postcodeReady ? "주소 검색" : "주소 검색 불러오는 중"}
+              </button>
+            )}
             {f.hint && <small className="hint">{f.hint}</small>}
+            {f.key === "address" && postcodeError && <small className="error" role="alert">주소 검색을 불러오지 못했어요. 직접 입력해 주세요.</small>}
           </div>
         ))}
 
@@ -257,7 +288,7 @@ export default function SignUp() {
         <details className="consent-details">
           <summary>개인정보 수집·이용 안내</summary>
           <div className="consent-summary">
-            <p><b>수집:</b> 대표자 이름, 연락처, 이메일, 매장명, 사업자등록번호</p>
+            <p><b>수집:</b> 대표자 이름, 연락처, 이메일, 매장명, 매장 주소, 사업자등록번호</p>
             <p><b>목적:</b> 회원가입, 로그인, 매장 운영과 고객 지원</p>
             <p><b>보유:</b> 서비스 이용 중 및 관계 법령상 보존 기간</p>
             <p>동의를 거부할 수 있으나 회원가입은 할 수 없습니다.</p>
