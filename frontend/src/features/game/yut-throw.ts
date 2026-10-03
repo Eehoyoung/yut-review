@@ -198,9 +198,7 @@ function throwUntilFace(seed: string, index: number, bellyUp: boolean) {
   throw new Error(`yut stick ${index} never settled belly ${bellyUp ? "up" : "down"}`);
 }
 
-// ponytail: 4 sticks x up to 24 attempts x 260 steps run synchronously on the main thread. Typical
-// runs settle in one or two attempts and finish in a few ms; the worst case can block a frame or two
-// on a weak phone. Move this into a Web Worker only if a real device shows the freeze.
+// Browser callers run this in yut-throw.worker.ts so even a worst-case retry cannot block the UI.
 export async function simulateThrow(seed: string, bellies: readonly boolean[]): Promise<ThrowRecording> {
   await initRapier();
   const sticks = bellies.map((bellyUp, index) => throwUntilFace(seed, index, bellyUp));

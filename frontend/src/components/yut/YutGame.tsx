@@ -8,7 +8,8 @@ import type { RevealResponse } from "@/types/api";
 import { frontFacesFor, type YutResult } from "@/features/game/yut-result";
 import { yutCameraPose, type YutCameraPhase } from "@/features/game/yut-camera";
 import { crossSection, STICK_LENGTH, STICK_RADIUS } from "@/features/game/yut-shape";
-import { LANE_SPACING, simulateThrow, spreadFaces, STEP_HZ, warmUpPhysics, type ThrowRecording } from "@/features/game/yut-throw";
+import { LANE_SPACING, spreadFaces, STEP_HZ, type ThrowRecording } from "@/features/game/yut-throw";
+import { simulateThrow, warmUpPhysics } from "@/features/game/yut-throw-client";
 import { YUT_LABEL } from "@/features/labels";
 
 type Phase = YutCameraPhase;
