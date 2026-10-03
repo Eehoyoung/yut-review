@@ -232,7 +232,7 @@ Response:
   "approvalRequired": true
 }
 ```
-`address`는 필수이며 255자 이하의 매장 주소를 받는다. 가입과 동시에 `STORE_ADMIN` 계정, 매장, OWNER 멤버십, 기본 3등급 상품과 기본 가중치 설정이
+`address`는 필수이며 검색한 기본주소와 사용자가 입력한 상세주소를 합친 255자 이하의 매장 주소를 받는다. 가입과 동시에 `STORE_ADMIN` 계정, 매장, OWNER 멤버십, 기본 3등급 상품과 기본 가중치 설정이
 생성된다. 매장은 `PENDING_APPROVAL`로 시작한다. 가입 자체는 성공이고 로그인도 되지만
 **`staffPin`과 `storeToken`은 더 이상 이 응답에서 반환하지 않는다.** QR·직원 PIN·안내물은
 운영자 승인 후에 열린다.

@@ -5,6 +5,7 @@ import { FormEvent, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { api, errorMessage } from "@/lib/api";
 import { BUSINESS_NUMBER_LENGTH, PHONE_LENGTH, onlyDigits } from "@/features/normalize";
+import { combineSignupAddress, SIGNUP_ADDRESS_MAX_LENGTH } from "@/features/signup-address";
 import { ADMIN_PRIVACY_VERSION, MARKETING_SMS_VERSION, TERMS_VERSION, marketingServices } from "@/lib/legal";
 import type { StoreStatus } from "@/types/api";
 import { Dialog } from "@/features/ui/Dialog";
@@ -39,7 +40,8 @@ const FIELDS: Field[] = [
   { key: "password", label: "비밀번호", type: "password", hint: "영문과 숫자를 포함해 10자 이상", autoComplete: "new-password" },
   { key: "passwordConfirm", label: "비밀번호 확인", type: "password", autoComplete: "new-password" },
   { key: "storeName", label: "매장 상호명", type: "text", autoComplete: "organization" },
-  { key: "address", label: "매장 주소", type: "text", hint: "층·호수까지 입력해 주세요.", autoComplete: "street-address", maxLength: 255 },
+  { key: "address", label: "매장 주소", type: "text", hint: "주소 검색으로 도로명 또는 지번 주소를 입력해 주세요.", autoComplete: "address-line1", maxLength: 255 },
+  { key: "detailAddress", label: "상세주소", type: "text", hint: "층·호수 등 나머지 주소를 입력해 주세요.", autoComplete: "address-line2", maxLength: 100 },
   {
     key: "businessNumber",
     label: "사업자등록번호",
@@ -89,6 +91,8 @@ function problem(fields: Field[], form: Record<string, string>, termsAgreed: boo
     if (f.digits && value.length !== f.digits)
       return { id: f.key, message: `${f.label}${hasFinalConsonant(f.label) ? "은" : "는"} 숫자 ${f.digits}자리로 입력해 주세요.` };
   }
+  if (combineSignupAddress(form.address ?? "", form.detailAddress ?? "").length > SIGNUP_ADDRESS_MAX_LENGTH)
+    return { id: "detailAddress", message: `전체 매장 주소는 ${SIGNUP_ADDRESS_MAX_LENGTH}자 이하로 입력해 주세요.` };
   if (!termsAgreed) return { id: "termsAgreed", message: "서비스 이용약관에 동의해 주세요." };
   if (!privacyAgreed) return { id: "privacyAgreed", message: "개인정보 수집·이용에 동의해 주세요." };
   return null;
@@ -126,7 +130,7 @@ export default function SignUp() {
         oncomplete: (data) => {
           setForm((current) => ({ ...current, address: data.roadAddress || data.jibunAddress || data.address }));
           closePostcode();
-          requestAnimationFrame(() => document.getElementById("address")?.focus());
+          requestAnimationFrame(() => document.getElementById("detailAddress")?.focus());
         },
         onclose: closePostcode,
         width: "100%",
@@ -161,7 +165,23 @@ export default function SignUp() {
   const fields = requirements.data?.businessVerification ? [...FIELDS, OPENING_DATE] : FIELDS;
 
   const signUp = useMutation({
-    mutationFn: () => api<SignUpResult>("/admin/auth/signup", { method: "POST", body: JSON.stringify({ ...form, inviteCode: normalizedInvite, termsAgreed, privacyAgreed, termsVersion: TERMS_VERSION, privacyVersion: ADMIN_PRIVACY_VERSION, ...marketing, marketingVersion: MARKETING_SMS_VERSION }) }),
+    mutationFn: () => {
+      const { detailAddress = "", ...signupForm } = form;
+      return api<SignUpResult>("/admin/auth/signup", {
+        method: "POST",
+        body: JSON.stringify({
+          ...signupForm,
+          address: combineSignupAddress(signupForm.address ?? "", detailAddress),
+          inviteCode: normalizedInvite,
+          termsAgreed,
+          privacyAgreed,
+          termsVersion: TERMS_VERSION,
+          privacyVersion: ADMIN_PRIVACY_VERSION,
+          ...marketing,
+          marketingVersion: MARKETING_SMS_VERSION,
+        }),
+      });
+    },
     onSuccess: setDone,
   });
 
